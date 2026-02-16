@@ -1,22 +1,55 @@
-#include <iostream>
+#include "Engine/Platform/PlatformDefine.h"
+#include "Engine/Window/WindowsWindowObject.h"
 
-#include "Render/ResourceTypes.h"
-
-int main()
+int WINAPI wWinMain(
+	HandleInstance windowInstanceHandle,
+	HandleInstance previousWindowInstanceHandle,
+	WideStringPointer commandLine,
+	int commandShow)
 {
-    DomainExpansion::MeshAsset meshAsset;
-    meshAsset.name = "DefaultMeshAsset";
-    meshAsset.vertexCount = 3;
-    meshAsset.indexCount = 3;
+	unused(windowInstanceHandle);
+	unused(previousWindowInstanceHandle);
+	unused(commandLine);
+	unused(commandShow);
 
-    DomainExpansion::MeshObject meshObject;
-    meshObject.name = "DefaultMeshObject";
-    meshObject.vertexBufferIdentifier = 1;
-    meshObject.indexBufferIdentifier = 2;
+	WindowCreateOptions windowCreateOptions = {};
+	windowCreateOptions.windowTitle = L"DomainExpansion Engine";
+	windowCreateOptions.initialClientWidth = 1600;
+	windowCreateOptions.initialClientHeight = 900;
+	windowCreateOptions.startVisible = true;
+	windowCreateOptions.startBorderlessFullscreen = false;
 
-    std::cout << "DomainExpansion Engine bootstrap started." << std::endl;
-    std::cout << "CPU resource: " << meshAsset.name << ", vertices: " << meshAsset.vertexCount << std::endl;
-    std::cout << "GPU resource: " << meshObject.name << ", vertex buffer id: " << meshObject.vertexBufferIdentifier << std::endl;
+	WindowsWindowObject windowsWindowObject;
+	WindowEventCallbacks windowEventCallbacks = {};
+	windowEventCallbacks.onResize = [](uint32 width, uint32 height)
+	{
+		output << "Window resized to " << width << "x" << height << lineBreak;
+	};
+	windowEventCallbacks.onActivationChanged = [](bool isActive)
+	{
+		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
+	};
+	windowsWindowObject.setEventCallbacks(windowEventCallbacks);
 
-    return 0;
+	if (!windowsWindowObject.create(windowCreateOptions))
+	{
+		error << "Failed to create main window." << lineBreak;
+		return -1;
+	}
+
+	while (windowsWindowObject.pumpMessages())
+	{
+		if (windowsWindowObject.isWindowMinimized())
+		{
+			Sleep(16);
+			continue;
+		}
+
+		Sleep(1);
+	}
+
+	windowsWindowObject.destroy();
+	return 0;
 }
+
+

@@ -1,21 +1,18 @@
-#pragma once
+﻿#pragma once
 
-#include <cstdint>
-#include <string>
+#include "Engine/Platform/PlatformDefine.h"
 
-namespace DomainExpansion
+struct MeshAsset
 {
-    struct MeshAsset
-    {
-        std::string name;
-        std::uint32_t vertexCount = 0;
-        std::uint32_t indexCount = 0;
-    };
+	string name;
+	uint32 vertexCount = 0;
+	uint32 indexCount = 0;
+};
 
-    struct MeshObject
-    {
-        std::string name;
-        std::uint32_t vertexBufferIdentifier = 0;
-        std::uint32_t indexBufferIdentifier = 0;
-    };
-}
+struct MeshObject
+{
+	string name;
+	uint32 vertexBufferIdentifier = 0;
+	uint32 indexBufferIdentifier = 0;
+};
+

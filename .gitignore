@@ -20,6 +20,7 @@ DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
 
 # Documentation and notes
 *.md
+*.html
 
 # Scripts
 *.ps1
