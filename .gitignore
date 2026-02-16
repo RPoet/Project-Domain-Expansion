@@ -1,0 +1,25 @@
+# Visual Studio and local workspace
+.vs/
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# Build artifacts
+DomainExpansion/Engine/Artifacts/Bin/
+DomainExpansion/Engine/Artifacts/Intermediate/
+DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
+
+# MSVC generated files
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.tlog
+*.log
+
+# Documentation and notes
+*.md
+
+# Scripts
+*.ps1

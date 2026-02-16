@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Code Files">
+      <UniqueIdentifier>{D5DD39DF-E80B-4E73-B01F-6537408F54E2}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{EDAAED8A-1DE3-4E7F-9B4A-E9CEBD04D6D7}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;inl;inc;ipp</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Engine\Code\Engine\Main.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Engine\Code\Render\ResourceTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
