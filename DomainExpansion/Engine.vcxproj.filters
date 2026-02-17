@@ -67,6 +67,9 @@
     <ClInclude Include="Engine\Code\Engine\Framework\World.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h">
       <Filter>Header Files</Filter>
     </ClInclude>

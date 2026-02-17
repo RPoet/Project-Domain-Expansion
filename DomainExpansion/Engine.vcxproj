@@ -101,6 +101,7 @@
     <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\World.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineAndroid.h" />

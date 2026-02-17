@@ -1,5 +1,6 @@
 #include "Engine/Framework/Component.h"
 #include "Engine/Framework/Framework.h"
+#include "Engine/Tests/EntityTest.h"
 
 class EmptyComponent : public Component
 {
@@ -300,9 +301,12 @@ private:
 	uint32 childTickCount = 0;
 };
 
-void Framework::registerTest()
+unique_pointer<FrameworkTestCase> createFrameworkEntityAddRemoveTestCase()
 {
-	clearTestCases();
-	addTestCase(unique_pointer<FrameworkTestCase>(new FrameworkEntityAddRemoveTestCase()));
-	addTestCase(unique_pointer<FrameworkTestCase>(new FrameworkEntityUpdateTestCase()));
+	return unique_pointer<FrameworkTestCase>(new FrameworkEntityAddRemoveTestCase());
+}
+
+unique_pointer<FrameworkTestCase> createFrameworkEntityUpdateTestCase()
+{
+	return unique_pointer<FrameworkTestCase>(new FrameworkEntityUpdateTestCase());
 }
