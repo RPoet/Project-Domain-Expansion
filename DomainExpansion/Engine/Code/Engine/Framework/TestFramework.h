@@ -9,6 +9,7 @@ enum class FrameworkExecutionFlow : uint32
 {
 	worldFlow = 0,
 	testFlow = 1,
+	backendFlow = 2,
 };
 
 struct FrameworkTestSummary

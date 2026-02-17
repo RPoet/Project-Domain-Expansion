@@ -1,6 +1,4 @@
 #include "Engine/Framework/FrameworkTestCase.h"
-#include "Engine/Framework/Framework.h"
-#include "Engine/Tests/EntityTest.h"
 
 void FrameworkTestCase::resetAssertions()
 {
@@ -30,11 +28,4 @@ bool FrameworkTestCase::expectCondition(const bool condition, const char* condit
 	++failedAssertionCount;
 	error << "[FrameworkTest][Fail][" << getTestCaseName() << "] " << conditionName << lineBreak;
 	return false;
-}
-
-void Framework::registerTest()
-{
-	clearTestCases();
-	addTestCase(createFrameworkEntityAddRemoveTestCase());
-	addTestCase(createFrameworkEntityUpdateTestCase());
 }

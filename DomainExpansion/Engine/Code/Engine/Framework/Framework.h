@@ -3,12 +3,35 @@
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Framework/TestFramework.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Window/WindowsWindowObject.h"
+#include "Engine/Module/Module.h"
+
+#include "Render/Backends/RenderBackend.h"
+#include "Render/Renderer.h"
+#include "Render/Screen.h"
+
+struct FrameworkBackendOptions
+{
+	RenderBackendType backendType = RenderBackendType::dx12;
+	uint32 frameCount = 120;
+	bool forceResize = false;
+	bool enableDebugLayer = false;
+};
+
+struct FrameworkInitializeOptions
+{
+	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::testFlow;
+	FrameworkBackendOptions backendOptions = {};
+};
 
 class Framework
 {
 public:
 	explicit Framework(FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow);
 	~Framework() = default;
+
+	bool initialize(WindowsWindowObject& windowsWindowObject, const FrameworkInitializeOptions& initializeOptions);
+	void shutdown();
 
 	void setExecutionFlow(FrameworkExecutionFlow executionFlow);
 	FrameworkExecutionFlow getExecutionFlow() const;
@@ -24,18 +47,50 @@ public:
 	const World* getActiveWorld() const;
 	uint32 getActiveWorldIndex() const;
 
-	bool tick(float deltaTimeSeconds);
+	bool update();
 	void registerTest();
 	void addTestCase(unique_pointer<FrameworkTestCase> testCase);
 	void clearTestCases();
 	bool isTestFlowCompleted() const;
 	const FrameworkTestSummary& getTestSummary() const;
+	bool isExecutionCompleted() const;
+	int32 getRuntimeExitCode() const;
+	const FrameworkBackendOptions& getBackendOptions() const;
+	WindowsWindowObject* getWindowObject();
+	const WindowsWindowObject* getWindowObject() const;
+	void flushRenderCommandQueue();
+	void onWindowResize(uint32 width, uint32 height);
+
+	void registerModule();
+	void addModule(const shared_pointer<Module>& module);
 
 private:
+	bool initializeModules();
+	void updateModules();
+	void shutdownModules();
+	bool initializeBackendFlow();
+	bool tickBackendFlow(float deltaTimeSeconds);
+	void finalizeTestFlow();
+	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;
 
 	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
 	TestFramework testFramework;
 	vector<unique_pointer<World>> worldStorage;
+	vector<shared_pointer<Module>> moduleStorage;
 	uint32 activeWorldIndex = invalidWorldIndex;
+	WindowsWindowObject* windowsWindowObject = nullptr;
+	FrameworkBackendOptions backendOptions = {};
+	Renderer renderer;
+	Screen screen;
+	uint32 renderedBackendFrameCount = 0;
+	uint32 backendResizeCount = 0;
+	bool backendResizeFailed = false;
+	bool backendCreated = false;
+	bool backendForcedResizeSubmitted = false;
+	bool backendFinalizePending = false;
+	bool executionCompleted = false;
+	bool moduleRegistrationCompleted = false;
+	bool moduleInitializationCompleted = false;
+	int32 runtimeExitCode = 0;
 };

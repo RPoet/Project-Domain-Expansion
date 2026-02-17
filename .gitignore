@@ -24,3 +24,5 @@ DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
 
 # Scripts
 *.ps1
+
+/DomainExpansion/vs-chromium-project.txt

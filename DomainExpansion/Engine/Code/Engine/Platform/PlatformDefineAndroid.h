@@ -59,4 +59,8 @@ using HandleMonitor = void*;
 using Atom = uint32;
 using Bool = bool;
 using HandleBrush = void*;
+using HandleEvent = void*;
+
+template <typename type_name>
+using platform_com_pointer = type_name*;
 

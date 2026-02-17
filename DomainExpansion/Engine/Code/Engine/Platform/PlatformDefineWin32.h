@@ -5,6 +5,7 @@
 #endif
 
 #include <Windows.h>
+#include <wrl/client.h>
 
 using HandleInstance = HINSTANCE;
 using HandleWindow = HWND;
@@ -28,4 +29,8 @@ using Message = MSG;
 using Atom = ATOM;
 using Bool = BOOL;
 using HandleBrush = HBRUSH;
+using HandleEvent = HANDLE;
+
+template <typename type_name>
+using platform_com_pointer = Microsoft::WRL::ComPtr<type_name>;
 

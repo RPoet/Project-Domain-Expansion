@@ -24,7 +24,7 @@ public:
 	bool attachComponent(uint32 entityIndex, unique_pointer<Component> component);
 	bool removeEntity(uint32 entityIndex);
 	bool removeComponent(uint32 entityIndex, uint32 componentIndex);
-	bool tick(float deltaTimeSeconds);
+	void tick(float deltaTimeSeconds);
 	void clear();
 
 	uint32 getEntityCount() const;

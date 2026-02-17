@@ -20,6 +20,15 @@
     <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkBackend.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTest.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -29,6 +38,12 @@
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\World.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -36,6 +51,39 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\EntityTest.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\RenderBackend.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\RenderCommand.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Screen.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Renderer.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -67,7 +115,31 @@
     <ClInclude Include="Engine\Code\Engine\Framework\World.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Module.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Singleton.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Timer\Timer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\EmptyComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\UpdateOrderRecordingComponent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h">
@@ -80,6 +152,60 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineApple.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderTargetView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12ResourceObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\CommandList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\CommandQueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\RenderCommand.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\RenderTargetView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\ResourceObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\ResourceState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\SyncObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\SwapChain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Screen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\ResourceTypes.h">

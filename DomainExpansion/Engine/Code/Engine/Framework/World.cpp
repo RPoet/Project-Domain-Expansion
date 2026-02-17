@@ -339,7 +339,7 @@ bool World::removeComponent(const uint32 entityIndex, const uint32 componentInde
 	return true;
 }
 
-bool World::tick(const float deltaTimeSeconds)
+void World::tick(const float deltaTimeSeconds)
 {
 	traversalEntityIndices.clear();
 	traversalEntityIndices.reserve(entityStorage.size());
@@ -389,8 +389,6 @@ bool World::tick(const float deltaTimeSeconds)
 			++childCount;
 		}
 	}
-
-	return true;
 }
 
 void World::clear()
