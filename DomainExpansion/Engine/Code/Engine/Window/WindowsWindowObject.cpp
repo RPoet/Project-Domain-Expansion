@@ -317,7 +317,7 @@ void WindowsWindowObject::setCursorCaptured(const bool captured)
 
 void WindowsWindowObject::setEventCallbacks(WindowEventCallbacks callbacks)
 {
-	windowEventCallbacks = move(callbacks);
+	windowEventCallbacks = moveValue(callbacks);
 }
 
 HandleInstance WindowsWindowObject::getWindowInstanceHandle() const

@@ -3,8 +3,11 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
+#include <memory>
+#include <memory_resource>
 #include <string>
 #include <utility>
+#include <vector>
 
 #ifndef unused
 #define unused(x) (void)(x)
@@ -17,6 +20,8 @@ using string = std::string;
 using wstring = std::wstring;
 using output_stream = std::ostream;
 using error_stream = std::ostream;
+using memory_resource = std::pmr::memory_resource;
+using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
 
 inline output_stream& output = std::cout;
 inline error_stream& error = std::cerr;
@@ -26,9 +31,23 @@ template <typename signature>
 using function = std::function<signature>;
 
 template <typename type_name>
-constexpr decltype(auto) move(type_name&& value) noexcept
+using vector = std::vector<type_name>;
+
+template <typename type_name>
+using unique_pointer = std::unique_ptr<type_name>;
+
+template <typename type_name>
+using pooled_vector = std::pmr::vector<type_name>;
+
+template <typename type_name>
+constexpr decltype(auto) moveValue(type_name&& value) noexcept
 {
 	return std::move(value);
+}
+
+inline memory_resource* getDefaultMemoryResource()
+{
+	return std::pmr::get_default_resource();
 }
 
 #if defined(_WIN32)

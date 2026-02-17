@@ -1,3 +1,4 @@
+#include "Engine/Framework/Framework.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Engine/Window/WindowsWindowObject.h"
 
@@ -37,12 +38,40 @@ int WINAPI wWinMain(
 		return -1;
 	}
 
+	Framework framework(FrameworkExecutionFlow::testFlow);
+	framework.registerTest();
+
 	while (windowsWindowObject.pumpMessages())
 	{
 		if (windowsWindowObject.isWindowMinimized())
 		{
 			Sleep(16);
 			continue;
+		}
+
+		if (!framework.tick(0.016f))
+		{
+			error << "Framework tick failed." << lineBreak;
+			break;
+		}
+
+		if (framework.isTestFlowCompleted())
+		{
+			const FrameworkTestSummary& frameworkTestSummary = framework.getTestSummary();
+			if (frameworkTestSummary.failedTestCaseCount == 0)
+			{
+				output << "Framework tests completed successfully. passedCase="
+					  << frameworkTestSummary.passedTestCaseCount
+					  << ", totalCase=" << frameworkTestSummary.totalTestCaseCount << lineBreak;
+			}
+			else
+			{
+				error << "Framework tests failed. failedCase=" << frameworkTestSummary.failedTestCaseCount
+					  << ", failedAssertion=" << frameworkTestSummary.failedAssertionCount
+					  << ", totalAssertion=" << frameworkTestSummary.totalAssertionCount << lineBreak;
+			}
+
+			break;
 		}
 
 		Sleep(1);

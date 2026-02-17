@@ -82,9 +82,25 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\EntityTest.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\World.cpp" />
     <ClCompile Include="Engine\Code\Engine\Window\WindowsWindowObject.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkConstants.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\Framework.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\TestFramework.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\World.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineAndroid.h" />
