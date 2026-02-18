@@ -30,7 +30,9 @@ public:
 		ResourceObject* resourceObject,
 		ResourceState beforeState,
 		ResourceState afterState) = 0;
+	// TO DO : Migrate render-target view binding to unified descriptor/view binding path.
 	virtual void setRenderTarget(RenderTargetView* renderTargetView) = 0;
+	// TO DO : Migrate clear operation to the same unified descriptor/view binding path.
 	virtual void clearRenderTarget(
 		RenderTargetView* renderTargetView,
 		float red,

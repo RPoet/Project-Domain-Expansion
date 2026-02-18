@@ -2,25 +2,26 @@
 #include "Render/Backends/RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 
-bool Dx12SwapChain::initialize(RenderBackend& renderBackend, const uint32 width, const uint32 height)
+bool Dx12SwapChain::initialize(
+	RenderBackend& renderBackend,
+	const uint32 width,
+	const uint32 height)
 {
 	shutdown();
 
 	const HandleWindow windowHandle = renderBackend.getWindowHandle();
-	const uint32 frameBufferCount = renderBackend.getBackBufferCount();
 	IDXGIFactory6* nativeDxgiFactory = static_cast<IDXGIFactory6*>(renderBackend.getNativeGraphicsFactory());
 	ID3D12CommandQueue* nativeCommandQueue = static_cast<ID3D12CommandQueue*>(renderBackend.getNativeGraphicsCommandQueue());
 
 	if (windowHandle == nullptr
 		|| nativeDxgiFactory == nullptr
-		|| nativeCommandQueue == nullptr
-		|| frameBufferCount == 0)
+		|| nativeCommandQueue == nullptr)
 	{
 		return false;
 	}
 
 	this->windowHandle = windowHandle;
-	this->frameBufferCount = frameBufferCount;
+	frameBufferCount = defaultFrameBufferCount;
 
 	uint32 createWidth = width;
 	if (createWidth == 0)
@@ -75,7 +76,6 @@ bool Dx12SwapChain::initialize(RenderBackend& renderBackend, const uint32 width,
 
 bool Dx12SwapChain::resize(const uint32 width, const uint32 height)
 {
-
 	if (swapChain == nullptr)
 	{
 		return false;
@@ -140,14 +140,9 @@ ResourceObject* Dx12SwapChain::getCurrentBackBufferResource()
 	return getBackBufferResource(getCurrentImageIndex());
 }
 
-uint32 Dx12SwapChain::getBackBufferWidth() const
+uint32 Dx12SwapChain::getFrameBufferCount() const
 {
-	return backBufferWidth;
-}
-
-uint32 Dx12SwapChain::getBackBufferHeight() const
-{
-	return backBufferHeight;
+	return frameBufferCount;
 }
 
 bool Dx12SwapChain::isRenderable() const

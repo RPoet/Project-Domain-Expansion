@@ -105,16 +105,6 @@ void RenderBackendModule::destroyBackend()
 	}
 }
 
-bool RenderBackendModule::resizeBackend(const uint32 width, const uint32 height)
-{
-	if (renderBackend == nullptr)
-	{
-		return false;
-	}
-
-	return renderBackend->resize(width, height);
-}
-
 RenderBackend* RenderBackendModule::getBackend()
 {
 	return renderBackend.get();

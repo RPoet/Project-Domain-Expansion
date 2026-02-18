@@ -21,33 +21,6 @@ Dx12RenderBackend::Dx12RenderBackend()
 	}
 }
 
-bool Dx12RenderBackend::resize(const uint32 width, const uint32 height)
-{
-	if (!isCreated())
-	{
-		return false;
-	}
-
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (dx12SwapChain == nullptr)
-	{
-		return false;
-	}
-
-	if (!waitForGpuIdle())
-	{
-		return false;
-	}
-
-	destroyBackBufferViewHeap();
-	if (!dx12SwapChain->resize(width, height))
-	{
-		return false;
-	}
-
-	return createBackBufferViewHeap();
-}
-
 CommandList* Dx12RenderBackend::acquireCommandList()
 {
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
@@ -100,31 +73,33 @@ SyncObject* Dx12RenderBackend::getSyncObject()
 
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
 {
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	// TO DO : Replace per-view descriptor heap allocation with descriptor/view allocator module.
 	Dx12ResourceObject* dx12ResourceObject = static_cast<Dx12ResourceObject*>(resourceObject);
-	if (dx12SwapChain == nullptr
+	if (device == nullptr
 		|| dx12ResourceObject == nullptr
-		|| dx12ResourceObject->resource == nullptr
-		|| device == nullptr
-		|| backBufferViewHeap == nullptr
-		|| backBufferViewDescriptorSize == 0)
+		|| dx12ResourceObject->resource == nullptr)
 	{
 		return nullptr;
 	}
 
-	const uint32 imageIndex = dx12SwapChain->getCurrentImageIndex();
-	if (imageIndex >= frameBufferCount)
+	com_pointer<ID3D12DescriptorHeap> descriptorHeap;
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDescription = {};
+	descriptorHeapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	descriptorHeapDescription.NumDescriptors = 1;
+	descriptorHeapDescription.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	descriptorHeapDescription.NodeMask = 0;
+	if (FAILED(device->CreateDescriptorHeap(&descriptorHeapDescription, IID_PPV_ARGS(&descriptorHeap))))
 	{
 		return nullptr;
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle = backBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
-	descriptorHandle.ptr += static_cast<SIZE_T>(backBufferViewDescriptorSize) * imageIndex;
+	D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	device->CreateRenderTargetView(dx12ResourceObject->resource.Get(), nullptr, descriptorHandle);
 
-	unique_pointer<Dx12RenderTargetView> backBufferView(new Dx12RenderTargetView());
-	backBufferView->descriptorHandle = descriptorHandle;
-	return backBufferView.release();
+	unique_pointer<Dx12RenderTargetView> renderTargetView(new Dx12RenderTargetView());
+	renderTargetView->descriptorHeap = descriptorHeap;
+	renderTargetView->descriptorHandle = descriptorHandle;
+	return renderTargetView.release();
 }
 
 void Dx12RenderBackend::destroyRenderTargetView(RenderTargetView* renderTargetView)
@@ -135,33 +110,6 @@ void Dx12RenderBackend::destroyRenderTargetView(RenderTargetView* renderTargetVi
 HandleWindow Dx12RenderBackend::getWindowHandle() const
 {
 	return windowHandle;
-}
-
-uint32 Dx12RenderBackend::getBackBufferWidth() const
-{
-	const Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (dx12SwapChain == nullptr)
-	{
-		return 0;
-	}
-
-	return dx12SwapChain->getBackBufferWidth();
-}
-
-uint32 Dx12RenderBackend::getBackBufferHeight() const
-{
-	const Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (dx12SwapChain == nullptr)
-	{
-		return 0;
-	}
-
-	return dx12SwapChain->getBackBufferHeight();
-}
-
-uint32 Dx12RenderBackend::getBackBufferCount() const
-{
-	return frameBufferCount;
 }
 
 void* Dx12RenderBackend::getNativeGraphicsDevice()
@@ -276,7 +224,7 @@ bool Dx12RenderBackend::createSyncObject()
 	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(syncObject.get());
 	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
 	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (dx12SyncObject == nullptr || dx12CommandQueue == nullptr)
+	if (dx12SyncObject == nullptr || dx12CommandQueue == nullptr || dx12SwapChain == nullptr)
 	{
 		return false;
 	}
@@ -285,16 +233,11 @@ bool Dx12RenderBackend::createSyncObject()
 		device,
 		dx12CommandQueue,
 		dx12SwapChain,
-		frameBufferCount);
+		dx12SwapChain->getFrameBufferCount());
 }
 
 bool Dx12RenderBackend::createBackendResources()
 {
-	if (!createBackBufferViewHeap())
-	{
-		return false;
-	}
-
 	return createCommandResources();
 }
 
@@ -310,7 +253,6 @@ void Dx12RenderBackend::destroyBackendResources()
 	}
 
 	resetCommandListPoolUsage();
-	destroyBackBufferViewHeap();
 }
 
 void Dx12RenderBackend::destroySyncObject()
@@ -373,35 +315,6 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 	return SUCCEEDED(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&dxgiFactory)));
 }
 
-bool Dx12RenderBackend::createBackBufferViewHeap()
-{
-	destroyBackBufferViewHeap();
-
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (device == nullptr || dx12SwapChain == nullptr)
-	{
-		return false;
-	}
-
-	if (!dx12SwapChain->isRenderable())
-	{
-		return true;
-	}
-
-	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDescription = {};
-	descriptorHeapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	descriptorHeapDescription.NumDescriptors = frameBufferCount;
-	descriptorHeapDescription.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	descriptorHeapDescription.NodeMask = 0;
-	if (FAILED(device->CreateDescriptorHeap(&descriptorHeapDescription, IID_PPV_ARGS(&backBufferViewHeap))))
-	{
-		return false;
-	}
-
-	backBufferViewDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	return true;
-}
-
 bool Dx12RenderBackend::createCommandResources()
 {
 	CommandListInitializeOptions initializeOptions = {};
@@ -424,12 +337,6 @@ bool Dx12RenderBackend::createCommandResources()
 
 	resetCommandListPoolUsage();
 	return true;
-}
-
-void Dx12RenderBackend::destroyBackBufferViewHeap()
-{
-	backBufferViewHeap.Reset();
-	backBufferViewDescriptorSize = 0;
 }
 
 bool Dx12RenderBackend::waitForGpuIdle()

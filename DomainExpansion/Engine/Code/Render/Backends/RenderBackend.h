@@ -35,7 +35,6 @@ public:
 
 	bool create(const RenderBackendCreateOptions& options);
 	void destroy();
-	virtual bool resize(uint32 width, uint32 height) = 0;
 	virtual CommandList* acquireCommandList() = 0;
 	virtual void releaseCommandList(CommandList* commandList) = 0;
 	virtual CommandQueue* getCommandQueue() = 0;
@@ -44,9 +43,6 @@ public:
 	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
 	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
 	virtual HandleWindow getWindowHandle() const = 0;
-	virtual uint32 getBackBufferWidth() const = 0;
-	virtual uint32 getBackBufferHeight() const = 0;
-	virtual uint32 getBackBufferCount() const = 0;
 	virtual void* getNativeGraphicsDevice() = 0;
 	virtual void* getNativeGraphicsFactory() = 0;
 	virtual void* getNativeGraphicsCommandQueue() = 0;

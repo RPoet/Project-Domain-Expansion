@@ -113,7 +113,20 @@ void Framework::onWindowResize(const uint32 width, const uint32 height)
 		return;
 	}
 
-	if (renderBackendModule->resizeBackend(width, height))
+	RenderBackend* renderBackend = renderBackendModule->getBackend();
+	if (renderBackend == nullptr)
+	{
+		return;
+	}
+
+	SyncObject* syncObject = renderBackend->getSyncObject();
+	if (syncObject != nullptr)
+	{
+		syncObject->wait();
+	}
+
+	SwapChain* swapChain = renderBackend->getSwapChain();
+	if (swapChain != nullptr && swapChain->resize(width, height))
 	{
 		if (executionFlow == FrameworkExecutionFlow::backendFlow)
 		{

@@ -16,7 +16,6 @@ public:
 
 	bool createBackend(const RenderBackendCreateOptions& createOptions);
 	void destroyBackend();
-	bool resizeBackend(uint32 width, uint32 height);
 	RenderBackend* getBackend();
 	const RenderBackend* getBackend() const;
 	bool isBackendCreated() const;

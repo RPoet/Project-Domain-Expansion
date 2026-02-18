@@ -13,18 +13,19 @@ public:
 	Dx12SwapChain() = default;
 
 	bool initialize(RenderBackend& renderBackend, uint32 width, uint32 height);
-	bool resize(uint32 width, uint32 height);
+	bool resize(uint32 width, uint32 height) override;
 	void shutdown();
 	ResourceObject* getBackBufferResource(uint32 imageIndex);
 	ResourceObject* getCurrentBackBufferResource() override;
-	uint32 getBackBufferWidth() const;
-	uint32 getBackBufferHeight() const;
+	uint32 getFrameBufferCount() const;
 
 	bool isRenderable() const override;
 	uint32 getCurrentImageIndex() const override;
 	void present() override;
 
 private:
+	static constexpr uint32 defaultFrameBufferCount = 2;
+
 	bool createBackBufferResources();
 	void releaseBackBufferResources();
 
