@@ -8,6 +8,7 @@ class Renderer
 public:
 	void setBackend(RenderBackend* renderBackend);
 	void render(CommandList* commandList);
+	ResourceObject* getOutputResource() const;
 
 private:
 	struct ClearColorValue
@@ -20,4 +21,5 @@ private:
 
 	RenderBackend* renderBackend = nullptr;
 	ClearColorValue clearColor = {};
+	ResourceObject* outputResource = nullptr;
 };

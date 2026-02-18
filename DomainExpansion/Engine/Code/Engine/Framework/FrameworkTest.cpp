@@ -55,5 +55,5 @@ void Framework::finalizeTestFlow()
 	}
 
 	executionCompleted = true;
-	runtimeExitCode = 0;
+	runtimeExitCode = FrameworkRuntimeExitCode::success;
 }

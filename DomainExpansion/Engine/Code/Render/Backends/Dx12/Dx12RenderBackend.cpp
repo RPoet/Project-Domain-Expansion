@@ -1,14 +1,16 @@
 #include "Render/Backends/Dx12/Dx12RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
+#include "Render/Backends/Dx12/Dx12RenderTargetView.h"
+#include "Render/Backends/Dx12/Dx12ResourceObject.h"
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 
 Dx12RenderBackend::Dx12RenderBackend()
 {
-	primaryCommandQueue.reset(new Dx12CommandQueue());
-	primarySwapChain.reset(new Dx12SwapChain());
-	primarySyncObject.reset(new Dx12SyncObject());
+	commandQueue.reset(new Dx12CommandQueue());
+	swapChain.reset(new Dx12SwapChain());
+	syncObject.reset(new Dx12SyncObject());
 
 	graphicsCommandListPool.reserve(graphicsCommandListPoolCapacity);
 	graphicsCommandListInUse.reserve(graphicsCommandListPoolCapacity);
@@ -26,25 +28,24 @@ bool Dx12RenderBackend::resize(const uint32 width, const uint32 height)
 		return false;
 	}
 
-	if (!waitForGpuIdle())
-	{
-		return false;
-	}
-
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(primarySwapChain.get());
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
 	if (dx12SwapChain == nullptr)
 	{
 		return false;
 	}
 
+	if (!waitForGpuIdle())
+	{
+		return false;
+	}
+
+	destroyBackBufferViewHeap();
 	if (!dx12SwapChain->resize(width, height))
 	{
 		return false;
 	}
 
-	backBufferWidth = width;
-	backBufferHeight = height;
-	return true;
+	return createBackBufferViewHeap();
 }
 
 CommandList* Dx12RenderBackend::acquireCommandList()
@@ -82,19 +83,53 @@ void Dx12RenderBackend::releaseCommandList(CommandList* commandList)
 	}
 }
 
-CommandQueue* Dx12RenderBackend::getPrimaryCommandQueue()
+CommandQueue* Dx12RenderBackend::getCommandQueue()
 {
-	return primaryCommandQueue.get();
+	return commandQueue.get();
 }
 
-SwapChain* Dx12RenderBackend::getPrimarySwapChain()
+SwapChain* Dx12RenderBackend::getSwapChain()
 {
-	return primarySwapChain.get();
+	return swapChain.get();
 }
 
-SyncObject* Dx12RenderBackend::getPrimarySyncObject()
+SyncObject* Dx12RenderBackend::getSyncObject()
 {
-	return primarySyncObject.get();
+	return syncObject.get();
+}
+
+RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
+{
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	Dx12ResourceObject* dx12ResourceObject = static_cast<Dx12ResourceObject*>(resourceObject);
+	if (dx12SwapChain == nullptr
+		|| dx12ResourceObject == nullptr
+		|| dx12ResourceObject->resource == nullptr
+		|| device == nullptr
+		|| backBufferViewHeap == nullptr
+		|| backBufferViewDescriptorSize == 0)
+	{
+		return nullptr;
+	}
+
+	const uint32 imageIndex = dx12SwapChain->getCurrentImageIndex();
+	if (imageIndex >= frameBufferCount)
+	{
+		return nullptr;
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle = backBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
+	descriptorHandle.ptr += static_cast<SIZE_T>(backBufferViewDescriptorSize) * imageIndex;
+	device->CreateRenderTargetView(dx12ResourceObject->resource.Get(), nullptr, descriptorHandle);
+
+	unique_pointer<Dx12RenderTargetView> backBufferView(new Dx12RenderTargetView());
+	backBufferView->descriptorHandle = descriptorHandle;
+	return backBufferView.release();
+}
+
+void Dx12RenderBackend::destroyRenderTargetView(RenderTargetView* renderTargetView)
+{
+	delete renderTargetView;
 }
 
 HandleWindow Dx12RenderBackend::getWindowHandle() const
@@ -104,12 +139,24 @@ HandleWindow Dx12RenderBackend::getWindowHandle() const
 
 uint32 Dx12RenderBackend::getBackBufferWidth() const
 {
-	return backBufferWidth;
+	const Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	if (dx12SwapChain == nullptr)
+	{
+		return 0;
+	}
+
+	return dx12SwapChain->getBackBufferWidth();
 }
 
 uint32 Dx12RenderBackend::getBackBufferHeight() const
 {
-	return backBufferHeight;
+	const Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	if (dx12SwapChain == nullptr)
+	{
+		return 0;
+	}
+
+	return dx12SwapChain->getBackBufferHeight();
 }
 
 uint32 Dx12RenderBackend::getBackBufferCount() const
@@ -129,7 +176,7 @@ void* Dx12RenderBackend::getNativeGraphicsFactory()
 
 void* Dx12RenderBackend::getNativeGraphicsCommandQueue()
 {
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(primaryCommandQueue.get());
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
 	if (dx12CommandQueue == nullptr)
 	{
 		return nullptr;
@@ -203,7 +250,7 @@ bool Dx12RenderBackend::createCommandQueue()
 		return false;
 	}
 
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(primaryCommandQueue.get());
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
 	if (dx12CommandQueue == nullptr)
 	{
 		return false;
@@ -215,23 +262,20 @@ bool Dx12RenderBackend::createCommandQueue()
 
 bool Dx12RenderBackend::createSwapChain(uint32 width, uint32 height)
 {
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(primarySwapChain.get());
-	if (
-		dx12SwapChain == nullptr)
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	if (dx12SwapChain == nullptr)
 	{
 		return false;
 	}
 
-	backBufferWidth = width;
-	backBufferHeight = height;
-	return dx12SwapChain->initialize(*this);
+	return dx12SwapChain->initialize(*this, width, height);
 }
 
 bool Dx12RenderBackend::createSyncObject()
 {
-	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(primarySyncObject.get());
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(primaryCommandQueue.get());
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(primarySwapChain.get());
+	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(syncObject.get());
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
 	if (dx12SyncObject == nullptr || dx12CommandQueue == nullptr)
 	{
 		return false;
@@ -246,6 +290,11 @@ bool Dx12RenderBackend::createSyncObject()
 
 bool Dx12RenderBackend::createBackendResources()
 {
+	if (!createBackBufferViewHeap())
+	{
+		return false;
+	}
+
 	return createCommandResources();
 }
 
@@ -261,11 +310,12 @@ void Dx12RenderBackend::destroyBackendResources()
 	}
 
 	resetCommandListPoolUsage();
+	destroyBackBufferViewHeap();
 }
 
 void Dx12RenderBackend::destroySyncObject()
 {
-	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(primarySyncObject.get());
+	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(syncObject.get());
 	if (dx12SyncObject != nullptr)
 	{
 		dx12SyncObject->shutdown();
@@ -274,7 +324,7 @@ void Dx12RenderBackend::destroySyncObject()
 
 void Dx12RenderBackend::destroySwapChain()
 {
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(primarySwapChain.get());
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
 	if (dx12SwapChain != nullptr)
 	{
 		dx12SwapChain->shutdown();
@@ -283,7 +333,7 @@ void Dx12RenderBackend::destroySwapChain()
 
 void Dx12RenderBackend::destroyCommandQueue()
 {
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(primaryCommandQueue.get());
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
 	if (dx12CommandQueue != nullptr)
 	{
 		dx12CommandQueue->setNativeCommandQueue(nullptr);
@@ -295,8 +345,6 @@ void Dx12RenderBackend::destroyDevice()
 	device.Reset();
 	dxgiFactory.Reset();
 	windowHandle = nullptr;
-	backBufferWidth = 0;
-	backBufferHeight = 0;
 }
 
 void Dx12RenderBackend::beforeDestroy()
@@ -325,9 +373,41 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 	return SUCCEEDED(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&dxgiFactory)));
 }
 
+bool Dx12RenderBackend::createBackBufferViewHeap()
+{
+	destroyBackBufferViewHeap();
+
+	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
+	if (device == nullptr || dx12SwapChain == nullptr)
+	{
+		return false;
+	}
+
+	if (!dx12SwapChain->isRenderable())
+	{
+		return true;
+	}
+
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDescription = {};
+	descriptorHeapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	descriptorHeapDescription.NumDescriptors = frameBufferCount;
+	descriptorHeapDescription.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	descriptorHeapDescription.NodeMask = 0;
+	if (FAILED(device->CreateDescriptorHeap(&descriptorHeapDescription, IID_PPV_ARGS(&backBufferViewHeap))))
+	{
+		return false;
+	}
+
+	backBufferViewDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	return true;
+}
+
 bool Dx12RenderBackend::createCommandResources()
 {
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(primarySwapChain.get());
+	CommandListInitializeOptions initializeOptions = {};
+	initializeOptions.nativeGraphicsDevice = device.Get();
+	initializeOptions.commandListType = CommandListType::graphics;
+
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
 	{
 		Dx12CommandList* dx12CommandList = graphicsCommandListPool[commandListIndex].get();
@@ -336,8 +416,7 @@ bool Dx12RenderBackend::createCommandResources()
 			return false;
 		}
 
-		dx12CommandList->setSwapChain(dx12SwapChain);
-		if (!dx12CommandList->initialize(device, frameBufferCount))
+		if (!dx12CommandList->initialize(initializeOptions))
 		{
 			return false;
 		}
@@ -347,9 +426,15 @@ bool Dx12RenderBackend::createCommandResources()
 	return true;
 }
 
+void Dx12RenderBackend::destroyBackBufferViewHeap()
+{
+	backBufferViewHeap.Reset();
+	backBufferViewDescriptorSize = 0;
+}
+
 bool Dx12RenderBackend::waitForGpuIdle()
 {
-	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(primarySyncObject.get());
+	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(syncObject.get());
 	if (dx12SyncObject == nullptr)
 	{
 		return true;

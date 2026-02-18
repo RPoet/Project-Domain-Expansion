@@ -3,6 +3,8 @@
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/CommandList.h"
 #include "Render/CommandQueue.h"
+#include "Render/RenderTargetView.h"
+#include "Render/ResourceObject.h"
 #include "Render/SwapChain.h"
 #include "Render/SyncObject.h"
 
@@ -36,9 +38,11 @@ public:
 	virtual bool resize(uint32 width, uint32 height) = 0;
 	virtual CommandList* acquireCommandList() = 0;
 	virtual void releaseCommandList(CommandList* commandList) = 0;
-	virtual CommandQueue* getPrimaryCommandQueue() = 0;
-	virtual SwapChain* getPrimarySwapChain() = 0;
-	virtual SyncObject* getPrimarySyncObject() = 0;
+	virtual CommandQueue* getCommandQueue() = 0;
+	virtual SwapChain* getSwapChain() = 0;
+	virtual SyncObject* getSyncObject() = 0;
+	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
+	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
 	virtual HandleWindow getWindowHandle() const = 0;
 	virtual uint32 getBackBufferWidth() const = 0;
 	virtual uint32 getBackBufferHeight() const = 0;

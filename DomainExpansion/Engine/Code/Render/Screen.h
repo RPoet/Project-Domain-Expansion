@@ -9,11 +9,8 @@ public:
 	void shutdown();
 
 	bool isRenderable() const;
-	ResourceObject* getCurrentBackBufferResource();
-	RenderTargetView* getCurrentBackBufferView();
-	void present();
+	void present(ResourceObject* outputResource);
 
 private:
-	RenderBackend* renderBackend = nullptr;
 	SwapChain* swapChain = nullptr;
 };

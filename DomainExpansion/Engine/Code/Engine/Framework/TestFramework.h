@@ -22,6 +22,24 @@ struct FrameworkTestSummary
 	bool completed = false;
 };
 
+struct FrameworkBackendTestState
+{
+	uint32 renderedFrameCount = 0;
+	uint32 resizeCount = 0;
+	bool resizeFailed = false;
+	bool forcedResizeSubmitted = false;
+	bool finalizePending = false;
+
+	void reset()
+	{
+		renderedFrameCount = 0;
+		resizeCount = 0;
+		resizeFailed = false;
+		forcedResizeSubmitted = false;
+		finalizePending = false;
+	}
+};
+
 class TestFramework
 {
 public:

@@ -10,6 +10,7 @@ bool Dx12SyncObject::initialize(
 {
 	shutdown();
 
+	unused(swapChain);
 	if (device == nullptr || commandQueue == nullptr || frameBufferCount == 0)
 	{
 		return false;
@@ -21,12 +22,6 @@ bool Dx12SyncObject::initialize(
 		return false;
 	}
 
-	frameFenceValues.resize(frameBufferCount);
-	for (uint32 frameIndex = 0; frameIndex < frameFenceValues.size(); ++frameIndex)
-	{
-		frameFenceValues[frameIndex] = 0;
-	}
-
 	frameFenceEvent = CreateEventW(nullptr, boolFalse, boolFalse, nullptr);
 	if (frameFenceEvent == nullptr)
 	{
@@ -35,7 +30,7 @@ bool Dx12SyncObject::initialize(
 	}
 
 	this->commandQueue = commandQueue;
-	this->swapChain = swapChain;
+	lastSubmittedFenceValue = 0;
 	nextFenceValue = 1;
 	return true;
 }
@@ -49,20 +44,17 @@ void Dx12SyncObject::shutdown()
 		frameFenceEvent = nullptr;
 	}
 
-	frameFenceValues.clear();
 	commandQueue = nullptr;
-	swapChain = nullptr;
+	lastSubmittedFenceValue = 0;
 	nextFenceValue = 1;
 }
 
 bool Dx12SyncObject::waitForGpuIdle()
 {
-	if (
-		commandQueue == nullptr ||
-		commandQueue->getNativeCommandQueue() == nullptr ||
-		frameFence == nullptr ||
-		frameFenceEvent == nullptr ||
-		frameFenceValues.empty())
+	if (commandQueue == nullptr
+		|| commandQueue->getNativeCommandQueue() == nullptr
+		|| frameFence == nullptr
+		|| frameFenceEvent == nullptr)
 	{
 		return true;
 	}
@@ -74,17 +66,7 @@ bool Dx12SyncObject::waitForGpuIdle()
 		return false;
 	}
 
-	uint32 frameIndex = 0;
-	if (swapChain != nullptr && swapChain->isRenderable())
-	{
-		frameIndex = swapChain->getCurrentImageIndex();
-		if (frameIndex >= frameFenceValues.size())
-		{
-			frameIndex = 0;
-		}
-	}
-
-	frameFenceValues[frameIndex] = signalValue;
+	lastSubmittedFenceValue = signalValue;
 	if (frameFence->GetCompletedValue() >= signalValue)
 	{
 		return true;
@@ -100,29 +82,20 @@ bool Dx12SyncObject::waitForGpuIdle()
 
 void Dx12SyncObject::wait()
 {
-	if (
-		swapChain == nullptr ||
-		!swapChain->isRenderable() ||
-		frameFence == nullptr ||
-		frameFenceEvent == nullptr ||
-		frameFenceValues.empty())
+	if (frameFence == nullptr
+		|| frameFenceEvent == nullptr
+		|| lastSubmittedFenceValue == 0)
 	{
 		return;
 	}
 
-	uint32 frameIndex = swapChain->getCurrentImageIndex();
-	if (frameIndex >= frameFenceValues.size())
-	{
-		return;
-	}
-
-	if (frameFence->GetCompletedValue() >= frameFenceValues[frameIndex])
+	if (frameFence->GetCompletedValue() >= lastSubmittedFenceValue)
 	{
 		return;
 	}
 
 	if (FAILED(frameFence->SetEventOnCompletion(
-		frameFenceValues[frameIndex],
+		lastSubmittedFenceValue,
 		frameFenceEvent)))
 	{
 		return;
@@ -133,19 +106,9 @@ void Dx12SyncObject::wait()
 
 void Dx12SyncObject::signal()
 {
-	if (
-		swapChain == nullptr ||
-		!swapChain->isRenderable() ||
-		commandQueue == nullptr ||
-		commandQueue->getNativeCommandQueue() == nullptr ||
-		frameFence == nullptr ||
-		frameFenceValues.empty())
-	{
-		return;
-	}
-
-	uint32 frameIndex = swapChain->getCurrentImageIndex();
-	if (frameIndex >= frameFenceValues.size())
+	if (commandQueue == nullptr
+		|| commandQueue->getNativeCommandQueue() == nullptr
+		|| frameFence == nullptr)
 	{
 		return;
 	}
@@ -157,6 +120,5 @@ void Dx12SyncObject::signal()
 		return;
 	}
 
-	frameFenceValues[frameIndex] = signalValue;
+	lastSubmittedFenceValue = signalValue;
 }
-

@@ -1,6 +1,9 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Render/RenderCommand.h"
+#include "Render/Renderer.h"
+#include "Render/Screen.h"
 
 Framework::Framework(const FrameworkExecutionFlow executionFlow)
 	: executionFlow(executionFlow)
@@ -16,16 +19,9 @@ bool Framework::initialize(
 	executionFlow = initializeOptions.executionFlow;
 	backendOptions = initializeOptions.backendOptions;
 	this->windowsWindowObject = &windowsWindowObject;
-	renderedBackendFrameCount = 0;
-	backendResizeCount = 0;
-	backendResizeFailed = false;
 	backendCreated = false;
-	backendForcedResizeSubmitted = false;
-	backendFinalizePending = false;
 	executionCompleted = false;
-	runtimeExitCode = 0;
-	renderer.setBackend(nullptr);
-	screen.shutdown();
+	runtimeExitCode = FrameworkRuntimeExitCode::success;
 
 	WindowEventCallbacks windowEventCallbacks = {};
 	windowEventCallbacks.onResize = [this](const uint32 width, const uint32 height)
@@ -44,11 +40,11 @@ bool Framework::initialize(
 		error << "Framework module initialization failed." << lineBreak;
 		if (executionFlow == FrameworkExecutionFlow::backendFlow)
 		{
-			runtimeExitCode = 3;
+			runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		}
 		else
 		{
-			runtimeExitCode = 6;
+			runtimeExitCode = FrameworkRuntimeExitCode::moduleInitializationFailure;
 		}
 		executionCompleted = true;
 		return false;
@@ -56,32 +52,27 @@ bool Framework::initialize(
 
 	if (executionFlow == FrameworkExecutionFlow::testFlow)
 	{
+		initializeTestFlow();
 		registerTest();
 		return true;
 	}
 
-	if (executionFlow != FrameworkExecutionFlow::backendFlow)
+	if (executionFlow == FrameworkExecutionFlow::backendFlow)
 	{
-		return true;
+		return initializeBackendFlow();
 	}
 
-	return initializeBackendFlow();
+	backendCreated = true;
+	return true;
 }
 
 void Framework::shutdown()
 {
 	shutdownModules();
 
-	screen.shutdown();
-	renderer.setBackend(nullptr);
 	backendCreated = false;
-	backendResizeFailed = false;
-	backendForcedResizeSubmitted = false;
-	backendFinalizePending = false;
-	backendResizeCount = 0;
-	renderedBackendFrameCount = 0;
 	executionCompleted = false;
-	runtimeExitCode = 0;
+	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	windowsWindowObject = nullptr;
 }
 
@@ -188,7 +179,7 @@ bool Framework::update()
 		const bool tickResult = testFramework.tick(*this);
 		if (!tickResult)
 		{
-			runtimeExitCode = 1;
+			runtimeExitCode = FrameworkRuntimeExitCode::testFlowTickFailed;
 			executionCompleted = true;
 			return false;
 		}
@@ -215,20 +206,51 @@ bool Framework::update()
 
 	activeWorldObject->tick(deltaTimeSeconds);
 
-	RenderCommand::get().enqueue("Render",
-		[](string&& funcName, RenderBackend& backend)
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	if (backendCreated
+		&& windowsWindowObject != nullptr
+		&& renderBackendModule != nullptr
+		&& renderBackendModule->isBackendCreated()
+		&& !windowsWindowObject->isWindowMinimized())
+	{
+		RenderBackend* renderBackend = renderBackendModule->getBackend();
+		if (renderBackend != nullptr)
 		{
-			Renderer renderer;
-			renderer.setBackend(&backend);
-			renderer.render(backend.acquireCommandList());
-		});
+			RenderCommand::get().enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
+			{
+				unused(commandName);
+				CommandList* commandList = renderBackendReference.acquireCommandList();
+				if (commandList == nullptr)
+				{
+					return;
+				}
 
-	RenderCommand::get().enqueue("Present",
-		[](string&& funcName, RenderBackend& backend)
-		{
-			Screen screen;
-			// do screen specific things.
-		});
+				Renderer renderer;
+				Screen screen;
+				renderer.setBackend(&renderBackendReference);
+
+				if (!screen.initialize(renderBackendReference))
+				{
+					renderBackendReference.releaseCommandList(commandList);
+					return;
+				}
+
+				renderer.render(commandList);
+
+				ResourceObject* outputResource = renderer.getOutputResource();
+				screen.present(outputResource);
+
+				SyncObject* syncObject = renderBackendReference.getSyncObject();
+				if (syncObject != nullptr && outputResource != nullptr)
+				{
+					syncObject->signal();
+				}
+
+				screen.shutdown();
+				renderBackendReference.releaseCommandList(commandList);
+			});
+		}
+	}
 
 	return true;
 }
@@ -240,7 +262,7 @@ bool Framework::isExecutionCompleted() const
 
 int32 Framework::getRuntimeExitCode() const
 {
-	return runtimeExitCode;
+	return static_cast<int32>(runtimeExitCode);
 }
 
 const FrameworkBackendOptions& Framework::getBackendOptions() const
@@ -262,14 +284,23 @@ void Framework::flushRenderCommandQueue()
 {
 	RenderCommand::get().flush();
 
-	if (
-		executionFlow == FrameworkExecutionFlow::backendFlow &&
-		backendFinalizePending &&
-		!executionCompleted)
+	if (executionFlow == FrameworkExecutionFlow::backendFlow
+		&& backendTestState.finalizePending
+		&& !executionCompleted)
 	{
-		backendFinalizePending = false;
+		backendTestState.finalizePending = false;
 		finalizeBackendFlow(true);
 	}
+}
+
+void Framework::initializeTestFlow()
+{
+	resetBackendTestState();
+}
+
+void Framework::resetBackendTestState()
+{
+	backendTestState.reset();
 }
 
 bool Framework::isValidWorldIndex(const uint32 worldIndex) const

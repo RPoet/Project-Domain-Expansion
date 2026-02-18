@@ -18,9 +18,11 @@ public:
 	bool resize(uint32 width, uint32 height) override;
 	CommandList* acquireCommandList() override;
 	void releaseCommandList(CommandList* commandList) override;
-	CommandQueue* getPrimaryCommandQueue() override;
-	SwapChain* getPrimarySwapChain() override;
-	SyncObject* getPrimarySyncObject() override;
+	CommandQueue* getCommandQueue() override;
+	SwapChain* getSwapChain() override;
+	SyncObject* getSyncObject() override;
+	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
+	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
 	HandleWindow getWindowHandle() const override;
 	uint32 getBackBufferWidth() const override;
 	uint32 getBackBufferHeight() const override;
@@ -44,7 +46,9 @@ protected:
 
 private:
 	bool createFactory(bool enableDebugLayer);
+	bool createBackBufferViewHeap();
 	bool createCommandResources();
+	void destroyBackBufferViewHeap();
 	bool waitForGpuIdle();
 	void resetCommandListPoolUsage();
 
@@ -52,14 +56,16 @@ private:
 	static constexpr uint32 graphicsCommandListPoolCapacity = 4;
 
 	HandleWindow windowHandle = nullptr;
-	uint32 backBufferWidth = 0;
-	uint32 backBufferHeight = 0;
 
 	com_pointer<IDXGIFactory6> dxgiFactory;
 	com_pointer<ID3D12Device> device;
+
+	// TO DO : Make Descriptor heap pool, this view heap is just for speed up purpose.
+	com_pointer<ID3D12DescriptorHeap> backBufferViewHeap;
 	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
 	vector<bool> graphicsCommandListInUse;
-	unique_pointer<CommandQueue> primaryCommandQueue;
-	unique_pointer<SwapChain> primarySwapChain;
-	unique_pointer<SyncObject> primarySyncObject;
+	unique_pointer<CommandQueue> commandQueue;
+	unique_pointer<SwapChain> swapChain;
+	unique_pointer<SyncObject> syncObject;
+	uint32 backBufferViewDescriptorSize = 0;
 };

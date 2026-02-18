@@ -5,7 +5,9 @@ bool RenderBackendModule::init(Framework& framework)
 {
 	destroyBackend();
 
-	if (framework.getExecutionFlow() != FrameworkExecutionFlow::backendFlow)
+	const FrameworkExecutionFlow executionFlow = framework.getExecutionFlow();
+	const bool backendCliFlow = executionFlow == FrameworkExecutionFlow::backendFlow;
+	if (executionFlow == FrameworkExecutionFlow::testFlow)
 	{
 		return true;
 	}
@@ -13,14 +15,28 @@ bool RenderBackendModule::init(Framework& framework)
 	WindowsWindowObject* windowObject = framework.getWindowObject();
 	if (windowObject == nullptr)
 	{
-		error << "[BackendCLI][Error] stage=create reason=window_object_missing" << lineBreak;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=window_object_missing" << lineBreak;
+		}
+		else
+		{
+			error << "Render backend create failed. reason=window_object_missing" << lineBreak;
+		}
 		return false;
 	}
 
 	const FrameworkBackendOptions& backendOptions = framework.getBackendOptions();
 	if (!RenderBackend::isSupportedBackend(backendOptions.backendType))
 	{
-		error << "[BackendCLI][Error] stage=create reason=backend_not_supported" << lineBreak;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=backend_not_supported" << lineBreak;
+		}
+		else
+		{
+			error << "Render backend create failed. reason=backend_not_supported" << lineBreak;
+		}
 		return false;
 	}
 
@@ -33,7 +49,14 @@ bool RenderBackendModule::init(Framework& framework)
 
 	if (!createBackend(backendCreateOptions))
 	{
-		error << "[BackendCLI][Error] stage=create reason=backend_create_failed" << lineBreak;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=backend_create_failed" << lineBreak;
+		}
+		else
+		{
+			error << "Render backend create failed. reason=backend_create_failed" << lineBreak;
+		}
 		return false;
 	}
 

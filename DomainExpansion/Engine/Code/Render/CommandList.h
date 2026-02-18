@@ -5,12 +5,27 @@
 #include "Render/ResourceObject.h"
 #include "Render/ResourceState.h"
 
+enum class CommandListType : uint32
+{
+	graphics = 0,
+	compute = 1,
+	copy = 2,
+};
+
+struct CommandListInitializeOptions
+{
+	void* nativeGraphicsDevice = nullptr;
+	CommandListType commandListType = CommandListType::graphics;
+};
+
 class CommandList
 {
 public:
 	virtual ~CommandList() = default;
 
-	virtual void beginRecord() = 0;
+	virtual bool initialize(const CommandListInitializeOptions& initializeOptions) = 0;
+	virtual void shutdown() = 0;
+	virtual void reset() = 0;
 	virtual void resourceBarrier(
 		ResourceObject* resourceObject,
 		ResourceState beforeState,
@@ -22,5 +37,5 @@ public:
 		float green,
 		float blue,
 		float alpha) = 0;
-	virtual void flush() = 0;
+	virtual void close() = 0;
 };

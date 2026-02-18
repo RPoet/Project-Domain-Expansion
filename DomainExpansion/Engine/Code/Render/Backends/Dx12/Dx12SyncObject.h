@@ -23,9 +23,8 @@ public:
 
 private:
 	Dx12CommandQueue* commandQueue = nullptr;
-	Dx12SwapChain* swapChain = nullptr;
 	com_pointer<ID3D12Fence> frameFence;
 	HandleEvent frameFenceEvent = nullptr;
-	vector<uint64> frameFenceValues;
+	uint64 lastSubmittedFenceValue = 0;
 	uint64 nextFenceValue = 1;
 };

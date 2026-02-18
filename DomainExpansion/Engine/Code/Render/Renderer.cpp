@@ -12,9 +12,9 @@ void Renderer::render(CommandList* commandList)
 		return;
 	}
 
-	SyncObject* syncObject = renderBackend->getPrimarySyncObject();
-	CommandQueue* commandQueue = renderBackend->getPrimaryCommandQueue();
-	SwapChain* swapChain = renderBackend->getPrimarySwapChain();
+	SyncObject* syncObject = renderBackend->getSyncObject();
+	CommandQueue* commandQueue = renderBackend->getCommandQueue();
+	SwapChain* swapChain = renderBackend->getSwapChain();
 	if (syncObject == nullptr || commandQueue == nullptr || commandList == nullptr || swapChain == nullptr)
 	{
 		return;
@@ -27,13 +27,15 @@ void Renderer::render(CommandList* commandList)
 	}
 
 	ResourceObject* backBufferResource = swapChain->getCurrentBackBufferResource();
-	RenderTargetView* backBufferView = swapChain->getCurrentBackBufferView();
+	RenderTargetView* backBufferView = renderBackend->createRenderTargetView(backBufferResource);
 	if (backBufferResource == nullptr || backBufferView == nullptr)
 	{
 		return;
 	}
 
-	commandList->beginRecord();
+	outputResource = backBufferResource;
+
+	commandList->reset();
 	commandList->resourceBarrier(
 		backBufferResource,
 		ResourceState::present,
@@ -51,6 +53,13 @@ void Renderer::render(CommandList* commandList)
 		backBufferResource,
 		ResourceState::renderTarget,
 		ResourceState::present);
-	commandList->flush();
+	commandList->close();
 	commandQueue->execute(commandList);
+
+	renderBackend->destroyRenderTargetView(backBufferView);
+}
+
+ResourceObject* Renderer::getOutputResource() const
+{
+	return outputResource;
 }

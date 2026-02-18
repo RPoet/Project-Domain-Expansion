@@ -3,15 +3,13 @@
 bool Screen::initialize(RenderBackend& renderBackend)
 {
 	shutdown();
-	this->renderBackend = &renderBackend;
-	swapChain = renderBackend.getPrimarySwapChain();
+	swapChain = renderBackend.getSwapChain();
 	return swapChain != nullptr;
 }
 
 void Screen::shutdown()
 {
 	swapChain = nullptr;
-	renderBackend = nullptr;
 }
 
 bool Screen::isRenderable() const
@@ -24,29 +22,21 @@ bool Screen::isRenderable() const
 	return swapChain->isRenderable();
 }
 
-ResourceObject* Screen::getCurrentBackBufferResource()
+void Screen::present(ResourceObject* outputResource)
 {
-	if (swapChain == nullptr)
+	if (swapChain == nullptr
+		|| outputResource == nullptr)
 	{
-		return nullptr;
+		return;
 	}
 
-	return swapChain->getCurrentBackBufferResource();
-}
-
-RenderTargetView* Screen::getCurrentBackBufferView()
-{
-	if (swapChain == nullptr)
+	if (!swapChain->isRenderable())
 	{
-		return nullptr;
+		return;
 	}
 
-	return swapChain->getCurrentBackBufferView();
-}
-
-void Screen::present()
-{
-	if (swapChain == nullptr)
+	ResourceObject* currentBackBufferResource = swapChain->getCurrentBackBufferResource();
+	if (currentBackBufferResource != outputResource)
 	{
 		return;
 	}

@@ -7,8 +7,6 @@
 #include "Engine/Module/Module.h"
 
 #include "Render/Backends/RenderBackend.h"
-#include "Render/Renderer.h"
-#include "Render/Screen.h"
 
 struct FrameworkBackendOptions
 {
@@ -68,29 +66,27 @@ private:
 	bool initializeModules();
 	void updateModules();
 	void shutdownModules();
+	void initializeTestFlow();
 	bool initializeBackendFlow();
+	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);
+	void resetBackendTestState();
 	void finalizeTestFlow();
 	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;
 
-	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
-	TestFramework testFramework;
 	vector<unique_pointer<World>> worldStorage;
 	vector<shared_pointer<Module>> moduleStorage;
 	uint32 activeWorldIndex = invalidWorldIndex;
+
+	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
+	TestFramework testFramework;
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
-	Renderer renderer;
-	Screen screen;
-	uint32 renderedBackendFrameCount = 0;
-	uint32 backendResizeCount = 0;
-	bool backendResizeFailed = false;
+	FrameworkBackendTestState backendTestState = {};
 	bool backendCreated = false;
-	bool backendForcedResizeSubmitted = false;
-	bool backendFinalizePending = false;
 	bool executionCompleted = false;
 	bool moduleRegistrationCompleted = false;
 	bool moduleInitializationCompleted = false;
-	int32 runtimeExitCode = 0;
+	FrameworkRuntimeExitCode runtimeExitCode = FrameworkRuntimeExitCode::success;
 };

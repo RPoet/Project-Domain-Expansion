@@ -1,6 +1,8 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/RenderCommand.h"
+#include "Render/Renderer.h"
+#include "Render/Screen.h"
 
 static const char* getBackendTypeText(const RenderBackendType backendType)
 {
@@ -20,15 +22,27 @@ static const char* getBackendTypeText(const RenderBackendType backendType)
 bool Framework::initializeBackendFlow()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	const bool backendCliFlow = executionFlow == FrameworkExecutionFlow::backendFlow;
+	resetBackendTestState();
 
-	output << "[BackendCLI][Begin] mode=backend api="
-		   << getBackendTypeText(backendOptions.backendType)
-		   << " frames=" << backendOptions.frameCount << lineBreak;
+	if (backendCliFlow)
+	{
+		output << "[BackendCLI][Begin] mode=backend api="
+			   << getBackendTypeText(backendOptions.backendType)
+			   << " frames=" << backendOptions.frameCount << lineBreak;
+	}
 
 	if (renderBackendModule == nullptr)
 	{
-		error << "[BackendCLI][Error] stage=create reason=backend_module_missing" << lineBreak;
-		runtimeExitCode = 3;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=backend_module_missing" << lineBreak;
+		}
+		else
+		{
+			error << "Render initialize failed. reason=backend_module_missing" << lineBreak;
+		}
+		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
 		return false;
 	}
@@ -36,17 +50,25 @@ bool Framework::initializeBackendFlow()
 	RenderBackend* renderBackend = renderBackendModule->getBackend();
 	if (renderBackend == nullptr)
 	{
-		error << "[BackendCLI][Error] stage=create reason=backend_not_initialized_by_module" << lineBreak;
-		runtimeExitCode = 3;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=backend_not_initialized_by_module" << lineBreak;
+		}
+		else
+		{
+			error << "Render initialize failed. reason=backend_not_initialized_by_module" << lineBreak;
+		}
+		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
 		return false;
 	}
 
 	CommandList* initialCommandList = renderBackend->acquireCommandList();
 	const bool rendererBindingFailed =
-		initialCommandList == nullptr ||
-		renderBackend->getPrimaryCommandQueue() == nullptr ||
-		renderBackend->getPrimarySyncObject() == nullptr;
+		initialCommandList == nullptr
+		|| renderBackend->getCommandQueue() == nullptr
+		|| renderBackend->getSyncObject() == nullptr
+		|| renderBackend->getSwapChain() == nullptr;
 	if (initialCommandList != nullptr)
 	{
 		renderBackend->releaseCommandList(initialCommandList);
@@ -54,28 +76,26 @@ bool Framework::initializeBackendFlow()
 
 	if (rendererBindingFailed)
 	{
-		error << "[BackendCLI][Error] stage=create reason=renderer_bind_failed" << lineBreak;
+		if (backendCliFlow)
+		{
+			error << "[BackendCLI][Error] stage=create reason=renderer_bind_failed" << lineBreak;
+		}
+		else
+		{
+			error << "Render initialize failed. reason=renderer_bind_failed" << lineBreak;
+		}
 		renderBackendModule->destroyBackend();
-		runtimeExitCode = 3;
-		executionCompleted = true;
-		return false;
-	}
-
-	renderer.setBackend(renderBackend);
-	if (!screen.initialize(*renderBackend))
-	{
-		error << "[BackendCLI][Error] stage=create reason=screen_initialize_failed" << lineBreak;
-		renderBackendModule->destroyBackend();
-		renderer.setBackend(nullptr);
-		screen.shutdown();
-		runtimeExitCode = 3;
+		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
 		return false;
 	}
 
 	backendCreated = true;
-	backendFinalizePending = false;
-	output << "[BackendCLI][Create] device=ok swapchain=ok" << lineBreak;
+	backendTestState.finalizePending = false;
+	if (backendCliFlow)
+	{
+		output << "[BackendCLI][Create] device=ok swapchain=ok" << lineBreak;
+	}
 	return true;
 }
 
@@ -83,7 +103,7 @@ void Framework::onWindowResize(const uint32 width, const uint32 height)
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 
-	if (executionFlow != FrameworkExecutionFlow::backendFlow)
+	if (executionFlow == FrameworkExecutionFlow::testFlow)
 	{
 		output << "Window resized to " << width << "x" << height << lineBreak;
 		return;
@@ -96,28 +116,38 @@ void Framework::onWindowResize(const uint32 width, const uint32 height)
 
 	if (renderBackendModule->resizeBackend(width, height))
 	{
-		++backendResizeCount;
-		output << "[BackendCLI][Resize] width=" << width
-			   << " height=" << height
-			   << " status=ok" << lineBreak;
+		if (executionFlow == FrameworkExecutionFlow::backendFlow)
+		{
+			++backendTestState.resizeCount;
+			backendTestState.resizeFailed = false;
+			output << "[BackendCLI][Resize] width=" << width
+				   << " height=" << height
+				   << " status=ok" << lineBreak;
+		}
 		return;
 	}
 
-	backendResizeFailed = true;
-	error << "[BackendCLI][Error] stage=resize reason=resize_failed" << lineBreak;
+	if (executionFlow == FrameworkExecutionFlow::backendFlow)
+	{
+		backendTestState.resizeFailed = true;
+		error << "[BackendCLI][Error] stage=resize reason=resize_failed" << lineBreak;
+	}
+	else
+	{
+		return;
+	}
 }
 
 bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 
-	if (
-		windowsWindowObject == nullptr ||
-		renderBackendModule == nullptr ||
-		!renderBackendModule->isBackendCreated() ||
-		!backendCreated)
+	if (windowsWindowObject == nullptr
+		|| renderBackendModule == nullptr
+		|| !renderBackendModule->isBackendCreated()
+		|| !backendCreated)
 	{
-		runtimeExitCode = 3;
+		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
 		return false;
 	}
@@ -125,7 +155,7 @@ bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 	RenderBackend* renderBackend = renderBackendModule->getBackend();
 	if (renderBackend == nullptr)
 	{
-		runtimeExitCode = 3;
+		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
 		return false;
 	}
@@ -135,7 +165,7 @@ bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 		return true;
 	}
 
-	if (backendOptions.forceResize && !backendForcedResizeSubmitted && renderedBackendFrameCount == 10)
+	if (backendOptions.forceResize && !backendTestState.forcedResizeSubmitted && backendTestState.renderedFrameCount == 10)
 	{
 		const uint32 forcedWidth = windowsWindowObject->getClientWidth() + 32;
 		const uint32 forcedHeight = windowsWindowObject->getClientHeight() + 32;
@@ -147,61 +177,92 @@ bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 			static_cast<int32>(forcedWidth),
 			static_cast<int32>(forcedHeight),
 			SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-		backendForcedResizeSubmitted = true;
+		backendTestState.forcedResizeSubmitted = true;
 	}
 
-	if (backendResizeFailed)
+	if (backendTestState.resizeFailed)
 	{
 		finalizeBackendFlow(false);
 		return false;
 	}
 
 	unused(deltaTimeSeconds);
-	CommandList* commandList = renderBackend->acquireCommandList();
-	if (commandList == nullptr)
+	if (!enqueueBackendRenderFrameCommand())
 	{
 		error << "[BackendCLI][Error] stage=render reason=command_list_acquire_failed" << lineBreak;
 		finalizeBackendFlow(false);
 		return false;
 	}
 
+	output << "[BackendCLI][Frame] index=" << backendTestState.renderedFrameCount << " present=ok" << lineBreak;
+	++backendTestState.renderedFrameCount;
+
+	if (backendTestState.renderedFrameCount >= backendOptions.frameCount)
+	{
+		backendTestState.finalizePending = true;
+	}
+
+	return true;
+}
+
+bool Framework::enqueueBackendRenderFrameCommand()
+{
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	if (windowsWindowObject == nullptr
+		|| renderBackendModule == nullptr
+		|| !renderBackendModule->isBackendCreated()
+		|| !backendCreated)
+	{
+		return false;
+	}
+
+	if (windowsWindowObject->isWindowMinimized())
+	{
+		return true;
+	}
+
+	RenderBackend* renderBackend = renderBackendModule->getBackend();
+	if (renderBackend == nullptr)
+	{
+		return false;
+	}
+
 	RenderCommand& renderCommand = RenderCommand::get();
-	renderCommand.enqueue("renderer.render", [this, commandList](const string& commandName, RenderBackend& renderBackendReference)
+	renderCommand.enqueue("Render", [this](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);
-		unused(renderBackendReference);
+		CommandList* commandList = renderBackendReference.acquireCommandList();
+		if (commandList == nullptr)
+		{
+			backendTestState.resizeFailed = true;
+			error << "[BackendCLI][Error] stage=render reason=command_list_acquire_failed" << lineBreak;
+			return;
+		}
+
+		Renderer renderer;
+		Screen screen;
+		renderer.setBackend(&renderBackendReference);
+
+		if (!screen.initialize(renderBackendReference))
+		{
+			renderBackendReference.releaseCommandList(commandList);
+			return;
+		}
+
 		renderer.render(commandList);
-	});
-	renderCommand.enqueue("screen.present", [this](const string& commandName, RenderBackend& renderBackendReference)
-	{
-		unused(commandName);
-		if (!screen.isRenderable())
+
+		ResourceObject* outputResource = renderer.getOutputResource();
+		screen.present(outputResource);
+
+		SyncObject* syncObject = renderBackendReference.getSyncObject();
+		if (syncObject != nullptr && outputResource != nullptr)
 		{
-			return;
+			syncObject->signal();
 		}
 
-		SyncObject* syncObject = renderBackendReference.getPrimarySyncObject();
-		if (syncObject == nullptr)
-		{
-			return;
-		}
-
-		screen.present();
-		syncObject->signal();
-	});
-	renderCommand.enqueue("backend.releaseCommandList", [commandList](const string& commandName, RenderBackend& renderBackendReference)
-	{
-		unused(commandName);
+		screen.shutdown();
 		renderBackendReference.releaseCommandList(commandList);
 	});
-
-	output << "[BackendCLI][Frame] index=" << renderedBackendFrameCount << " present=ok" << lineBreak;
-	++renderedBackendFrameCount;
-
-	if (renderedBackendFrameCount >= backendOptions.frameCount)
-	{
-		backendFinalizePending = true;
-	}
 
 	return true;
 }
@@ -216,11 +277,11 @@ void Framework::finalizeBackendFlow(const bool passState)
 	}
 
 	const bool backendPass =
-		passState &&
-		!backendResizeFailed &&
-		(renderedBackendFrameCount == backendOptions.frameCount);
-	output << "[BackendCLI][Summary] frameCount=" << renderedBackendFrameCount
-		   << " resizeCount=" << backendResizeCount
+		passState
+		&& !backendTestState.resizeFailed
+		&& (backendTestState.renderedFrameCount == backendOptions.frameCount);
+	output << "[BackendCLI][Summary] frameCount=" << backendTestState.renderedFrameCount
+		   << " resizeCount=" << backendTestState.resizeCount
 		   << " result=" << (backendPass ? "pass" : "fail") << lineBreak;
 
 	if (renderBackendModule != nullptr)
@@ -228,10 +289,10 @@ void Framework::finalizeBackendFlow(const bool passState)
 		renderBackendModule->destroyBackend();
 	}
 
-	renderer.setBackend(nullptr);
-	screen.shutdown();
 	backendCreated = false;
-	backendFinalizePending = false;
+	backendTestState.finalizePending = false;
 	executionCompleted = true;
-	runtimeExitCode = backendPass ? 0 : 4;
+	runtimeExitCode = backendPass
+		? FrameworkRuntimeExitCode::success
+		: FrameworkRuntimeExitCode::backendFlowSummaryFailure;
 }

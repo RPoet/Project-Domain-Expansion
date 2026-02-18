@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Engine/Platform/PlatformDefine.h"
-#include "Render/RenderTargetView.h"
 #include "Render/ResourceObject.h"
 
 class SwapChain
@@ -12,6 +11,5 @@ public:
 	virtual bool isRenderable() const = 0;
 	virtual uint32 getCurrentImageIndex() const = 0;
 	virtual ResourceObject* getCurrentBackBufferResource() = 0;
-	virtual RenderTargetView* getCurrentBackBufferView() = 0;
 	virtual void present() = 0;
 };

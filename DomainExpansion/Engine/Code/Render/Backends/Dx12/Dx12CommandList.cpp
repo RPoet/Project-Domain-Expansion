@@ -1,5 +1,4 @@
 #include "Render/Backends/Dx12/Dx12CommandList.h"
-#include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 
@@ -16,32 +15,44 @@ static D3D12_RESOURCE_STATES getDx12ResourceState(const ResourceState resourceSt
 	}
 }
 
-bool Dx12CommandList::initialize(com_pointer<ID3D12Device> device, const uint32 frameBufferCount)
+static D3D12_COMMAND_LIST_TYPE getDx12CommandListType(const CommandListType commandListType)
+{
+	switch (commandListType)
+	{
+	case CommandListType::graphics:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	case CommandListType::compute:
+		return D3D12_COMMAND_LIST_TYPE_COMPUTE;
+	case CommandListType::copy:
+		return D3D12_COMMAND_LIST_TYPE_COPY;
+	default:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	}
+}
+
+bool Dx12CommandList::initialize(const CommandListInitializeOptions& initializeOptions)
 {
 	shutdown();
 
-	if (device == nullptr || frameBufferCount == 0)
+	ID3D12Device* device = static_cast<ID3D12Device*>(initializeOptions.nativeGraphicsDevice);
+	if (device == nullptr)
 	{
 		return false;
 	}
 
-	this->frameBufferCount = frameBufferCount;
-	commandAllocators.resize(frameBufferCount);
-	for (uint32 frameIndex = 0; frameIndex < frameBufferCount; ++frameIndex)
+	const D3D12_COMMAND_LIST_TYPE commandListType = getDx12CommandListType(initializeOptions.commandListType);
+	if (FAILED(device->CreateCommandAllocator(
+		commandListType,
+		IID_PPV_ARGS(&commandAllocator))))
 	{
-		if (FAILED(device->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&commandAllocators[frameIndex]))))
-		{
-			shutdown();
-			return false;
-		}
+		shutdown();
+		return false;
 	}
 
 	if (FAILED(device->CreateCommandList(
 		0,
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		commandAllocators[0].Get(),
+		commandListType,
+		commandAllocator.Get(),
 		nullptr,
 		IID_PPV_ARGS(&commandList))))
 	{
@@ -61,51 +72,26 @@ bool Dx12CommandList::initialize(com_pointer<ID3D12Device> device, const uint32 
 void Dx12CommandList::shutdown()
 {
 	commandList.Reset();
-	for (uint32 frameIndex = 0; frameIndex < commandAllocators.size(); ++frameIndex)
-	{
-		commandAllocators[frameIndex].Reset();
-	}
-
-	commandAllocators.clear();
-	frameBufferCount = 0;
-	activeFrameIndex = 0;
+	commandAllocator.Reset();
 	recordingAvailable = false;
-	swapChain = nullptr;
 }
 
-void Dx12CommandList::setSwapChain(Dx12SwapChain* swapChain)
-{
-	this->swapChain = swapChain;
-}
-
-void Dx12CommandList::beginRecord()
+void Dx12CommandList::reset()
 {
 	recordingAvailable = false;
 
-	if (
-		commandList == nullptr ||
-		swapChain == nullptr ||
-		!swapChain->isRenderable())
+	if (commandList == nullptr || commandAllocator == nullptr)
 	{
 		return;
 	}
 
-	activeFrameIndex = swapChain->getCurrentImageIndex();
-	if (
-		activeFrameIndex >= frameBufferCount ||
-		activeFrameIndex >= commandAllocators.size() ||
-		commandAllocators[activeFrameIndex] == nullptr)
-	{
-		return;
-	}
-
-	if (FAILED(commandAllocators[activeFrameIndex]->Reset()))
+	if (FAILED(commandAllocator->Reset()))
 	{
 		return;
 	}
 
 	if (FAILED(commandList->Reset(
-		commandAllocators[activeFrameIndex].Get(),
+		commandAllocator.Get(),
 		nullptr)))
 	{
 		return;
@@ -119,10 +105,9 @@ void Dx12CommandList::resourceBarrier(
 	const ResourceState beforeState,
 	const ResourceState afterState)
 {
-	if (
-		commandList == nullptr ||
-		!recordingAvailable ||
-		resourceObject == nullptr)
+	if (commandList == nullptr
+		|| !recordingAvailable
+		|| resourceObject == nullptr)
 	{
 		return;
 	}
@@ -145,10 +130,9 @@ void Dx12CommandList::resourceBarrier(
 
 void Dx12CommandList::setRenderTarget(RenderTargetView* renderTargetView)
 {
-	if (
-		commandList == nullptr ||
-		!recordingAvailable ||
-		renderTargetView == nullptr)
+	if (commandList == nullptr
+		|| !recordingAvailable
+		|| renderTargetView == nullptr)
 	{
 		return;
 	}
@@ -164,10 +148,9 @@ void Dx12CommandList::clearRenderTarget(
 	const float blue,
 	const float alpha)
 {
-	if (
-		commandList == nullptr ||
-		!recordingAvailable ||
-		renderTargetView == nullptr)
+	if (commandList == nullptr
+		|| !recordingAvailable
+		|| renderTargetView == nullptr)
 	{
 		return;
 	}
@@ -177,11 +160,10 @@ void Dx12CommandList::clearRenderTarget(
 	commandList->ClearRenderTargetView(dx12RenderTargetView->descriptorHandle, clearColor, 0, nullptr);
 }
 
-void Dx12CommandList::flush()
+void Dx12CommandList::close()
 {
-	if (
-		commandList == nullptr ||
-		!recordingAvailable)
+	if (commandList == nullptr
+		|| !recordingAvailable)
 	{
 		return;
 	}
