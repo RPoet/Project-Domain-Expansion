@@ -42,6 +42,8 @@ private:
 
 	bool initializeContext();
 	void shutdownContext();
+	void updateUiScaleIfNeeded();
+	float calculateUiScale() const;
 	void buildOutlinerPanel(World* world);
 	void drawOutlinerEntityNode(const World* world, uint32 entityIndex);
 	void buildDetailPanel(World* world);
@@ -59,6 +61,8 @@ private:
 	string resourcesRootPathText;
 	bool resourcesRootResolved = false;
 	bool resourcesRootValid = false;
+	float currentUiScale = 1.0f;
+	bool uiScaleInitialized = false;
 	string createWorldNameText = "NewWorld";
 	string lastOpenedWorldPath = {};
 	string lastEditorActionStatus = {};

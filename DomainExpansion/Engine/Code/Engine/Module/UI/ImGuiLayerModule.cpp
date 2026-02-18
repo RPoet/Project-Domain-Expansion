@@ -52,6 +52,36 @@ static void sortDirectoryEntries(vector<filesystem_directory_entry>& directoryEn
 		});
 }
 
+static float clampFloat(const float value, const float minValue, const float maxValue)
+{
+	if (value < minValue)
+	{
+		return minValue;
+	}
+
+	if (value > maxValue)
+	{
+		return maxValue;
+	}
+
+	return value;
+}
+
+static string toNarrowText(const wstring& text)
+{
+	string result = {};
+	result.reserve(text.length());
+	for (size_t index = 0; index < text.length(); ++index)
+	{
+		const wide_character character = text[index];
+		result.push_back(character >= 0 && character <= 127
+			? static_cast<char>(character)
+			: '?');
+	}
+
+	return result;
+}
+
 struct ImGuiLayerModule::Dx12BackendBridge final : ImGuiLayerModule::BackendBridge
 {
 	bool initialize(RenderBackend& renderBackend) override
@@ -160,6 +190,8 @@ bool ImGuiLayerModule::init(Framework& framework)
 	resourcesRootPathText.clear();
 	resourcesRootResolved = false;
 	resourcesRootValid = false;
+	currentUiScale = 1.0f;
+	uiScaleInitialized = false;
 	createWorldNameText = "NewWorld";
 	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
@@ -216,11 +248,19 @@ bool ImGuiLayerModule::init(Framework& framework)
 		return false;
 	}
 
+	updateUiScaleIfNeeded();
 	return true;
 }
 
 void ImGuiLayerModule::update()
 {
+	if (frameworkReference == nullptr
+		|| frameworkReference->getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
+	{
+		return;
+	}
+
+	updateUiScaleIfNeeded();
 }
 
 void ImGuiLayerModule::shutdown()
@@ -243,6 +283,8 @@ void ImGuiLayerModule::shutdown()
 	resourcesRootPathText.clear();
 	resourcesRootResolved = false;
 	resourcesRootValid = false;
+	currentUiScale = 1.0f;
+	uiScaleInitialized = false;
 	createWorldNameText = "NewWorld";
 	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
@@ -324,6 +366,58 @@ void ImGuiLayerModule::shutdownContext()
 	contextCreated = false;
 }
 
+void ImGuiLayerModule::updateUiScaleIfNeeded()
+{
+	if (!contextCreated)
+	{
+		return;
+	}
+
+	const float targetScale = calculateUiScale();
+	const float scaleDelta = targetScale - currentUiScale;
+	const bool scaleChanged = scaleDelta < -0.01f || scaleDelta > 0.01f;
+	if (uiScaleInitialized && !scaleChanged)
+	{
+		return;
+	}
+
+	ImGui::StyleColorsDark();
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.ScaleAllSizes(targetScale);
+
+	ImGuiIO& imguiIo = ImGui::GetIO();
+	imguiIo.FontGlobalScale = targetScale;
+
+	currentUiScale = targetScale;
+	uiScaleInitialized = true;
+}
+
+float ImGuiLayerModule::calculateUiScale() const
+{
+	float dpiScale = 1.0f;
+	if (frameworkReference != nullptr)
+	{
+		const WindowsWindowObject* windowObject = frameworkReference->getWindowObject();
+		if (windowObject != nullptr)
+		{
+			dpiScale = windowObject->getDpiScale();
+		}
+	}
+
+	const int32 screenWidth = GetSystemMetrics(SM_CXSCREEN);
+	const int32 screenHeight = GetSystemMetrics(SM_CYSCREEN);
+	float resolutionScale = 1.0f;
+	if (screenWidth > 0 && screenHeight > 0)
+	{
+		const float widthScale = static_cast<float>(screenWidth) / 1920.0f;
+		const float heightScale = static_cast<float>(screenHeight) / 1080.0f;
+		resolutionScale = widthScale < heightScale ? widthScale : heightScale;
+	}
+
+	const float preferredScale = dpiScale > resolutionScale ? dpiScale : resolutionScale;
+	return clampFloat(preferredScale, 1.0f, 2.5f);
+}
+
 void ImGuiLayerModule::buildOutlinerPanel(World* world)
 {
 	ImGui::Begin("Outliner");
@@ -334,6 +428,13 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		ImGui::End();
 		return;
 	}
+
+	string worldNameText = toNarrowText(world->getWorldName());
+	if (worldNameText.empty())
+	{
+		worldNameText = "(unnamed)";
+	}
+	ImGui::Text("World: %s", worldNameText.c_str());
 
 	if (ImGui::Button("+ AddEntity"))
 	{
