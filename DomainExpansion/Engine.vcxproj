@@ -88,9 +88,12 @@
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkBackend.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkFileSystem.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkSerialization.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
@@ -99,6 +102,12 @@
     <ClCompile Include="Engine\Code\Engine\Tests\EntityTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp" />
@@ -125,7 +134,10 @@
     <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkConstants.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Framework.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkFileSystem.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkSerialization.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\TestFramework.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />
@@ -139,6 +151,8 @@
     <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\UpdateOrderRecordingComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
@@ -152,6 +166,10 @@
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
     <ClInclude Include="Engine\Code\Render\CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\RenderCommand.h" />

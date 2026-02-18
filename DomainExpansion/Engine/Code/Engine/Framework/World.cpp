@@ -420,6 +420,26 @@ const Entity* World::getEntityByIndex(const uint32 entityIndex) const
 	return getEntity(entityIndex);
 }
 
+Component* World::getComponentByIndex(const uint32 componentIndex)
+{
+	if (componentIndex >= static_cast<uint32>(componentStorage.size()))
+	{
+		return nullptr;
+	}
+
+	return componentStorage[componentIndex].get();
+}
+
+const Component* World::getComponentByIndex(const uint32 componentIndex) const
+{
+	if (componentIndex >= static_cast<uint32>(componentStorage.size()))
+	{
+		return nullptr;
+	}
+
+	return componentStorage[componentIndex].get();
+}
+
 bool World::isValidEntityIndex(const uint32 entityIndex) const
 {
 	return entityIndex < static_cast<uint32>(entityStorage.size());

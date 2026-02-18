@@ -2,8 +2,12 @@
 
 #include "Engine/Framework/Entity.h"
 #include "Engine/Framework/Framework.h"
+#include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Framework/FrameworkSerialization.h"
+#include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Module/Asset/MeshStreaming.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
@@ -11,13 +15,12 @@
 #include "ThirdParty/ImGui/imgui.h"
 #include "ThirdParty/ImGui/backends/imgui_impl_dx12.h"
 #include "ThirdParty/ImGui/backends/imgui_impl_win32.h"
+#include "ThirdParty/ImGui/misc/cpp/imgui_stdlib.h"
 
 #include <algorithm>
 #include <d3d12.h>
-#include <filesystem>
 #include <system_error>
 
-namespace fs = std::filesystem;
 static constexpr int32 dx12FrameBufferCountForImGui = 2;
 extern IMGUI_IMPL_API MessageResult ImGui_ImplWin32_WndProcHandler(
 	HandleWindow windowHandle,
@@ -25,18 +28,18 @@ extern IMGUI_IMPL_API MessageResult ImGui_ImplWin32_WndProcHandler(
 	MessageFirstParameter firstParameter,
 	MessageSecondParameter secondParameter);
 
-static bool isDirectoryEntry(const fs::directory_entry& directoryEntry)
+static bool isDirectoryEntry(const filesystem_directory_entry& directoryEntry)
 {
 	std::error_code errorCode;
 	return directoryEntry.is_directory(errorCode) && !errorCode;
 }
 
-static void sortDirectoryEntries(vector<fs::directory_entry>& directoryEntries)
+static void sortDirectoryEntries(vector<filesystem_directory_entry>& directoryEntries)
 {
 	std::sort(
 		directoryEntries.begin(),
 		directoryEntries.end(),
-		[](const fs::directory_entry& leftEntry, const fs::directory_entry& rightEntry)
+		[](const filesystem_directory_entry& leftEntry, const filesystem_directory_entry& rightEntry)
 		{
 			const bool leftIsDirectory = isDirectoryEntry(leftEntry);
 			const bool rightIsDirectory = isDirectoryEntry(rightEntry);
@@ -47,56 +50,6 @@ static void sortDirectoryEntries(vector<fs::directory_entry>& directoryEntries)
 
 			return leftEntry.path().filename().string() < rightEntry.path().filename().string();
 		});
-}
-
-static void drawDirectoryEntriesRecursive(const fs::path& directoryPath)
-{
-	vector<fs::directory_entry> directoryEntries;
-	std::error_code iterateErrorCode;
-	for (const fs::directory_entry& directoryEntry : fs::directory_iterator(
-		directoryPath,
-		fs::directory_options::skip_permission_denied,
-		iterateErrorCode))
-	{
-		directoryEntries.push_back(directoryEntry);
-	}
-
-	if (iterateErrorCode)
-	{
-		ImGui::Text("Failed to enumerate: %s", directoryPath.string().c_str());
-		return;
-	}
-
-	if (directoryEntries.empty())
-	{
-		ImGui::TextUnformatted("(empty)");
-		return;
-	}
-
-	sortDirectoryEntries(directoryEntries);
-	for (const fs::directory_entry& directoryEntry : directoryEntries)
-	{
-		const string fileName = directoryEntry.path().filename().string();
-		const string displayName = fileName.empty() ? directoryEntry.path().string() : fileName;
-		if (isDirectoryEntry(directoryEntry))
-		{
-			ImGui::PushID(directoryEntry.path().string().c_str());
-			const bool isNodeOpened = ImGui::TreeNodeEx(
-				"Directory",
-				ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick,
-				"%s",
-				displayName.c_str());
-			if (isNodeOpened)
-			{
-				drawDirectoryEntriesRecursive(directoryEntry.path());
-				ImGui::TreePop();
-			}
-			ImGui::PopID();
-			continue;
-		}
-
-		ImGui::BulletText("%s", displayName.c_str());
-	}
 }
 
 struct ImGuiLayerModule::Dx12BackendBridge final : ImGuiLayerModule::BackendBridge
@@ -207,6 +160,9 @@ bool ImGuiLayerModule::init(Framework& framework)
 	resourcesRootPathText.clear();
 	resourcesRootResolved = false;
 	resourcesRootValid = false;
+	createWorldNameText = "NewWorld";
+	lastOpenedWorldPath.clear();
+	lastEditorActionStatus.clear();
 
 	if (framework.getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
 	{
@@ -287,6 +243,9 @@ void ImGuiLayerModule::shutdown()
 	resourcesRootPathText.clear();
 	resourcesRootResolved = false;
 	resourcesRootValid = false;
+	createWorldNameText = "NewWorld";
+	lastOpenedWorldPath.clear();
+	lastEditorActionStatus.clear();
 }
 
 bool ImGuiLayerModule::processNativeMessage(
@@ -329,7 +288,7 @@ void ImGuiLayerModule::buildAndRender(CommandList* commandList)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	const World* world = frameworkReference->getActiveWorld();
+	World* world = frameworkReference->getActiveWorld();
 	buildOutlinerPanel(world);
 	buildDetailPanel(world);
 	buildFileSystemPanel();
@@ -365,7 +324,7 @@ void ImGuiLayerModule::shutdownContext()
 	contextCreated = false;
 }
 
-void ImGuiLayerModule::buildOutlinerPanel(const World* world)
+void ImGuiLayerModule::buildOutlinerPanel(World* world)
 {
 	ImGui::Begin("Outliner");
 
@@ -374,6 +333,31 @@ void ImGuiLayerModule::buildOutlinerPanel(const World* world)
 		ImGui::TextUnformatted("No active world.");
 		ImGui::End();
 		return;
+	}
+
+	if (ImGui::Button("+ AddEntity"))
+	{
+		const uint32 newEntityIndex = world->createPlaceableEntity();
+		bool addEntityResult = true;
+		if (selectedEntityIndex != invalidEntityIndex
+			&& world->getEntityByIndex(selectedEntityIndex) != nullptr)
+		{
+			addEntityResult = world->addChildEntity(selectedEntityIndex, newEntityIndex);
+		}
+
+		selectedEntityIndex = newEntityIndex;
+		if (!addEntityResult)
+		{
+			lastEditorActionStatus = "add_entity_failed";
+		}
+		else if (saveActiveWorldImmediate())
+		{
+			lastEditorActionStatus = "entity_added_and_saved";
+		}
+		else
+		{
+			lastEditorActionStatus = "entity_added_save_skipped";
+		}
 	}
 
 	const uint32 entityCount = world->getEntityCount();
@@ -396,6 +380,12 @@ void ImGuiLayerModule::buildOutlinerPanel(const World* world)
 	if (rootEntityCount == 0)
 	{
 		ImGui::TextUnformatted("No root entities.");
+	}
+
+	if (!lastEditorActionStatus.empty())
+	{
+		ImGui::Separator();
+		ImGui::Text("Status: %s", lastEditorActionStatus.c_str());
 	}
 
 	ImGui::End();
@@ -460,7 +450,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 	ImGui::PopID();
 }
 
-void ImGuiLayerModule::buildDetailPanel(const World* world)
+void ImGuiLayerModule::buildDetailPanel(World* world)
 {
 	ImGui::Begin("Detail");
 
@@ -478,7 +468,7 @@ void ImGuiLayerModule::buildDetailPanel(const World* world)
 		return;
 	}
 
-	const Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
+	Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
 	if (selectedEntity == nullptr)
 	{
 		selectedEntityIndex = invalidEntityIndex;
@@ -517,10 +507,85 @@ void ImGuiLayerModule::buildDetailPanel(const World* world)
 	ImGui::Separator();
 	const uint32 componentCount = selectedEntity->getComponentCount();
 	ImGui::Text("Components: %u", componentCount);
+
+	MeshComponent* meshComponent = nullptr;
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < componentCount; ++componentArrayIndex)
 	{
 		const uint32 componentIndex = selectedEntity->getComponentIndex(componentArrayIndex);
 		ImGui::BulletText("Component Index: %u", componentIndex);
+
+		Component* component = world->getComponentByIndex(componentIndex);
+		MeshComponent* currentMeshComponent = dynamic_cast<MeshComponent*>(component);
+		if (currentMeshComponent != nullptr && meshComponent == nullptr)
+		{
+			meshComponent = currentMeshComponent;
+		}
+	}
+
+	ImGui::Separator();
+	const bool hasMeshComponent = meshComponent != nullptr;
+	ImGui::BeginDisabled(hasMeshComponent);
+	if (ImGui::Button("+ AddComponent: MeshComponent"))
+	{
+		unique_pointer<MeshComponent> newMeshComponent(new MeshComponent());
+		if (selectedEntity->addComponent(moveValue(newMeshComponent)))
+		{
+			lastEditorActionStatus = saveActiveWorldImmediate()
+				? "mesh_component_added_and_saved"
+				: "mesh_component_added_save_skipped";
+		}
+		else
+		{
+			lastEditorActionStatus = "mesh_component_add_failed";
+		}
+	}
+	ImGui::EndDisabled();
+
+	if (hasMeshComponent)
+	{
+		ImGui::TextUnformatted("MeshComponent");
+
+		string meshPath = meshComponent->meshRelativePath;
+		int32 lodLevel = static_cast<int32>(meshComponent->lodLevel);
+		bool visible = meshComponent->visible;
+		bool meshComponentChanged = false;
+
+		if (ImGui::InputText("Mesh Path", &meshPath))
+		{
+			meshComponent->meshRelativePath = meshPath;
+			meshComponentChanged = true;
+		}
+
+		if (ImGui::InputInt("LOD", &lodLevel))
+		{
+			if (lodLevel < 0)
+			{
+				lodLevel = 0;
+			}
+
+			meshComponent->lodLevel = static_cast<uint32>(lodLevel);
+			meshComponentChanged = true;
+		}
+
+		if (ImGui::Checkbox("Visible", &visible))
+		{
+			meshComponent->visible = visible;
+			meshComponentChanged = true;
+		}
+
+		if (meshComponentChanged)
+		{
+			if (!meshComponent->meshRelativePath.empty())
+			{
+				MeshStreaming::get()->requestMesh(
+					meshComponent->meshRelativePath,
+					meshComponent->lodLevel);
+			}
+
+			lastEditorActionStatus = saveActiveWorldImmediate()
+				? "mesh_component_updated_and_saved"
+				: "mesh_component_updated_save_skipped";
+		}
 	}
 
 	const PlaceableEntity* placeableEntity = dynamic_cast<const PlaceableEntity*>(selectedEntity);
@@ -550,10 +615,10 @@ void ImGuiLayerModule::buildFileSystemPanel()
 
 	ImGui::Text("Root: %s", resourcesRootPathText.c_str());
 
-	const fs::path resourcesRootPath(resourcesRootPathText);
+	const filesystem_path resourcesRootPath(resourcesRootPathText);
 	std::error_code verifyErrorCode;
-	if (!fs::exists(resourcesRootPath, verifyErrorCode)
-		|| !fs::is_directory(resourcesRootPath, verifyErrorCode))
+	if (!std::filesystem::exists(resourcesRootPath, verifyErrorCode)
+		|| !std::filesystem::is_directory(resourcesRootPath, verifyErrorCode))
 	{
 		resourcesRootResolved = false;
 		resourcesRootValid = false;
@@ -562,13 +627,206 @@ void ImGuiLayerModule::buildFileSystemPanel()
 		return;
 	}
 
+	if (ImGui::Button("+"))
+	{
+		ImGui::OpenPopup("CreateWorldPopup");
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("CreateWorld");
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("CreateWorld");
+
+	bool closeCreateWorldPopup = false;
+	if (ImGui::BeginPopupModal("CreateWorldPopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::TextUnformatted("Create new world file");
+		ImGui::InputText("World Name", &createWorldNameText);
+		if (ImGui::Button("Create"))
+		{
+			string createdWorldPath = {};
+			if (createWorldFile(createWorldNameText, createdWorldPath))
+			{
+				if (frameworkReference != nullptr
+					&& frameworkReference->loadWorldFromFile(createdWorldPath))
+				{
+					lastOpenedWorldPath = createdWorldPath;
+					lastEditorActionStatus = frameworkReference->saveActiveWorldToFile()
+						? "world_created_loaded_and_saved"
+						: "world_created_loaded_save_skipped";
+					selectedEntityIndex = invalidEntityIndex;
+				}
+				else
+				{
+					lastEditorActionStatus = "world_created_but_load_failed";
+				}
+			}
+			else
+			{
+				lastEditorActionStatus = "world_create_failed";
+			}
+
+			closeCreateWorldPopup = true;
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel"))
+		{
+			closeCreateWorldPopup = true;
+		}
+
+		if (closeCreateWorldPopup)
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+
 	if (ImGui::TreeNodeEx("ResourcesRoot", ImGuiTreeNodeFlags_DefaultOpen, "Resources"))
 	{
 		drawDirectoryEntriesRecursive(resourcesRootPath);
 		ImGui::TreePop();
 	}
 
+	if (!lastOpenedWorldPath.empty())
+	{
+		ImGui::Separator();
+		ImGui::Text("Last Opened: %s", lastOpenedWorldPath.c_str());
+	}
+	if (!lastEditorActionStatus.empty())
+	{
+		ImGui::Text("Status: %s", lastEditorActionStatus.c_str());
+	}
+
 	ImGui::End();
+}
+
+void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& directoryPath)
+{
+	vector<filesystem_directory_entry> directoryEntries;
+	std::error_code iterateErrorCode;
+	for (const filesystem_directory_entry& directoryEntry : filesystem_directory_iterator(
+		directoryPath,
+		filesystem_directory_options::skip_permission_denied,
+		iterateErrorCode))
+	{
+		directoryEntries.push_back(directoryEntry);
+	}
+
+	if (iterateErrorCode)
+	{
+		ImGui::Text("Failed to enumerate: %s", directoryPath.string().c_str());
+		return;
+	}
+
+	if (directoryEntries.empty())
+	{
+		ImGui::TextUnformatted("(empty)");
+		return;
+	}
+
+	sortDirectoryEntries(directoryEntries);
+	for (const filesystem_directory_entry& directoryEntry : directoryEntries)
+	{
+		const string fileName = directoryEntry.path().filename().string();
+		const string displayName = fileName.empty() ? directoryEntry.path().string() : fileName;
+		if (isDirectoryEntry(directoryEntry))
+		{
+			ImGui::PushID(directoryEntry.path().string().c_str());
+			const bool isNodeOpened = ImGui::TreeNodeEx(
+				"Directory",
+				ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick,
+				"%s",
+				displayName.c_str());
+			if (isNodeOpened)
+			{
+				drawDirectoryEntriesRecursive(directoryEntry.path());
+				ImGui::TreePop();
+			}
+			ImGui::PopID();
+			continue;
+		}
+
+		ImGui::PushID(directoryEntry.path().string().c_str());
+		ImGui::Selectable(displayName.c_str(), false);
+		const bool worldFileDoubleClicked =
+			ImGui::IsItemHovered()
+			&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+			&& directoryEntry.path().extension() == ".world";
+		if (worldFileDoubleClicked)
+		{
+			if (frameworkReference != nullptr
+				&& frameworkReference->loadWorldFromFile(directoryEntry.path().string()))
+			{
+				lastOpenedWorldPath = directoryEntry.path().lexically_normal().string();
+				selectedEntityIndex = invalidEntityIndex;
+				lastEditorActionStatus = "world_loaded";
+			}
+			else
+			{
+				lastEditorActionStatus = "world_load_failed";
+			}
+		}
+
+		ImGui::PopID();
+	}
+}
+
+bool ImGuiLayerModule::createWorldFile(const string& requestedWorldName, string& outWorldFilePath)
+{
+	outWorldFilePath.clear();
+	if (!resolveResourcesRootPath())
+	{
+		return false;
+	}
+
+	const string worldName = frameworkFileSystemSanitizeFileName(requestedWorldName, "NewWorld");
+	const string worldDirectoryPath = (filesystem_path(resourcesRootPathText) / "Scenes")
+		.lexically_normal()
+		.string();
+	string targetWorldPath = {};
+	if (!frameworkFileSystemResolveUniqueFilePath(
+		worldDirectoryPath,
+		worldName,
+		".world",
+		targetWorldPath))
+	{
+		return false;
+	}
+
+	wstring worldNameWide = {};
+	worldNameWide.reserve(worldName.length());
+	for (size_t characterIndex = 0; characterIndex < worldName.length(); ++characterIndex)
+	{
+		worldNameWide.push_back(static_cast<wide_character>(static_cast<unsigned char>(worldName[characterIndex])));
+	}
+
+	World newWorld(worldNameWide);
+	string saveErrorText = {};
+	if (!frameworkSerializationSaveWorldToFile(newWorld, targetWorldPath, saveErrorText))
+	{
+		unused(saveErrorText);
+		return false;
+	}
+
+	outWorldFilePath = filesystem_path(targetWorldPath).lexically_normal().string();
+	return true;
+}
+
+bool ImGuiLayerModule::saveActiveWorldImmediate()
+{
+	if (frameworkReference == nullptr)
+	{
+		return false;
+	}
+
+	if (frameworkReference->getActiveWorldFilePath().empty())
+	{
+		return false;
+	}
+
+	return frameworkReference->saveActiveWorldToFile();
 }
 
 bool ImGuiLayerModule::resolveResourcesRootPath()
@@ -579,36 +837,12 @@ bool ImGuiLayerModule::resolveResourcesRootPath()
 	}
 
 	resourcesRootResolved = true;
-	resourcesRootValid = false;
 	resourcesRootPathText.clear();
-
-	std::error_code currentPathErrorCode;
-	fs::path currentPath = fs::current_path(currentPathErrorCode);
-	if (currentPathErrorCode)
+	resourcesRootValid = frameworkFileSystemResolveResourcesRootPath(resourcesRootPathText);
+	if (!resourcesRootValid)
 	{
-		return false;
+		resourcesRootPathText.clear();
 	}
 
-	for (uint32 pathDepth = 0; pathDepth < 16; ++pathDepth)
-	{
-		const fs::path candidatePath = currentPath / "Engine" / "Resources";
-		std::error_code candidateErrorCode;
-		if (fs::exists(candidatePath, candidateErrorCode)
-			&& fs::is_directory(candidatePath, candidateErrorCode))
-		{
-			resourcesRootPathText = candidatePath.lexically_normal().string();
-			resourcesRootValid = true;
-			return true;
-		}
-
-		const fs::path parentPath = currentPath.parent_path();
-		if (parentPath.empty() || parentPath == currentPath)
-		{
-			break;
-		}
-
-		currentPath = parentPath;
-	}
-
-	return false;
+	return resourcesRootValid;
 }

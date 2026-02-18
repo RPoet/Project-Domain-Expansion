@@ -26,3 +26,4 @@ DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
 *.ps1
 
 /DomainExpansion/vs-chromium-project.txt
+/DomainExpansion/imgui.ini

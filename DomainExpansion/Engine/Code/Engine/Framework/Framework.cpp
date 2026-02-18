@@ -1,7 +1,10 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Framework/FrameworkSerialization.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
+#include "Engine/Module/Asset/MeshStreaming.h"
 #include "Render/RenderCommand.h"
 
 static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
@@ -50,6 +53,7 @@ bool Framework::initialize(
 	windowsWindowObject = &inWindowsWindowObject;
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
+	activeWorldFilePath.clear();
 
 	const bool forceEnableDebugLayer =
 		executionFlow == FrameworkExecutionFlow::worldFlow
@@ -124,6 +128,13 @@ bool Framework::initialize(
 
 	if (getActiveWorld() == nullptr)
 	{
+		string defaultWorldPath = {};
+		if (frameworkFileSystemResolveDefaultWorldFilePath(defaultWorldPath)
+			&& loadWorldFromFile(defaultWorldPath))
+		{
+			return true;
+		}
+
 		const uint32 editorWorldIndex = createWorld(L"EditorWorld");
 		if (!loadWorld(editorWorldIndex))
 		{
@@ -144,6 +155,7 @@ void Framework::shutdown()
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	windowsWindowObject = nullptr;
+	activeWorldFilePath.clear();
 }
 
 void Framework::setExecutionFlow(const FrameworkExecutionFlow executionFlow)
@@ -176,6 +188,7 @@ bool Framework::loadWorld(const uint32 worldIndex)
 	}
 
 	activeWorldIndex = worldIndex;
+	activeWorldFilePath.clear();
 	return true;
 }
 
@@ -195,9 +208,57 @@ bool Framework::unloadWorld(const uint32 worldIndex)
 	if (activeWorldIndex == worldIndex)
 	{
 		activeWorldIndex = invalidWorldIndex;
+		activeWorldFilePath.clear();
 	}
 
 	return true;
+}
+
+bool Framework::loadWorldFromFile(const string& worldFilePath)
+{
+	unique_pointer<World> loadedWorld = nullptr;
+	string errorText = {};
+	if (!frameworkSerializationLoadWorldFromFile(worldFilePath, loadedWorld, errorText)
+		|| loadedWorld == nullptr)
+	{
+		error << "[Framework][Error] loadWorldFromFile_failed path=" << worldFilePath
+			  << " reason=" << (errorText.empty() ? "unknown" : errorText) << lineBreak;
+		return false;
+	}
+
+	worldStorage.push_back(moveValue(loadedWorld));
+	const uint32 worldIndex = static_cast<uint32>(worldStorage.size() - 1);
+	if (!loadWorld(worldIndex))
+	{
+		return false;
+	}
+
+	activeWorldFilePath = worldFilePath;
+	return true;
+}
+
+bool Framework::saveActiveWorldToFile()
+{
+	const World* activeWorld = getActiveWorld();
+	if (activeWorld == nullptr || activeWorldFilePath.empty())
+	{
+		return false;
+	}
+
+	string errorText = {};
+	if (!frameworkSerializationSaveWorldToFile(*activeWorld, activeWorldFilePath, errorText))
+	{
+		error << "[Framework][Error] saveActiveWorldToFile_failed path=" << activeWorldFilePath
+			  << " reason=" << (errorText.empty() ? "unknown" : errorText) << lineBreak;
+		return false;
+	}
+
+	return true;
+}
+
+const string& Framework::getActiveWorldFilePath() const
+{
+	return activeWorldFilePath;
 }
 
 World* Framework::getWorld(const uint32 worldIndex)
@@ -464,6 +525,7 @@ const WindowsWindowObject* Framework::getWindowObject() const
 void Framework::flushRenderCommandQueue()
 {
 	RenderCommand::get().flush();
+	MeshStreaming::get()->flushRequests();
 
 	if (!executionCompleted
 		&& (executionFlow == FrameworkExecutionFlow::worldFlow

@@ -40,6 +40,9 @@ public:
 	bool loadWorld(uint32 worldIndex);
 	bool changeWorld(uint32 worldIndex);
 	bool unloadWorld(uint32 worldIndex);
+	bool loadWorldFromFile(const string& worldFilePath);
+	bool saveActiveWorldToFile();
+	const string& getActiveWorldFilePath() const;
 
 	World* getWorld(uint32 worldIndex);
 	const World* getWorld(uint32 worldIndex) const;
@@ -88,6 +91,7 @@ private:
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
 	FrameworkBackendTestState backendTestState = {};
+	string activeWorldFilePath = {};
 
 	bool executionCompleted = false;
 	bool moduleRegistrationCompleted = false;

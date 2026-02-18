@@ -2,11 +2,13 @@
 
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <memory_resource>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -26,6 +28,10 @@ using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
 using steady_clock = std::chrono::steady_clock;
 using duration_seconds = std::chrono::duration<double>;
+using filesystem_path = std::filesystem::path;
+using filesystem_directory_entry = std::filesystem::directory_entry;
+using filesystem_directory_iterator = std::filesystem::directory_iterator;
+using filesystem_directory_options = std::filesystem::directory_options;
 
 inline output_stream& output = std::cout;
 inline error_stream& error = std::cerr;
@@ -48,6 +54,9 @@ using shared_pointer = std::shared_ptr<type_name>;
 
 template <typename type_name>
 using pooled_vector = std::pmr::vector<type_name>;
+
+template <typename... type_names>
+using unordered_map = std::unordered_map<type_names...>;
 
 template <typename type_name>
 constexpr decltype(auto) moveValue(type_name&& value) noexcept

@@ -42,10 +42,13 @@ private:
 
 	bool initializeContext();
 	void shutdownContext();
-	void buildOutlinerPanel(const World* world);
+	void buildOutlinerPanel(World* world);
 	void drawOutlinerEntityNode(const World* world, uint32 entityIndex);
-	void buildDetailPanel(const World* world);
+	void buildDetailPanel(World* world);
 	void buildFileSystemPanel();
+	void drawDirectoryEntriesRecursive(const filesystem_path& directoryPath);
+	bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
+	bool saveActiveWorldImmediate();
 	bool resolveResourcesRootPath();
 
 	Framework* frameworkReference = nullptr;
@@ -56,4 +59,7 @@ private:
 	string resourcesRootPathText;
 	bool resourcesRootResolved = false;
 	bool resourcesRootValid = false;
+	string createWorldNameText = "NewWorld";
+	string lastOpenedWorldPath = {};
+	string lastEditorActionStatus = {};
 };

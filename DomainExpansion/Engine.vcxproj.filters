@@ -17,6 +17,15 @@
     <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkFileSystem.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkSerialization.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -63,6 +72,24 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp">
@@ -121,6 +148,15 @@
     <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkFileSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkSerialization.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -175,6 +211,12 @@
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\UpdateOrderRecordingComponent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -212,6 +254,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\CommandList.h">

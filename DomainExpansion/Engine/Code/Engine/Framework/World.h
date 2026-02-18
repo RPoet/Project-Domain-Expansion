@@ -31,6 +31,8 @@ public:
 	uint32 getComponentCount() const;
 	Entity* getEntityByIndex(uint32 entityIndex);
 	const Entity* getEntityByIndex(uint32 entityIndex) const;
+	Component* getComponentByIndex(uint32 componentIndex);
+	const Component* getComponentByIndex(uint32 componentIndex) const;
 
 private:
 	bool isValidEntityIndex(uint32 entityIndex) const;

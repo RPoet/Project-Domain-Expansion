@@ -6,6 +6,8 @@ void Framework::registerTest()
 	clearTestCases();
 	addTestCase(createFrameworkEntityAddRemoveTestCase());
 	addTestCase(createFrameworkEntityUpdateTestCase());
+	addTestCase(createFrameworkObjMeshLoaderTestCase());
+	addTestCase(createFrameworkWorldSerializationTestCase());
 }
 
 void Framework::addTestCase(unique_pointer<FrameworkTestCase> testCase)

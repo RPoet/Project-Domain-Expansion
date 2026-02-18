@@ -1,0 +1,15 @@
+[World]
+version=1
+worldName=SphereTest
+
+[Entity]
+id=0
+type=placeable
+active=1
+parent=-1
+position=0,0,0
+rotation=0,0,0
+scale=1,1,1
+mesh=Meshes/Sphere.obj
+lod=0
+visible=1
