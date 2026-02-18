@@ -310,12 +310,13 @@ bool ImGuiLayerModule::processNativeMessage(
 		secondParameter) != 0;
 }
 
-void ImGuiLayerModule::buildAndRender(CommandList* commandList, Framework& framework)
+void ImGuiLayerModule::buildAndRender(CommandList* commandList)
 {
 	if (commandList == nullptr
 		|| !contextCreated
 		|| !win32BackendInitialized
-		|| backendBridge == nullptr)
+		|| backendBridge == nullptr
+		|| frameworkReference == nullptr)
 	{
 		return;
 	}
@@ -328,7 +329,7 @@ void ImGuiLayerModule::buildAndRender(CommandList* commandList, Framework& frame
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	const World* world = framework.getActiveWorld();
+	const World* world = frameworkReference->getActiveWorld();
 	buildOutlinerPanel(world);
 	buildDetailPanel(world);
 	buildFileSystemPanel();

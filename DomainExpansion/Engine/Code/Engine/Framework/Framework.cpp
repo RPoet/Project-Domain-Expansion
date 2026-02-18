@@ -1,9 +1,8 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
+#include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
-#include "Render/Renderer.h"
-#include "Render/Screen.h"
 
 Framework::Framework(const FrameworkExecutionFlow executionFlow)
 	: executionFlow(executionFlow)
@@ -30,6 +29,24 @@ bool Framework::initialize(
 	windowEventCallbacks.onActivationChanged = [](const bool isActive)
 	{
 		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
+	};
+	windowEventCallbacks.onNativeMessage = [](
+		const HandleWindow windowHandle,
+		const MessageIdentifier messageIdentifier,
+		const MessageFirstParameter firstParameter,
+		const MessageSecondParameter secondParameter) -> bool
+	{
+		shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
+		if (imGuiLayerModule == nullptr)
+		{
+			return false;
+		}
+
+		return imGuiLayerModule->processNativeMessage(
+			windowHandle,
+			messageIdentifier,
+			firstParameter,
+			secondParameter);
 	};
 	windowsWindowObject->setEventCallbacks(moveValue(windowEventCallbacks));
 
@@ -60,6 +77,19 @@ bool Framework::initialize(
 	{
 		return initializeBackendFlow();
 	}
+
+	if (getActiveWorld() == nullptr)
+	{
+		const uint32 editorWorldIndex = createWorld(L"EditorWorld");
+		if (!loadWorld(editorWorldIndex))
+		{
+			error << "World bootstrap failed. reason=editor_world_load_failed" << lineBreak;
+			runtimeExitCode = FrameworkRuntimeExitCode::moduleInitializationFailure;
+			executionCompleted = true;
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -208,43 +238,153 @@ bool Framework::update()
 		&& windowsWindowObject != nullptr
 		&& !windowsWindowObject->isWindowMinimized())
 	{
-		RenderBackend* renderBackend = renderBackendModule->getBackend();
-		if (renderBackend != nullptr)
+		RenderCommand::get().enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
 		{
-			RenderCommand::get().enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
+			unused(commandName);
+
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			if (swapChain == nullptr
+				|| syncObject == nullptr)
 			{
-				unused(commandName);
-				CommandList* commandList = renderBackendReference.acquireCommandList();
-				if (commandList == nullptr)
-				{
-					return;
-				}
+				return;
+			}
 
-				Renderer renderer;
-				Screen screen;
-				renderer.setBackend(&renderBackendReference);
+			syncObject->wait();
+			if (!swapChain->isRenderable())
+			{
+				return;
+			}
 
-				if (!screen.initialize(renderBackendReference))
+			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (renderTargetView == nullptr || commandList == nullptr)
+			{
+				if (commandList != nullptr)
 				{
 					renderBackendReference.releaseCommandList(commandList);
-					return;
 				}
-
-				renderer.render(commandList);
-
-				ResourceObject* outputResource = renderer.getOutputResource();
-				screen.present(outputResource);
-
-				SyncObject* syncObject = renderBackendReference.getSyncObject();
-				if (syncObject != nullptr && outputResource != nullptr)
+				if (renderTargetView != nullptr)
 				{
-					syncObject->signal();
+					renderBackendReference.destroyRenderTargetView(renderTargetView);
 				}
+				return;
+			}
 
-				screen.shutdown();
-				renderBackendReference.releaseCommandList(commandList);
-			});
-		}
+			commandList->reset();
+			commandList->resourceBarrier(
+				outputResource,
+				ResourceState::present,
+				ResourceState::renderTarget);
+			commandList->setRenderTarget(renderTargetView);
+			commandList->clearRenderTarget(
+				renderTargetView,
+				0.07f,
+				0.11f,
+				0.17f,
+				1.0f);
+			commandList->close();
+
+			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
+			renderBackendReference.queueCommandList(commandList);
+		});
+
+		RenderCommand::get().enqueue("UI", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
+			if (imGuiLayerModule == nullptr)
+			{
+				return;
+			}
+
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			if (swapChain == nullptr
+				|| !swapChain->isRenderable())
+			{
+				return;
+			}
+
+			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				return;
+			}
+
+			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (renderTargetView == nullptr || commandList == nullptr)
+			{
+				if (commandList != nullptr)
+				{
+					renderBackendReference.releaseCommandList(commandList);
+				}
+				if (renderTargetView != nullptr)
+				{
+					renderBackendReference.destroyRenderTargetView(renderTargetView);
+				}
+				return;
+			}
+
+			commandList->reset();
+			commandList->setRenderTarget(renderTargetView);
+			imGuiLayerModule->buildAndRender(commandList);
+			commandList->close();
+
+			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
+			renderBackendReference.queueCommandList(commandList);
+		});
+
+		RenderCommand::get().enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			CommandQueue* commandQueue = renderBackendReference.getCommandQueue();
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			if (commandQueue == nullptr
+				|| swapChain == nullptr
+				|| syncObject == nullptr
+				|| !swapChain->isRenderable())
+			{
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				return;
+			}
+
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (commandList == nullptr)
+			{
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			commandList->reset();
+			commandList->resourceBarrier(
+				outputResource,
+				ResourceState::renderTarget,
+				ResourceState::present);
+			commandList->close();
+
+			renderBackendReference.queueCommandList(commandList);
+			renderBackendReference.executeQueuedCommandLists();
+			swapChain->present();
+			syncObject->signal();
+			renderBackendReference.releaseQueuedRenderResources();
+		});
 	}
 
 	return true;
@@ -282,11 +422,20 @@ void Framework::flushRenderCommandQueue()
 	RenderCommand::get().flush();
 
 	if (executionFlow == FrameworkExecutionFlow::backendFlow
-		&& backendTestState.finalizePending
 		&& !executionCompleted)
 	{
-		backendTestState.finalizePending = false;
-		finalizeBackendFlow(true);
+		if (reportBackendDebugErrorsIfAny())
+		{
+			error << "[BackendCLI][Error] stage=debug_layer reason=dx12_execution_error" << lineBreak;
+			finalizeBackendFlow(false);
+			return;
+		}
+
+		if (backendTestState.finalizePending)
+		{
+			backendTestState.finalizePending = false;
+			finalizeBackendFlow(true);
+		}
 	}
 }
 

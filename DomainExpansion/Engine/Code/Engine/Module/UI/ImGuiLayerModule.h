@@ -27,7 +27,7 @@ public:
 		MessageIdentifier messageIdentifier,
 		MessageFirstParameter firstParameter,
 		MessageSecondParameter secondParameter);
-	void buildAndRender(CommandList* commandList, Framework& framework);
+	void buildAndRender(CommandList* commandList);
 
 private:
 	struct BackendBridge

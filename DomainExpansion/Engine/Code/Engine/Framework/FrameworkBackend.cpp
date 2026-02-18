@@ -19,6 +19,23 @@ static const char* getBackendTypeText(const RenderBackendType backendType)
 	}
 }
 
+bool Framework::reportBackendDebugErrorsIfAny()
+{
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	if (renderBackendModule == nullptr || !renderBackendModule->isBackendCreated())
+	{
+		return false;
+	}
+
+	RenderBackend* renderBackend = renderBackendModule->getBackend();
+	if (renderBackend == nullptr)
+	{
+		return false;
+	}
+
+	return renderBackend->reportDebugErrorsIfAny();
+}
+
 bool Framework::initializeBackendFlow()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();

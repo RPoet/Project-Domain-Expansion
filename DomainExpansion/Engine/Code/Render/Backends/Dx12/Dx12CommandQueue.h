@@ -10,8 +10,11 @@ public:
 
 	void setNativeCommandQueue(com_pointer<ID3D12CommandQueue> commandQueue);
 	ID3D12CommandQueue* getNativeCommandQueue() const;
-	void execute(CommandList* commandListInterface) override;
+	void enqueue(CommandList* commandListInterface) override;
+	void executeQueued() override;
+	void clearQueued() override;
 
 private:
 	com_pointer<ID3D12CommandQueue> commandQueue;
+	vector<ID3D12CommandList*> queuedCommandLists;
 };

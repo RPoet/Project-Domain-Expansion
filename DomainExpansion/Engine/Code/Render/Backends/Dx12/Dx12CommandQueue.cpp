@@ -11,7 +11,7 @@ ID3D12CommandQueue* Dx12CommandQueue::getNativeCommandQueue() const
 	return commandQueue.Get();
 }
 
-void Dx12CommandQueue::execute(CommandList* commandListInterface)
+void Dx12CommandQueue::enqueue(CommandList* commandListInterface)
 {
 	if (commandQueue == nullptr || commandListInterface == nullptr)
 	{
@@ -30,6 +30,22 @@ void Dx12CommandQueue::execute(CommandList* commandListInterface)
 		return;
 	}
 
-	ID3D12CommandList* commandLists[] = { nativeCommandList };
-	commandQueue->ExecuteCommandLists(1, commandLists);
+	queuedCommandLists.push_back(nativeCommandList);
+}
+
+void Dx12CommandQueue::executeQueued()
+{
+	if (commandQueue == nullptr || queuedCommandLists.empty())
+	{
+		return;
+	}
+
+	commandQueue->ExecuteCommandLists(
+		static_cast<uint32>(queuedCommandLists.size()),
+		queuedCommandLists.data());
+}
+
+void Dx12CommandQueue::clearQueued()
+{
+	queuedCommandLists.clear();
 }

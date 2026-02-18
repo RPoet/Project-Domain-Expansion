@@ -6,6 +6,33 @@
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 
+#include <d3d12sdklayers.h>
+
+static const char* getDx12MessageSeverityText(const D3D12_MESSAGE_SEVERITY severity)
+{
+	switch (severity)
+	{
+	case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+		return "corruption";
+	case D3D12_MESSAGE_SEVERITY_ERROR:
+		return "error";
+	case D3D12_MESSAGE_SEVERITY_WARNING:
+		return "warning";
+	case D3D12_MESSAGE_SEVERITY_INFO:
+		return "info";
+	case D3D12_MESSAGE_SEVERITY_MESSAGE:
+		return "message";
+	default:
+		return "unknown";
+	}
+}
+
+static bool isDx12FailureSeverity(const D3D12_MESSAGE_SEVERITY severity)
+{
+	return severity == D3D12_MESSAGE_SEVERITY_CORRUPTION
+		|| severity == D3D12_MESSAGE_SEVERITY_ERROR;
+}
+
 Dx12RenderBackend::Dx12RenderBackend()
 {
 	commandQueue.reset(new Dx12CommandQueue());
@@ -54,6 +81,27 @@ void Dx12RenderBackend::releaseCommandList(CommandList* commandList)
 		graphicsCommandListInUse[commandListIndex] = false;
 		return;
 	}
+}
+
+void Dx12RenderBackend::queueCommandList(CommandList* commandList)
+{
+	if (commandList == nullptr || commandQueue == nullptr)
+	{
+		return;
+	}
+
+	commandQueue->enqueue(commandList);
+	queuedCommandLists.push_back(commandList);
+}
+
+void Dx12RenderBackend::executeQueuedCommandLists()
+{
+	if (commandQueue == nullptr)
+	{
+		return;
+	}
+
+	commandQueue->executeQueued();
 }
 
 CommandQueue* Dx12RenderBackend::getCommandQueue()
@@ -105,6 +153,87 @@ RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* reso
 void Dx12RenderBackend::destroyRenderTargetView(RenderTargetView* renderTargetView)
 {
 	delete renderTargetView;
+}
+
+void Dx12RenderBackend::queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView)
+{
+	if (renderTargetView == nullptr)
+	{
+		return;
+	}
+
+	queuedRenderTargetViews.push_back(renderTargetView);
+}
+
+void Dx12RenderBackend::releaseQueuedRenderResources()
+{
+	for (uint32 renderTargetViewIndex = 0; renderTargetViewIndex < queuedRenderTargetViews.size(); ++renderTargetViewIndex)
+	{
+		destroyRenderTargetView(queuedRenderTargetViews[renderTargetViewIndex]);
+	}
+	queuedRenderTargetViews.clear();
+
+	for (uint32 commandListIndex = 0; commandListIndex < queuedCommandLists.size(); ++commandListIndex)
+	{
+		releaseCommandList(queuedCommandLists[commandListIndex]);
+	}
+	queuedCommandLists.clear();
+
+	if (commandQueue != nullptr)
+	{
+		commandQueue->clearQueued();
+	}
+}
+
+bool Dx12RenderBackend::reportDebugErrorsIfAny()
+{
+	if (device == nullptr)
+	{
+		return false;
+	}
+
+	com_pointer<ID3D12InfoQueue> infoQueue;
+	if (FAILED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))) || infoQueue == nullptr)
+	{
+		return false;
+	}
+
+	const uint64 messageCount = static_cast<uint64>(infoQueue->GetNumStoredMessagesAllowedByRetrievalFilter());
+	if (messageCount == 0)
+	{
+		return false;
+	}
+
+	bool hasFailureMessage = false;
+	for (uint64 messageIndex = 0; messageIndex < messageCount; ++messageIndex)
+	{
+		SIZE_T messageByteSize = 0;
+		if (FAILED(infoQueue->GetMessage(static_cast<SIZE_T>(messageIndex), nullptr, &messageByteSize))
+			|| messageByteSize == 0)
+		{
+			continue;
+		}
+
+		vector<char> messageStorage(messageByteSize);
+		D3D12_MESSAGE* message = reinterpret_cast<D3D12_MESSAGE*>(messageStorage.data());
+		if (FAILED(infoQueue->GetMessage(static_cast<SIZE_T>(messageIndex), message, &messageByteSize))
+			|| message == nullptr)
+		{
+			continue;
+		}
+
+		const bool isFailureMessage = isDx12FailureSeverity(message->Severity);
+		hasFailureMessage = hasFailureMessage || isFailureMessage;
+		output_stream& selectedStream = isFailureMessage ? error : output;
+		selectedStream << "[Dx12Debug][" << getDx12MessageSeverityText(message->Severity) << "] id="
+					   << static_cast<uint32>(message->ID)
+					   << " text="
+					   << (message->pDescription != nullptr ? message->pDescription : "no_description")
+					   << lineBreak;
+	}
+
+	infoQueue->ClearStoredMessages();
+	return hasFailureMessage;
 }
 
 HandleWindow Dx12RenderBackend::getWindowHandle() const
@@ -296,6 +425,7 @@ void Dx12RenderBackend::beforeDestroy()
 		return;
 	}
 
+	releaseQueuedRenderResources();
 	waitForGpuIdle();
 }
 

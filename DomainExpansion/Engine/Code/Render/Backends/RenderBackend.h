@@ -37,11 +37,16 @@ public:
 	void destroy();
 	virtual CommandList* acquireCommandList() = 0;
 	virtual void releaseCommandList(CommandList* commandList) = 0;
+	virtual void queueCommandList(CommandList* commandList) = 0;
+	virtual void executeQueuedCommandLists() = 0;
 	virtual CommandQueue* getCommandQueue() = 0;
 	virtual SwapChain* getSwapChain() = 0;
 	virtual SyncObject* getSyncObject() = 0;
 	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
 	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
+	virtual void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) = 0;
+	virtual void releaseQueuedRenderResources() = 0;
+	virtual bool reportDebugErrorsIfAny() = 0;
 	virtual HandleWindow getWindowHandle() const = 0;
 	virtual void* getNativeGraphicsDevice() = 0;
 	virtual void* getNativeGraphicsFactory() = 0;

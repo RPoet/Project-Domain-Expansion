@@ -23,6 +23,7 @@ struct WindowEventCallbacks
 {
 	function<void(uint32, uint32)> onResize;
 	function<void(bool)> onActivationChanged;
+	function<bool(HandleWindow, MessageIdentifier, MessageFirstParameter, MessageSecondParameter)> onNativeMessage;
 };
 
 class WindowsWindowObject

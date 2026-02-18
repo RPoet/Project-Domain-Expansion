@@ -17,11 +17,16 @@ public:
 
 	CommandList* acquireCommandList() override;
 	void releaseCommandList(CommandList* commandList) override;
+	void queueCommandList(CommandList* commandList) override;
+	void executeQueuedCommandLists() override;
 	CommandQueue* getCommandQueue() override;
 	SwapChain* getSwapChain() override;
 	SyncObject* getSyncObject() override;
 	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
 	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
+	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
+	void releaseQueuedRenderResources() override;
+	bool reportDebugErrorsIfAny() override;
 	HandleWindow getWindowHandle() const override;
 	void* getNativeGraphicsDevice() override;
 	void* getNativeGraphicsFactory() override;
@@ -55,6 +60,8 @@ private:
 
 	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
 	vector<bool> graphicsCommandListInUse;
+	vector<CommandList*> queuedCommandLists;
+	vector<RenderTargetView*> queuedRenderTargetViews;
 	unique_pointer<CommandQueue> commandQueue;
 	unique_pointer<SwapChain> swapChain;
 	unique_pointer<SyncObject> syncObject;

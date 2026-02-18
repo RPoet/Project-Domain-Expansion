@@ -18,7 +18,7 @@ struct FrameworkBackendOptions
 
 struct FrameworkInitializeOptions
 {
-	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::testFlow;
+	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
 	FrameworkBackendOptions backendOptions = {};
 };
 
@@ -72,6 +72,7 @@ private:
 	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);
 	void resetBackendTestState();
+	bool reportBackendDebugErrorsIfAny();
 	void finalizeTestFlow();
 	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;

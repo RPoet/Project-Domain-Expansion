@@ -4,13 +4,14 @@
 
 enum class ApplicationRunMode : uint32
 {
-	testMode = 0,
-	backendMode = 1,
+	worldMode = 0,
+	testMode = 1,
+	backendMode = 2,
 };
 
 struct ApplicationRunOptions
 {
-	ApplicationRunMode runMode = ApplicationRunMode::testMode;
+	ApplicationRunMode runMode = ApplicationRunMode::worldMode;
 	RenderBackendType backendType = RenderBackendType::dx12;
 	uint32 backendFrameCount = 120;
 	bool forceResize = false;
@@ -122,9 +123,17 @@ static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer 
 		{
 			applicationRunOptions.runMode = ApplicationRunMode::backendMode;
 		}
-		else if (argumentValue != L"test")
+		else if (argumentValue == L"test")
 		{
-			error << "Unknown mode argument. Fallback to test mode." << lineBreak;
+			applicationRunOptions.runMode = ApplicationRunMode::testMode;
+		}
+		else if (argumentValue == L"world")
+		{
+			applicationRunOptions.runMode = ApplicationRunMode::worldMode;
+		}
+		else
+		{
+			error << "Unknown mode argument. Fallback to world mode." << lineBreak;
 		}
 	}
 
@@ -198,9 +207,13 @@ int WINAPI wWinMain(
 	{
 		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::backendFlow;
 	}
-	else
+	else if (applicationRunOptions.runMode == ApplicationRunMode::testMode)
 	{
 		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::testFlow;
+	}
+	else
+	{
+		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::worldFlow;
 	}
 	frameworkInitializeOptions.backendOptions.backendType = applicationRunOptions.backendType;
 	frameworkInitializeOptions.backendOptions.frameCount = applicationRunOptions.backendFrameCount;

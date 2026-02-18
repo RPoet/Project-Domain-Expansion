@@ -364,6 +364,16 @@ MessageResult WindowsWindowObject::handleWindowMessage(
 	MessageFirstParameter firstParameter,
 	MessageSecondParameter secondParameter)
 {
+	if (windowEventCallbacks.onNativeMessage
+		&& windowEventCallbacks.onNativeMessage(
+			currentWindowHandle,
+			messageIdentifier,
+			firstParameter,
+			secondParameter))
+	{
+		return 0;
+	}
+
 	switch (messageIdentifier)
 	{
 	case WM_CLOSE:

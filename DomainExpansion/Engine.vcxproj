@@ -53,7 +53,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -71,7 +71,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -93,6 +93,7 @@
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\EntityTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.cpp" />
@@ -108,6 +109,14 @@
     <ClCompile Include="Engine\Code\Render\Renderer.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\World.cpp" />
     <ClCompile Include="Engine\Code\Engine\Window\WindowsWindowObject.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_demo.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
@@ -122,6 +131,7 @@
     <ClInclude Include="Engine\Code\Engine\Module\Module.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Singleton.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Timer\Timer.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\EmptyComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h" />
@@ -152,6 +162,15 @@
     <ClInclude Include="Engine\Code\Render\Renderer.h" />
     <ClInclude Include="Engine\Code\Render\ResourceTypes.h" />
     <ClInclude Include="Engine\Code\Engine\Window\WindowsWindowObject.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imgui.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imgui_internal.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imconfig.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imstb_rectpack.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imstb_textedit.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\imstb_truetype.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
