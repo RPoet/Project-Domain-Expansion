@@ -46,11 +46,6 @@ public:
 	uint32 getActiveWorldIndex() const;
 
 	bool update();
-	void registerTest();
-	void addTestCase(unique_pointer<FrameworkTestCase> testCase);
-	void clearTestCases();
-	bool isTestFlowCompleted() const;
-	const FrameworkTestSummary& getTestSummary() const;
 	bool isExecutionCompleted() const;
 	int32 getRuntimeExitCode() const;
 	const FrameworkBackendOptions& getBackendOptions() const;
@@ -61,6 +56,12 @@ public:
 
 	void registerModule();
 	void addModule(const shared_pointer<Module>& module);
+
+	void registerTest();
+	void addTestCase(unique_pointer<FrameworkTestCase> testCase);
+	void clearTestCases();
+	bool isTestFlowCompleted() const;
+	const FrameworkTestSummary& getTestSummary() const;
 
 private:
 	bool initializeModules();
@@ -84,7 +85,7 @@ private:
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
 	FrameworkBackendTestState backendTestState = {};
-	bool backendCreated = false;
+
 	bool executionCompleted = false;
 	bool moduleRegistrationCompleted = false;
 	bool moduleInitializationCompleted = false;

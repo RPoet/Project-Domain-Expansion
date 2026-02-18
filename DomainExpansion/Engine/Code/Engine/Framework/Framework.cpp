@@ -11,15 +11,14 @@ Framework::Framework(const FrameworkExecutionFlow executionFlow)
 }
 
 bool Framework::initialize(
-	WindowsWindowObject& windowsWindowObject,
+	WindowsWindowObject& inWindowsWindowObject,
 	const FrameworkInitializeOptions& initializeOptions)
 {
 	shutdown();
 
 	executionFlow = initializeOptions.executionFlow;
 	backendOptions = initializeOptions.backendOptions;
-	this->windowsWindowObject = &windowsWindowObject;
-	backendCreated = false;
+	windowsWindowObject = &inWindowsWindowObject;
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 
@@ -32,7 +31,7 @@ bool Framework::initialize(
 	{
 		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
 	};
-	windowsWindowObject.setEventCallbacks(moveValue(windowEventCallbacks));
+	windowsWindowObject->setEventCallbacks(moveValue(windowEventCallbacks));
 
 	registerModule();
 	if (!initializeModules())
@@ -61,8 +60,6 @@ bool Framework::initialize(
 	{
 		return initializeBackendFlow();
 	}
-
-	backendCreated = true;
 	return true;
 }
 
@@ -70,7 +67,6 @@ void Framework::shutdown()
 {
 	shutdownModules();
 
-	backendCreated = false;
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	windowsWindowObject = nullptr;
@@ -207,10 +203,9 @@ bool Framework::update()
 	activeWorldObject->tick(deltaTimeSeconds);
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (backendCreated
-		&& windowsWindowObject != nullptr
-		&& renderBackendModule != nullptr
+	if (renderBackendModule != nullptr
 		&& renderBackendModule->isBackendCreated()
+		&& windowsWindowObject != nullptr
 		&& !windowsWindowObject->isWindowMinimized())
 	{
 		RenderBackend* renderBackend = renderBackendModule->getBackend();
@@ -280,6 +275,8 @@ const WindowsWindowObject* Framework::getWindowObject() const
 	return windowsWindowObject;
 }
 
+
+// TO DO : Refactor this, RenderCommand must be working like it has its own world, and not included in the Framework.
 void Framework::flushRenderCommandQueue()
 {
 	RenderCommand::get().flush();

@@ -90,7 +90,6 @@ bool Framework::initializeBackendFlow()
 		return false;
 	}
 
-	backendCreated = true;
 	backendTestState.finalizePending = false;
 	if (backendCliFlow)
 	{
@@ -109,7 +108,7 @@ void Framework::onWindowResize(const uint32 width, const uint32 height)
 		return;
 	}
 
-	if (!backendCreated || renderBackendModule == nullptr || !renderBackendModule->isBackendCreated())
+	if (renderBackendModule == nullptr || !renderBackendModule->isBackendCreated())
 	{
 		return;
 	}
@@ -144,8 +143,7 @@ bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 
 	if (windowsWindowObject == nullptr
 		|| renderBackendModule == nullptr
-		|| !renderBackendModule->isBackendCreated()
-		|| !backendCreated)
+		|| !renderBackendModule->isBackendCreated())
 	{
 		runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
 		executionCompleted = true;
@@ -210,8 +208,7 @@ bool Framework::enqueueBackendRenderFrameCommand()
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	if (windowsWindowObject == nullptr
 		|| renderBackendModule == nullptr
-		|| !renderBackendModule->isBackendCreated()
-		|| !backendCreated)
+		|| !renderBackendModule->isBackendCreated())
 	{
 		return false;
 	}
@@ -289,7 +286,6 @@ void Framework::finalizeBackendFlow(const bool passState)
 		renderBackendModule->destroyBackend();
 	}
 
-	backendCreated = false;
 	backendTestState.finalizePending = false;
 	executionCompleted = true;
 	runtimeExitCode = backendPass
