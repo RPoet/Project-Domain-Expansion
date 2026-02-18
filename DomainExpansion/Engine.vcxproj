@@ -84,6 +84,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkBackend.cpp" />
@@ -119,6 +120,7 @@
     <ClCompile Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkConstants.h" />

@@ -27,6 +27,7 @@ struct FrameworkBackendTestState
 	uint32 renderedFrameCount = 0;
 	uint32 resizeCount = 0;
 	bool resizeFailed = false;
+	bool validationFailed = false;
 	bool forcedResizeSubmitted = false;
 	bool finalizePending = false;
 
@@ -35,6 +36,7 @@ struct FrameworkBackendTestState
 		renderedFrameCount = 0;
 		resizeCount = 0;
 		resizeFailed = false;
+		validationFailed = false;
 		forcedResizeSubmitted = false;
 		finalizePending = false;
 	}

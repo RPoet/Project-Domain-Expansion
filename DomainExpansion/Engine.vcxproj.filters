@@ -14,6 +14,9 @@
     <ClCompile Include="Engine\Code\Engine\Main.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -115,6 +118,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h">
       <Filter>Header Files</Filter>
     </ClInclude>

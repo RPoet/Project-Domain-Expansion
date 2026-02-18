@@ -4,6 +4,36 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
 
+static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
+{
+	switch (backendType)
+	{
+	case RenderBackendType::dx12:
+		return "dx12";
+	case RenderBackendType::vulkan:
+		return "vulkan";
+	case RenderBackendType::metal:
+		return "metal";
+	default:
+		return "unknown";
+	}
+}
+
+static const char* getFrameworkExecutionFlowText(const FrameworkExecutionFlow executionFlow)
+{
+	switch (executionFlow)
+	{
+	case FrameworkExecutionFlow::worldFlow:
+		return "world";
+	case FrameworkExecutionFlow::backendFlow:
+		return "backend";
+	case FrameworkExecutionFlow::testFlow:
+		return "test";
+	default:
+		return "unknown";
+	}
+}
+
 Framework::Framework(const FrameworkExecutionFlow executionFlow)
 	: executionFlow(executionFlow)
 {
@@ -20,6 +50,20 @@ bool Framework::initialize(
 	windowsWindowObject = &inWindowsWindowObject;
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
+
+	const bool forceEnableDebugLayer =
+		executionFlow == FrameworkExecutionFlow::worldFlow
+		|| executionFlow == FrameworkExecutionFlow::backendFlow;
+	if (forceEnableDebugLayer && !backendOptions.enableDebugLayer)
+	{
+		output << "[BackendValidation][Policy] flow=" << getFrameworkExecutionFlowText(executionFlow)
+			   << " backend=" << getFrameworkBackendTypeText(backendOptions.backendType)
+			   << " key=force_debug_layer previous=0 current=1" << lineBreak;
+	}
+	if (forceEnableDebugLayer)
+	{
+		backendOptions.enableDebugLayer = true;
+	}
 
 	WindowEventCallbacks windowEventCallbacks = {};
 	windowEventCallbacks.onResize = [this](const uint32 width, const uint32 height)
@@ -421,16 +465,19 @@ void Framework::flushRenderCommandQueue()
 {
 	RenderCommand::get().flush();
 
+	if (!executionCompleted
+		&& (executionFlow == FrameworkExecutionFlow::worldFlow
+			|| executionFlow == FrameworkExecutionFlow::backendFlow))
+	{
+		if (processBackendValidationFailFast())
+		{
+			return;
+		}
+	}
+
 	if (executionFlow == FrameworkExecutionFlow::backendFlow
 		&& !executionCompleted)
 	{
-		if (reportBackendDebugErrorsIfAny())
-		{
-			error << "[BackendCLI][Error] stage=debug_layer reason=dx12_execution_error" << lineBreak;
-			finalizeBackendFlow(false);
-			return;
-		}
-
 		if (backendTestState.finalizePending)
 		{
 			backendTestState.finalizePending = false;

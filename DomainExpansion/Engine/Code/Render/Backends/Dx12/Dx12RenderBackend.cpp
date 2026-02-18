@@ -435,11 +435,14 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 	if (enableDebugLayer)
 	{
 		com_pointer<ID3D12Debug> debugController;
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+		if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))) || debugController == nullptr)
 		{
-			debugController->EnableDebugLayer();
-			factoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+			error << "[BackendValidation][Error] flow=initialize backend=dx12 reason=debug_layer_unavailable" << lineBreak;
+			return false;
 		}
+
+		debugController->EnableDebugLayer();
+		factoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 	}
 
 	return SUCCEEDED(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&dxgiFactory)));

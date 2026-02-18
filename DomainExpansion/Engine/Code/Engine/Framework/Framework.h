@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Framework/BackendValidation.h"
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Framework/TestFramework.h"
 #include "Engine/Framework/World.h"
@@ -14,6 +15,7 @@ struct FrameworkBackendOptions
 	uint32 frameCount = 120;
 	bool forceResize = false;
 	bool enableDebugLayer = false;
+	BackendValidationInjectMode validationInjectMode = BackendValidationInjectMode::none;
 };
 
 struct FrameworkInitializeOptions
@@ -72,7 +74,7 @@ private:
 	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);
 	void resetBackendTestState();
-	bool reportBackendDebugErrorsIfAny();
+	bool processBackendValidationFailFast();
 	void finalizeTestFlow();
 	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;

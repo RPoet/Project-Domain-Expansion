@@ -19,7 +19,46 @@ static const char* getBackendTypeText(const RenderBackendType backendType)
 	}
 }
 
-bool Framework::reportBackendDebugErrorsIfAny()
+static const char* getBackendFlowText(const FrameworkExecutionFlow executionFlow)
+{
+	switch (executionFlow)
+	{
+	case FrameworkExecutionFlow::worldFlow:
+		return "world";
+	case FrameworkExecutionFlow::backendFlow:
+		return "backend";
+	case FrameworkExecutionFlow::testFlow:
+		return "test";
+	default:
+		return "unknown";
+	}
+}
+
+static string normalizeValidationText(const string& text)
+{
+	string normalizedText = {};
+	normalizedText.reserve(text.size());
+	for (size_t characterIndex = 0; characterIndex < text.size(); ++characterIndex)
+	{
+		const char character = text[characterIndex];
+		if (character == '\n' || character == '\r' || character == '\t')
+		{
+			normalizedText.push_back(' ');
+			continue;
+		}
+
+		normalizedText.push_back(character);
+	}
+
+	if (normalizedText.empty())
+	{
+		return "no_description";
+	}
+
+	return normalizedText;
+}
+
+bool Framework::processBackendValidationFailFast()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	if (renderBackendModule == nullptr || !renderBackendModule->isBackendCreated())
@@ -33,7 +72,57 @@ bool Framework::reportBackendDebugErrorsIfAny()
 		return false;
 	}
 
-	return renderBackend->reportDebugErrorsIfAny();
+	const BackendValidationPollResult pollResult = collectBackendMessages(
+		backendOptions.backendType,
+		renderBackend,
+		backendOptions.validationInjectMode);
+
+	const char* flowText = getBackendFlowText(executionFlow);
+	const char* backendText = getBackendTypeText(backendOptions.backendType);
+	for (uint32 messageIndex = 0; messageIndex < static_cast<uint32>(pollResult.messages.size()); ++messageIndex)
+	{
+		const BackendValidationMessage& message = pollResult.messages[messageIndex];
+		const bool failingMessage = isBackendValidationFailingSeverity(message.severity);
+		const string messageId = message.id.empty() ? "unknown" : message.id;
+		output_stream& selectedStream = failingMessage ? error : output;
+		selectedStream << "[BackendValidation][Message] flow=" << flowText
+					   << " backend=" << backendText
+					   << " severity=" << getBackendValidationSeverityText(message.severity)
+					   << " id=" << messageId
+					   << " action=" << (failingMessage ? "fail" : "log")
+					   << " text=" << normalizeValidationText(message.text) << lineBreak;
+	}
+
+	const bool validationFailed = pollResult.failingCount > 0;
+	output_stream& summaryStream = validationFailed ? error : output;
+	summaryStream << "[BackendValidation][Summary] flow=" << flowText
+				  << " backend=" << backendText
+				  << " total=" << pollResult.totalCount
+				  << " failing=" << pollResult.failingCount
+				  << " threshold=warning"
+				  << " result=" << (validationFailed ? "fail" : "pass") << lineBreak;
+
+	if (!validationFailed)
+	{
+		return false;
+	}
+
+	if (executionFlow == FrameworkExecutionFlow::backendFlow)
+	{
+		backendTestState.validationFailed = true;
+		finalizeBackendFlow(false);
+		runtimeExitCode = FrameworkRuntimeExitCode::debugValidationFailure;
+		return true;
+	}
+
+	if (executionFlow == FrameworkExecutionFlow::worldFlow)
+	{
+		executionCompleted = true;
+		runtimeExitCode = FrameworkRuntimeExitCode::debugValidationFailure;
+		return true;
+	}
+
+	return false;
 }
 
 bool Framework::initializeBackendFlow()
@@ -306,9 +395,11 @@ void Framework::finalizeBackendFlow(const bool passState)
 	const bool backendPass =
 		passState
 		&& !backendTestState.resizeFailed
+		&& !backendTestState.validationFailed
 		&& (backendTestState.renderedFrameCount == backendOptions.frameCount);
 	output << "[BackendCLI][Summary] frameCount=" << backendTestState.renderedFrameCount
 		   << " resizeCount=" << backendTestState.resizeCount
+		   << " validationFailed=" << (backendTestState.validationFailed ? 1 : 0)
 		   << " result=" << (backendPass ? "pass" : "fail") << lineBreak;
 
 	if (renderBackendModule != nullptr)

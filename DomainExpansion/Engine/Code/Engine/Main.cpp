@@ -20,6 +20,7 @@ struct ApplicationRunOptions
 #else
 	bool enableBackendDebugLayer = false;
 #endif
+	BackendValidationInjectMode backendValidationInjectMode = BackendValidationInjectMode::none;
 };
 
 static bool isWhitespaceCharacter(const wide_character character)
@@ -110,6 +111,31 @@ static bool parseBackendType(const wstring& backendTypeText, RenderBackendType& 
 	return false;
 }
 
+static bool parseBackendValidationInjectMode(
+	const wstring& injectModeText,
+	BackendValidationInjectMode& injectMode)
+{
+	if (injectModeText == L"none")
+	{
+		injectMode = BackendValidationInjectMode::none;
+		return true;
+	}
+
+	if (injectModeText == L"warning")
+	{
+		injectMode = BackendValidationInjectMode::warning;
+		return true;
+	}
+
+	if (injectModeText == L"error")
+	{
+		injectMode = BackendValidationInjectMode::error;
+		return true;
+	}
+
+	return false;
+}
+
 static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer commandLine)
 {
 	ApplicationRunOptions applicationRunOptions = {};
@@ -173,6 +199,19 @@ static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer 
 		}
 	}
 
+	if (tryGetArgumentValue(commandLineText, L"-backend_validation_inject=", argumentValue))
+	{
+		BackendValidationInjectMode parsedInjectMode = BackendValidationInjectMode::none;
+		if (parseBackendValidationInjectMode(argumentValue, parsedInjectMode))
+		{
+			applicationRunOptions.backendValidationInjectMode = parsedInjectMode;
+		}
+		else
+		{
+			error << "Unknown backend validation inject mode. Fallback to none." << lineBreak;
+		}
+	}
+
 	return applicationRunOptions;
 }
 
@@ -219,6 +258,7 @@ int WINAPI wWinMain(
 	frameworkInitializeOptions.backendOptions.frameCount = applicationRunOptions.backendFrameCount;
 	frameworkInitializeOptions.backendOptions.forceResize = applicationRunOptions.forceResize;
 	frameworkInitializeOptions.backendOptions.enableDebugLayer = applicationRunOptions.enableBackendDebugLayer;
+	frameworkInitializeOptions.backendOptions.validationInjectMode = applicationRunOptions.backendValidationInjectMode;
 
 	Framework framework(frameworkInitializeOptions.executionFlow);
 	if (!framework.initialize(windowsWindowObject, frameworkInitializeOptions))

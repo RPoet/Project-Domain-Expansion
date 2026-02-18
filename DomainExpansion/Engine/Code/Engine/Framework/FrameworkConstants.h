@@ -12,5 +12,6 @@ enum class FrameworkRuntimeExitCode : int32
 	testFlowTickFailed = 1,
 	backendFlowRuntimeFailure = 3,
 	backendFlowSummaryFailure = 4,
+	debugValidationFailure = 5,
 	moduleInitializationFailure = 6,
 };
