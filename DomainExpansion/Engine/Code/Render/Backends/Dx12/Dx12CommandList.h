@@ -27,6 +27,12 @@ public:
 	void setPrimitiveTopology(PrimitiveTopology primitiveTopology) override;
 	void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) override;
 	void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) override;
+	void copyBuffer(
+		BufferResourceObject* destinationBufferObject,
+		uint64 destinationOffsetInBytes,
+		BufferResourceObject* sourceBufferObject,
+		uint64 sourceOffsetInBytes,
+		uint64 copySizeInBytes) override;
 	void drawIndexed(
 		uint32 indexCountPerInstance,
 		uint32 instanceCount,

@@ -110,6 +110,12 @@ public:
 	virtual void setPrimitiveTopology(PrimitiveTopology primitiveTopology) = 0;
 	virtual void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) = 0;
 	virtual void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) = 0;
+	virtual void copyBuffer(
+		BufferResourceObject* destinationBufferObject,
+		uint64 destinationOffsetInBytes,
+		BufferResourceObject* sourceBufferObject,
+		uint64 sourceOffsetInBytes,
+		uint64 copySizeInBytes) = 0;
 	virtual void drawIndexed(
 		uint32 indexCountPerInstance,
 		uint32 instanceCount,

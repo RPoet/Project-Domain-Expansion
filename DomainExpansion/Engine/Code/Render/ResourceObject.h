@@ -36,10 +36,17 @@ public:
 	virtual void* getNativeResource() { return nullptr; }
 };
 
+enum class BufferObjectMemoryType : uint32
+{
+	defaultHeap = 0,
+	uploadHeap = 1,
+	readbackHeap = 2,
+};
+
 struct BufferObjectCreateOptions
 {
 	uint64 sizeInBytes = 0;
-	const void* initialData = nullptr;
+	BufferObjectMemoryType memoryType = BufferObjectMemoryType::defaultHeap;
 };
 
 class TextureResourceObject : public ResourceObject

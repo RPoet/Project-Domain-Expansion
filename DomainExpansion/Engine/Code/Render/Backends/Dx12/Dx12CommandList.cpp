@@ -277,6 +277,21 @@ void Dx12CommandList::setIndexBuffer(const IndexBufferBinding& indexBufferBindin
 	commandList->IASetIndexBuffer(&indexBufferView);
 }
 
+void Dx12CommandList::copyBuffer(
+	BufferResourceObject* destinationBufferObject,
+	const uint64 destinationOffsetInBytes,
+	BufferResourceObject* sourceBufferObject,
+	const uint64 sourceOffsetInBytes,
+	const uint64 copySizeInBytes)
+{
+	unused(destinationBufferObject);
+	unused(destinationOffsetInBytes);
+	unused(sourceBufferObject);
+	unused(sourceOffsetInBytes);
+	unused(copySizeInBytes);
+	// TO DO : Implement buffer copy recording when uploader queue path is implemented.
+}
+
 void Dx12CommandList::drawIndexed(
 	const uint32 indexCountPerInstance,
 	const uint32 instanceCount,

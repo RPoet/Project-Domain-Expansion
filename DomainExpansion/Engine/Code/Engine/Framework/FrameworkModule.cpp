@@ -1,5 +1,6 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/Render/GPUUploader.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
@@ -12,6 +13,7 @@ void Framework::registerModule()
 	}
 
 	addModule(Timer::get());
+	addModule(GPUUploader::get());
 	addModule(MeshStreaming::get());
 	addModule(RenderBackendModule::get());
 	addModule(ImGuiLayerModule::get());

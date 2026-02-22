@@ -144,8 +144,7 @@ private:
 	void flushCpuRequests();
 	bool uploadMeshHandleToGpu(
 		RenderBackend& renderBackend,
-		MeshAssetHandle& handle,
-		string& outErrorText) const;
+		MeshAssetHandle& handle) const;
 	string getMeshCacheKey(const string& meshRelativePath, uint32 lodLevel) const;
 	bool resolveMeshAbsolutePath(const string& meshRelativePath, string& outAbsolutePath) const;
 

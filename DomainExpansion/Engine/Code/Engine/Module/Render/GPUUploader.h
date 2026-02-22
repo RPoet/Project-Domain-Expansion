@@ -1,0 +1,63 @@
+#pragma once
+
+#include "Engine/Module/Module.h"
+#include "Engine/Platform/PlatformDefine.h"
+#include "Render/ResourceObject.h"
+
+class CommandList;
+class RenderBackend;
+
+enum class GPUUploaderMode : uint32
+{
+	staging = 0,
+	pool = 1,
+};
+
+struct BufferUploadRequestOptions
+{
+	const void* sourceData = nullptr;
+	uint64 sourceDataSizeInBytes = 0;
+	uint64 destinationOffsetInBytes = 0;
+};
+
+// TO DO : Consdier having itw own fence value and signaling it to get more finer grain tuning.
+class GPUUploader final : public StaticModule<GPUUploader>
+{
+public:
+	GPUUploader()
+		: StaticModule("GPUUploader")
+	{
+	}
+
+	bool init(Framework& framework) override final;
+	void preUpdate() override final;
+	void postUpdate() override final;
+	void shutdown() override final;
+
+	unique_pointer<BufferResourceObject> createBufferObject(
+		RenderBackend& renderBackend,
+		const BufferObjectCreateOptions& createOptions,
+		const BufferUploadRequestOptions& uploadRequestOptions);
+	void setFenceValue(uint64 fenceValue);
+	void uploadQueuedBuffers(CommandList& commandList);
+
+private:
+	struct UploadBufferPoolBlock
+	{
+		uint64 capacityInBytes = 0;
+		uint64 usedInBytes = 0;
+		uint64 lastUsedFenceValue = 0;
+	};
+
+	static constexpr uint64 minimumPoolBlockSizeInBytes = 64ull * 1024ull;
+	static constexpr uint64 idleReleaseFenceThreshold = 180;
+
+	bool reserveUploadSpace(uint64 requestSizeInBytes);
+	void releaseIdlePoolBlocks();
+	void resetFrameAllocations();
+	void clearPool();
+
+	GPUUploaderMode uploaderMode = GPUUploaderMode::staging;
+	uint64 currentFenceValue = 0;
+	vector<UploadBufferPoolBlock> uploadBufferPoolBlocks;
+};

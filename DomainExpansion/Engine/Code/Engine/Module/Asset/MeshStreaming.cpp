@@ -1,6 +1,7 @@
 #include "Engine/Module/Asset/MeshStreaming.h"
 
 #include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Module/Render/GPUUploader.h"
 #include "Render/Backends/RenderBackend.h"
 
 static uint32 getDefaultRequiredVertexBufferFlags()
@@ -162,6 +163,8 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		return;
 	}
 
+	GPUUploader::get()->setFenceValue(renderBackend.getSyncObject()->getCompletedFenceValue());
+
 	vector<shared_pointer<MeshAssetHandle>> processingHandles;
 	processingHandles.swap(pendingGpuUploadHandles);
 	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
@@ -174,14 +177,9 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 			continue;
 		}
 
-		string errorText = {};
-		if (!uploadMeshHandleToGpu(renderBackend, *handle, errorText))
+		if (!uploadMeshHandleToGpu(renderBackend, *handle))
 		{
 			handle->gpuState = MeshAssetGpuState::failed;
-			const string failReason = errorText.empty() ? "gpu_upload_failed" : errorText;
-			error << "[MeshStreaming][Error] mesh=" << handle->meshRelativePath
-				  << " lod=" << handle->lodLevel
-				  << " reason=" << failReason << lineBreak;
 			continue;
 		}
 
@@ -198,16 +196,26 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 
 bool MeshStreaming::uploadMeshHandleToGpu(
 	RenderBackend& renderBackend,
-	MeshAssetHandle& handle,
-	string& outErrorText) const
+	MeshAssetHandle& handle) const
 {
-	outErrorText.clear();
 	initializeMeshAssetHandleVertexBuffers(handle);
+	const auto failUpload = [&handle](const char* reason) -> bool
+	{
+		error << "[MeshStreaming][Error] mesh=" << handle.meshRelativePath
+			  << " lod=" << handle.lodLevel
+			  << " reason=" << reason << lineBreak;
+		return false;
+	};
+
+	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
+	if (gpuUploader == nullptr)
+	{
+		return failUpload("gpu_uploader_missing");
+	}
 
 	if (handle.meshAsset == nullptr)
 	{
-		outErrorText = "mesh_asset_missing";
-		return false;
+		return failUpload("mesh_asset_missing");
 	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
@@ -249,8 +257,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 			break;
 		case MeshBufferSignature::count:
 		default:
-			outErrorText = "mesh_buffer_signature_invalid";
-			return false;
+			return failUpload("mesh_buffer_signature_invalid");
 		}
 
 		vertexBufferSizesInBytes[signatureIndex] = bufferByteSize;
@@ -269,39 +276,33 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 		if (bufferByteSize == 0)
 		{
-			outErrorText = "mesh_data_empty";
-			return false;
+			return failUpload("mesh_data_empty");
 		}
 
 		if (bufferByteSize > static_cast<uint64>(uint32MaxValue))
 		{
-			outErrorText = "mesh_buffer_size_overflow";
-			return false;
+			return failUpload("mesh_buffer_size_overflow");
 		}
 
 		if (vertexBufferElementCounts[signatureIndex] != meshAsset.vertexCount)
 		{
-			outErrorText = "mesh_vertex_stream_mismatch";
-			return false;
+			return failUpload("mesh_vertex_stream_mismatch");
 		}
 	}
 
 	if ((sourceVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
 	{
-		outErrorText = "mesh_required_vertex_buffer_missing";
-		return false;
+		return failUpload("mesh_required_vertex_buffer_missing");
 	}
 
 	if (indexBufferBytes == 0)
 	{
-		outErrorText = "mesh_data_empty";
-		return false;
+		return failUpload("mesh_data_empty");
 	}
 
 	if (indexBufferBytes > static_cast<uint64>(uint32MaxValue))
 	{
-		outErrorText = "mesh_buffer_size_overflow";
-		return false;
+		return failUpload("mesh_buffer_size_overflow");
 	}
 
 	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
@@ -315,19 +316,20 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 		BufferObjectCreateOptions bufferCreateOptions = {};
 		bufferCreateOptions.sizeInBytes = vertexBufferSizesInBytes[signatureIndex];
-		bufferCreateOptions.initialData = vertexBufferInitialData[signatureIndex];
-		if (bufferCreateOptions.sizeInBytes == 0 || bufferCreateOptions.initialData == nullptr)
+
+		BufferUploadRequestOptions uploadRequestOptions = {};
+		uploadRequestOptions.sourceData = vertexBufferInitialData[signatureIndex];
+		uploadRequestOptions.sourceDataSizeInBytes = vertexBufferSizesInBytes[signatureIndex];
+		uploadRequestOptions.destinationOffsetInBytes = 0;
+		if (bufferCreateOptions.sizeInBytes == 0 || uploadRequestOptions.sourceData == nullptr)
 		{
-			outErrorText = "mesh_data_empty";
-			return false;
+			return failUpload("mesh_data_empty");
 		}
 
-		unique_pointer<BufferResourceObject> createdBufferObject =
-			renderBackend.createBufferObject(bufferCreateOptions);
+		unique_pointer<BufferResourceObject> createdBufferObject = gpuUploader->createBufferObject(renderBackend, bufferCreateOptions, uploadRequestOptions);
 		if (createdBufferObject == nullptr)
 		{
-			outErrorText = vertexBufferCreateFailReasons[signatureIndex];
-			return false;
+			return failUpload(vertexBufferCreateFailReasons[signatureIndex]);
 		}
 
 		handle.vertexBufferObjects[signatureIndex] = moveValue(createdBufferObject);
@@ -337,18 +339,20 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 	if ((handle.activeVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
 	{
-		outErrorText = "mesh_vertex_upload_flag_mismatch";
-		return false;
+		return failUpload("mesh_vertex_upload_flag_mismatch");
 	}
 
 	BufferObjectCreateOptions indexBufferCreateOptions = {};
 	indexBufferCreateOptions.sizeInBytes = indexBufferBytes;
-	indexBufferCreateOptions.initialData = meshAsset.indices.data();
-	unique_pointer<BufferResourceObject> indexBufferObject = renderBackend.createBufferObject(indexBufferCreateOptions);
+
+	BufferUploadRequestOptions indexUploadRequestOptions = {};
+	indexUploadRequestOptions.sourceData = meshAsset.indices.data();
+	indexUploadRequestOptions.sourceDataSizeInBytes = indexBufferBytes;
+	indexUploadRequestOptions.destinationOffsetInBytes = 0;
+	unique_pointer<BufferResourceObject> indexBufferObject = gpuUploader->createBufferObject(renderBackend, indexBufferCreateOptions, indexUploadRequestOptions);
 	if (indexBufferObject == nullptr)
 	{
-		outErrorText = "index_buffer_create_failed";
-		return false;
+		return failUpload("index_buffer_create_failed");
 	}
 
 	handle.indexBufferObject = moveValue(indexBufferObject);
@@ -356,8 +360,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 	if (handle.indexBufferObject == nullptr || handle.indexBufferSizeInBytes == 0)
 	{
-		outErrorText = "mesh_index_upload_invalid";
-		return false;
+		return failUpload("mesh_index_upload_invalid");
 	}
 
 	return true;
