@@ -1,5 +1,7 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Module/Asset/MeshStreaming.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
+#include "Engine/Module/Timer/Timer.h"
 #include "Render/RenderCommand.h"
 #include "Render/Renderer.h"
 #include "Render/Screen.h"
@@ -322,6 +324,15 @@ bool Framework::tickBackendFlow(const float deltaTimeSeconds)
 	return true;
 }
 
+bool Framework::updateBackendExecutionFlow()
+{
+	preUpdateModules();
+	const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
+	const bool updateResult = tickBackendFlow(deltaTimeSeconds);
+	postUpdateModules();
+	return updateResult;
+}
+
 bool Framework::enqueueBackendRenderFrameCommand()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
@@ -344,6 +355,12 @@ bool Framework::enqueueBackendRenderFrameCommand()
 	}
 
 	RenderCommand& renderCommand = RenderCommand::get();
+	renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
+	{
+		unused(commandName);
+		MeshStreaming::get()->flushGpuRequests(renderBackendReference);
+	});
+
 	renderCommand.enqueue("Render", [this](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);

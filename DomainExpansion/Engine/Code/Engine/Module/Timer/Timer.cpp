@@ -14,7 +14,7 @@ bool Timer::init(Framework& framework)
 	return true;
 }
 
-void Timer::update()
+void Timer::preUpdate()
 {
 	const double currentTime = getCurrentTimeSeconds();
 	double frameDelta = currentTime - prevTime;
@@ -32,6 +32,10 @@ void Timer::update()
 	delta = frameDelta;
 	time += frameDelta;
 	prevTime = currentTime;
+}
+
+void Timer::postUpdate()
+{
 }
 
 void Timer::shutdown()

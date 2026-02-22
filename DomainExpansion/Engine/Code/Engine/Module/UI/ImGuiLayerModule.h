@@ -19,7 +19,8 @@ public:
 	~ImGuiLayerModule() override;
 
 	bool init(Framework& framework) override;
-	void update() override;
+	void preUpdate() override;
+	void postUpdate() override;
 	void shutdown() override;
 
 	bool processNativeMessage(

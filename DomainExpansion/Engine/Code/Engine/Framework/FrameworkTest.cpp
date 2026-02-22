@@ -35,6 +35,32 @@ const FrameworkTestSummary& Framework::getTestSummary() const
 	return testFramework.getSummary();
 }
 
+bool Framework::updateTestExecutionFlow()
+{
+	preUpdateModules();
+	const bool updateResult = tickTestFlow();
+	postUpdateModules();
+	return updateResult;
+}
+
+bool Framework::tickTestFlow()
+{
+	const bool tickResult = testFramework.tick(*this);
+	if (!tickResult)
+	{
+		runtimeExitCode = FrameworkRuntimeExitCode::testFlowTickFailed;
+		executionCompleted = true;
+		return false;
+	}
+
+	if (testFramework.isCompleted())
+	{
+		finalizeTestFlow();
+	}
+
+	return true;
+}
+
 void Framework::finalizeTestFlow()
 {
 	if (executionCompleted)

@@ -22,7 +22,8 @@ public:
 	}
 
 	virtual bool init(Framework& framework) = 0;
-	virtual void update() = 0;
+	virtual void preUpdate() = 0;
+	virtual void postUpdate() = 0;
 	virtual void shutdown() = 0;
 
 private:

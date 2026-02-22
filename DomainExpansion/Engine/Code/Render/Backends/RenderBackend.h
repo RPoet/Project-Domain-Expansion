@@ -48,6 +48,7 @@ public:
 	virtual CommandQueue* getCommandQueue() = 0;
 	virtual SwapChain* getSwapChain() = 0;
 	virtual SyncObject* getSyncObject() = 0;
+	virtual unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) = 0;
 	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
 	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
 	virtual void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) = 0;

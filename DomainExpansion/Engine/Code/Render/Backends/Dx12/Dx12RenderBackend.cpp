@@ -7,6 +7,7 @@
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 
 #include <d3d12sdklayers.h>
+#include <cstring>
 
 static const char* getDx12MessageSeverityText(const D3D12_MESSAGE_SEVERITY severity)
 {
@@ -132,6 +133,13 @@ SwapChain* Dx12RenderBackend::getSwapChain()
 SyncObject* Dx12RenderBackend::getSyncObject()
 {
 	return syncObject.get();
+}
+
+unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
+	const BufferObjectCreateOptions& createOptions)
+{
+	unused(createOptions);
+	return nullptr;
 }
 
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)

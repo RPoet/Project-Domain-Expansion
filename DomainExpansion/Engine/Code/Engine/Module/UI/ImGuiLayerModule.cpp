@@ -252,7 +252,7 @@ bool ImGuiLayerModule::init(Framework& framework)
 	return true;
 }
 
-void ImGuiLayerModule::update()
+void ImGuiLayerModule::preUpdate()
 {
 	if (frameworkReference == nullptr
 		|| frameworkReference->getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
@@ -261,6 +261,10 @@ void ImGuiLayerModule::update()
 	}
 
 	updateUiScaleIfNeeded();
+}
+
+void ImGuiLayerModule::postUpdate()
+{
 }
 
 void ImGuiLayerModule::shutdown()

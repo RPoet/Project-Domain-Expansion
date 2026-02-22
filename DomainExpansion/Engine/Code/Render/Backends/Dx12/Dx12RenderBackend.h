@@ -24,6 +24,7 @@ public:
 	CommandQueue* getCommandQueue() override;
 	SwapChain* getSwapChain() override;
 	SyncObject* getSyncObject() override;
+	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
 	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
 	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;

@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <memory_resource>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -84,3 +85,4 @@ using com_pointer = platform_com_pointer<type_name>;
 
 inline constexpr Bool boolTrue = static_cast<Bool>(1);
 inline constexpr Bool boolFalse = static_cast<Bool>(0);
+inline constexpr uint32 uint32MaxValue = (std::numeric_limits<uint32>::max)();

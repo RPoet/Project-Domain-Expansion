@@ -73,7 +73,7 @@ bool Framework::initializeModules()
 	return true;
 }
 
-void Framework::updateModules()
+void Framework::preUpdateModules()
 {
 	if (!moduleInitializationCompleted)
 	{
@@ -88,7 +88,26 @@ void Framework::updateModules()
 			continue;
 		}
 
-		module->update();
+		module->preUpdate();
+	}
+}
+
+void Framework::postUpdateModules()
+{
+	if (!moduleInitializationCompleted)
+	{
+		return;
+	}
+
+	for (uint32 moduleIndex = 0; moduleIndex < static_cast<uint32>(moduleStorage.size()); ++moduleIndex)
+	{
+		shared_pointer<Module>& module = moduleStorage[moduleIndex];
+		if (module == nullptr)
+		{
+			continue;
+		}
+
+		module->postUpdate();
 	}
 }
 

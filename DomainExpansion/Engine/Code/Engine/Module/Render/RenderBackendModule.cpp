@@ -63,7 +63,11 @@ bool RenderBackendModule::init(Framework& framework)
 	return true;
 }
 
-void RenderBackendModule::update()
+void RenderBackendModule::preUpdate()
+{
+}
+
+void RenderBackendModule::postUpdate()
 {
 }
 

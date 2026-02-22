@@ -70,9 +70,13 @@ public:
 
 private:
 	bool initializeModules();
-	void updateModules();
+	bool updateTestExecutionFlow();
+	bool updateBackendExecutionFlow();
+	void preUpdateModules();
+	void postUpdateModules();
 	void shutdownModules();
 	void initializeTestFlow();
+	bool tickTestFlow();
 	bool initializeBackendFlow();
 	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);

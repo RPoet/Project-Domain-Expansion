@@ -36,6 +36,12 @@ public:
 	virtual void* getNativeResource() { return nullptr; }
 };
 
+struct BufferObjectCreateOptions
+{
+	uint64 sizeInBytes = 0;
+	const void* initialData = nullptr;
+};
+
 class TextureResourceObject : public ResourceObject
 {
 public:

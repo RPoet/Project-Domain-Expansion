@@ -9,7 +9,8 @@ public:
 	{}
 
 	bool init(Framework& framework) override final;
-	void update() override final;
+	void preUpdate() override final;
+	void postUpdate() override final;
 	void shutdown() override final;
 
 	double getDeltaTime() const { return delta; }

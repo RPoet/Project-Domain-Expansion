@@ -303,32 +303,18 @@ bool Framework::update()
 		return true;
 	}
 
-	updateModules();
-
 	if (executionFlow == FrameworkExecutionFlow::testFlow)
 	{
-		const bool tickResult = testFramework.tick(*this);
-		if (!tickResult)
-		{
-			runtimeExitCode = FrameworkRuntimeExitCode::testFlowTickFailed;
-			executionCompleted = true;
-			return false;
-		}
-
-		if (testFramework.isCompleted())
-		{
-			finalizeTestFlow();
-		}
-		return true;
+		return updateTestExecutionFlow();
 	}
-
-	float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 
 	if (executionFlow == FrameworkExecutionFlow::backendFlow)
 	{
-		return tickBackendFlow(deltaTimeSeconds);
+		return updateBackendExecutionFlow();
 	}
 
+	preUpdateModules();
+	const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 	World* activeWorldObject = getActiveWorld();
 	if (activeWorldObject == nullptr)
 	{
@@ -336,6 +322,7 @@ bool Framework::update()
 	}
 
 	activeWorldObject->tick(deltaTimeSeconds);
+	postUpdateModules();
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	if (renderBackendModule != nullptr
@@ -343,7 +330,14 @@ bool Framework::update()
 		&& windowsWindowObject != nullptr
 		&& !windowsWindowObject->isWindowMinimized())
 	{
-		RenderCommand::get().enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
+		RenderCommand& renderCommand = RenderCommand::get();
+		renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+			MeshStreaming::get()->flushGpuRequests(renderBackendReference);
+		});
+
+		renderCommand.enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
 		{
 			unused(commandName);
 
@@ -411,7 +405,7 @@ bool Framework::update()
 			renderBackendReference.queueCommandList(commandList);
 		});
 
-		RenderCommand::get().enqueue("UI", [](string&& commandName, RenderBackend& renderBackendReference)
+		renderCommand.enqueue("UI", [](string&& commandName, RenderBackend& renderBackendReference)
 		{
 			unused(commandName);
 
@@ -458,7 +452,7 @@ bool Framework::update()
 			renderBackendReference.queueCommandList(commandList);
 		});
 
-		RenderCommand::get().enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
+		renderCommand.enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
 		{
 			unused(commandName);
 
@@ -535,7 +529,6 @@ const WindowsWindowObject* Framework::getWindowObject() const
 void Framework::flushRenderCommandQueue()
 {
 	RenderCommand::get().flush();
-	MeshStreaming::get()->flushRequests();
 
 	if (!executionCompleted
 		&& (executionFlow == FrameworkExecutionFlow::worldFlow
