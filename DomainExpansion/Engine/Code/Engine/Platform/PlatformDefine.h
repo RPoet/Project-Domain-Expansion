@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "Engine/Platform/SIMDMath.h"
+
 #ifndef unused
 #define unused(x) (void)(x)
 #endif

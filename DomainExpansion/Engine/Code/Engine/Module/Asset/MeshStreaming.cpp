@@ -3,6 +3,39 @@
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Render/Backends/RenderBackend.h"
 
+static uint32 getDefaultRequiredVertexBufferFlags()
+{
+	return getMeshBufferSignatureFlag(MeshBufferSignature::position)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::normal)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::texcoord);
+}
+
+static void initializeMeshAssetHandleVertexBuffers(MeshAssetHandle& handle)
+{
+	if (handle.requiredVertexBufferFlags == 0)
+	{
+		handle.requiredVertexBufferFlags = getDefaultRequiredVertexBufferFlags();
+	}
+
+	handle.activeVertexBufferFlags = 0;
+	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
+	{
+		handle.vertexBufferObjects[signatureIndex].reset();
+		handle.vertexBufferSizesInBytes[signatureIndex] = 0;
+		handle.vertexBufferStridesInBytes[signatureIndex] = 0;
+	}
+
+	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::position)] =
+		static_cast<uint32>(sizeof(MeshAsset::PositionData));
+	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::normal)] =
+		static_cast<uint32>(sizeof(MeshAsset::NormalData));
+	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::texcoord)] =
+		static_cast<uint32>(sizeof(MeshAsset::TexcoordData));
+
+	handle.indexBufferObject.reset();
+	handle.indexBufferSizeInBytes = 0;
+}
+
 bool MeshStreaming::init(Framework& framework)
 {
 	unused(framework);
@@ -34,6 +67,7 @@ shared_pointer<MeshAssetHandle> MeshStreaming::requestMesh(
 	handle->meshRelativePath = meshRelativePath;
 	handle->lodLevel = lodLevel;
 	handle->state = MeshAssetHandleState::pending;
+	initializeMeshAssetHandleVertexBuffers(*handle);
 	handleCache.emplace(cacheKey, handle);
 	pendingHandles.push_back(handle);
 	return handle;
@@ -154,8 +188,11 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		handle->gpuState = MeshAssetGpuState::ready;
 		output << "[MeshStreaming][GpuReady] mesh=" << handle->meshRelativePath
 			   << " lod=" << handle->lodLevel
-			   << " vertexBufferBytes=" << handle->vertexBufferSizeInBytes
-			   << " indexBufferBytes=" << handle->indexBufferSizeInBytes << lineBreak;
+			   << " positionBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::position)
+			   << " normalBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::normal)
+			   << " texcoordBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::texcoord)
+			   << " indexBufferBytes=" << handle->indexBufferSizeInBytes
+			   << " activeVertexBufferFlags=" << handle->activeVertexBufferFlags << lineBreak;
 	}
 }
 
@@ -165,10 +202,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	string& outErrorText) const
 {
 	outErrorText.clear();
-	handle.vertexBufferObject.reset();
-	handle.indexBufferObject.reset();
-	handle.vertexBufferSizeInBytes = 0;
-	handle.indexBufferSizeInBytes = 0;
+	initializeMeshAssetHandleVertexBuffers(handle);
 
 	if (handle.meshAsset == nullptr)
 	{
@@ -177,28 +211,133 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
-	const uint64 vertexBufferBytes = static_cast<uint64>(meshAsset.vertices.size()) * sizeof(MeshAsset::VertexData);
 	const uint64 indexBufferBytes = static_cast<uint64>(meshAsset.indices.size()) * sizeof(uint32);
-	if (vertexBufferBytes == 0 || indexBufferBytes == 0)
+	uint64 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
+	const void* vertexBufferInitialData[meshVertexBufferSignatureCount] = {};
+	uint32 vertexBufferElementCounts[meshVertexBufferSignatureCount] = {};
+	const char* vertexBufferCreateFailReasons[meshVertexBufferSignatureCount] = {};
+
+	uint32 sourceVertexBufferFlags = 0;
+	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
+	{
+		const MeshBufferSignature signature = static_cast<MeshBufferSignature>(signatureIndex);
+		const uint32 signatureFlag = getMeshBufferSignatureFlag(signature);
+		uint64 bufferByteSize = 0;
+		const void* initialData = nullptr;
+		uint32 elementCount = 0;
+		const char* createFailReason = "buffer_create_failed";
+
+		switch (signature)
+		{
+		case MeshBufferSignature::position:
+			bufferByteSize = static_cast<uint64>(meshAsset.positionVertices.size()) * sizeof(MeshAsset::PositionData);
+			initialData = meshAsset.positionVertices.data();
+			elementCount = static_cast<uint32>(meshAsset.positionVertices.size());
+			createFailReason = "position_buffer_create_failed";
+			break;
+		case MeshBufferSignature::normal:
+			bufferByteSize = static_cast<uint64>(meshAsset.normalVertices.size()) * sizeof(MeshAsset::NormalData);
+			initialData = meshAsset.normalVertices.data();
+			elementCount = static_cast<uint32>(meshAsset.normalVertices.size());
+			createFailReason = "normal_buffer_create_failed";
+			break;
+		case MeshBufferSignature::texcoord:
+			bufferByteSize = static_cast<uint64>(meshAsset.texcoordVertices.size()) * sizeof(MeshAsset::TexcoordData);
+			initialData = meshAsset.texcoordVertices.data();
+			elementCount = static_cast<uint32>(meshAsset.texcoordVertices.size());
+			createFailReason = "texcoord_buffer_create_failed";
+			break;
+		case MeshBufferSignature::count:
+		default:
+			outErrorText = "mesh_buffer_signature_invalid";
+			return false;
+		}
+
+		vertexBufferSizesInBytes[signatureIndex] = bufferByteSize;
+		vertexBufferInitialData[signatureIndex] = initialData;
+		vertexBufferElementCounts[signatureIndex] = elementCount;
+		vertexBufferCreateFailReasons[signatureIndex] = createFailReason;
+		if (bufferByteSize > 0)
+		{
+			sourceVertexBufferFlags |= signatureFlag;
+		}
+
+		if ((handle.requiredVertexBufferFlags & signatureFlag) == 0)
+		{
+			continue;
+		}
+
+		if (bufferByteSize == 0)
+		{
+			outErrorText = "mesh_data_empty";
+			return false;
+		}
+
+		if (bufferByteSize > static_cast<uint64>(uint32MaxValue))
+		{
+			outErrorText = "mesh_buffer_size_overflow";
+			return false;
+		}
+
+		if (vertexBufferElementCounts[signatureIndex] != meshAsset.vertexCount)
+		{
+			outErrorText = "mesh_vertex_stream_mismatch";
+			return false;
+		}
+	}
+
+	if ((sourceVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
+	{
+		outErrorText = "mesh_required_vertex_buffer_missing";
+		return false;
+	}
+
+	if (indexBufferBytes == 0)
 	{
 		outErrorText = "mesh_data_empty";
 		return false;
 	}
 
-	if (vertexBufferBytes > static_cast<uint64>(uint32MaxValue)
-		|| indexBufferBytes > static_cast<uint64>(uint32MaxValue))
+	if (indexBufferBytes > static_cast<uint64>(uint32MaxValue))
 	{
 		outErrorText = "mesh_buffer_size_overflow";
 		return false;
 	}
 
-	BufferObjectCreateOptions vertexBufferCreateOptions = {};
-	vertexBufferCreateOptions.sizeInBytes = vertexBufferBytes;
-	vertexBufferCreateOptions.initialData = meshAsset.vertices.data();
-	unique_pointer<BufferResourceObject> vertexBufferObject = renderBackend.createBufferObject(vertexBufferCreateOptions);
-	if (vertexBufferObject == nullptr)
+	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
 	{
-		outErrorText = "vertex_buffer_create_failed";
+		const MeshBufferSignature signature = static_cast<MeshBufferSignature>(signatureIndex);
+		const uint32 signatureFlag = getMeshBufferSignatureFlag(signature);
+		if ((handle.requiredVertexBufferFlags & signatureFlag) == 0)
+		{
+			continue;
+		}
+
+		BufferObjectCreateOptions bufferCreateOptions = {};
+		bufferCreateOptions.sizeInBytes = vertexBufferSizesInBytes[signatureIndex];
+		bufferCreateOptions.initialData = vertexBufferInitialData[signatureIndex];
+		if (bufferCreateOptions.sizeInBytes == 0 || bufferCreateOptions.initialData == nullptr)
+		{
+			outErrorText = "mesh_data_empty";
+			return false;
+		}
+
+		unique_pointer<BufferResourceObject> createdBufferObject =
+			renderBackend.createBufferObject(bufferCreateOptions);
+		if (createdBufferObject == nullptr)
+		{
+			outErrorText = vertexBufferCreateFailReasons[signatureIndex];
+			return false;
+		}
+
+		handle.vertexBufferObjects[signatureIndex] = moveValue(createdBufferObject);
+		handle.vertexBufferSizesInBytes[signatureIndex] = static_cast<uint32>(bufferCreateOptions.sizeInBytes);
+		handle.activeVertexBufferFlags |= signatureFlag;
+	}
+
+	if ((handle.activeVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
+	{
+		outErrorText = "mesh_vertex_upload_flag_mismatch";
 		return false;
 	}
 
@@ -212,9 +351,14 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 		return false;
 	}
 
-	handle.vertexBufferObject = moveValue(vertexBufferObject);
 	handle.indexBufferObject = moveValue(indexBufferObject);
-	handle.vertexBufferSizeInBytes = static_cast<uint32>(vertexBufferBytes);
 	handle.indexBufferSizeInBytes = static_cast<uint32>(indexBufferBytes);
+
+	if (handle.indexBufferObject == nullptr || handle.indexBufferSizeInBytes == 0)
+	{
+		outErrorText = "mesh_index_upload_invalid";
+		return false;
+	}
+
 	return true;
 }

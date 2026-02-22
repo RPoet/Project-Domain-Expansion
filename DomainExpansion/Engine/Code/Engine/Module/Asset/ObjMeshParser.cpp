@@ -265,11 +265,14 @@ bool ObjMeshParser::parse(
 				return failObjLoad(meshFilePath, lineNumber, "position_index_out_of_range", outErrorText);
 			}
 
-			MeshAsset::VertexData meshVertex = {};
+			MeshAsset::PositionData positionVertex = {};
 			const ObjFloat3& sourcePosition = sourcePositions[resolvedPositionIndex];
-			meshVertex.positionX = sourcePosition.x;
-			meshVertex.positionY = sourcePosition.y;
-			meshVertex.positionZ = sourcePosition.z;
+			positionVertex.x = sourcePosition.x;
+			positionVertex.y = sourcePosition.y;
+			positionVertex.z = sourcePosition.z;
+
+			MeshAsset::NormalData normalVertex = {};
+			MeshAsset::TexcoordData texcoordVertex = {};
 
 			if (faceVertex.normalIndex != 0)
 			{
@@ -280,9 +283,9 @@ bool ObjMeshParser::parse(
 				}
 
 				const ObjFloat3& sourceNormal = sourceNormals[resolvedNormalIndex];
-				meshVertex.normalX = sourceNormal.x;
-				meshVertex.normalY = sourceNormal.y;
-				meshVertex.normalZ = sourceNormal.z;
+				normalVertex.x = sourceNormal.x;
+				normalVertex.y = sourceNormal.y;
+				normalVertex.z = sourceNormal.z;
 			}
 
 			if (faceVertex.textureIndex != 0)
@@ -294,12 +297,14 @@ bool ObjMeshParser::parse(
 				}
 
 				const ObjFloat2& sourceTexcoord = sourceTexcoords[resolvedTexcoordIndex];
-				meshVertex.textureU = sourceTexcoord.x;
-				meshVertex.textureV = sourceTexcoord.y;
+				texcoordVertex.x = sourceTexcoord.x;
+				texcoordVertex.y = sourceTexcoord.y;
 			}
 
-			const uint32 newVertexIndex = static_cast<uint32>(outMeshAsset.vertices.size());
-			outMeshAsset.vertices.push_back(meshVertex);
+			const uint32 newVertexIndex = static_cast<uint32>(outMeshAsset.positionVertices.size());
+			outMeshAsset.positionVertices.push_back(positionVertex);
+			outMeshAsset.normalVertices.push_back(normalVertex);
+			outMeshAsset.texcoordVertices.push_back(texcoordVertex);
 			vertexMap.emplace(faceVertex, newVertexIndex);
 			faceIndices.push_back(newVertexIndex);
 		}
@@ -312,7 +317,7 @@ bool ObjMeshParser::parse(
 		}
 	}
 
-	if (outMeshAsset.vertices.empty() || outMeshAsset.indices.empty())
+	if (outMeshAsset.positionVertices.empty() || outMeshAsset.indices.empty())
 	{
 		outErrorText = "mesh_data_empty";
 		error << "[MeshParser][Error] path=" << meshFilePath
@@ -320,8 +325,17 @@ bool ObjMeshParser::parse(
 		return false;
 	}
 
+	if (outMeshAsset.normalVertices.size() != outMeshAsset.positionVertices.size()
+		|| outMeshAsset.texcoordVertices.size() != outMeshAsset.positionVertices.size())
+	{
+		outErrorText = "mesh_vertex_stream_mismatch";
+		error << "[MeshParser][Error] path=" << meshFilePath
+			  << " reason=" << outErrorText << lineBreak;
+		return false;
+	}
+
 	outMeshAsset.name = meshFilePath + ":LOD" + std::to_string(lodLevel);
-	outMeshAsset.vertexCount = static_cast<uint32>(outMeshAsset.vertices.size());
+	outMeshAsset.vertexCount = static_cast<uint32>(outMeshAsset.positionVertices.size());
 	outMeshAsset.indexCount = static_cast<uint32>(outMeshAsset.indices.size());
 	return true;
 }

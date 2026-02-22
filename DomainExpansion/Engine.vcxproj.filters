@@ -232,6 +232,9 @@
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineApple.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Platform\SIMDMath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.h">
       <Filter>Header Files</Filter>
     </ClInclude>

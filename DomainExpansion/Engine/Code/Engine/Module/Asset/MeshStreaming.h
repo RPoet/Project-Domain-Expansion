@@ -23,6 +23,38 @@ enum class MeshAssetGpuState : uint32
 	failed = 3,
 };
 
+enum class MeshBufferSignature : uint32
+{
+	position = 0,
+	normal = 1,
+	texcoord = 2,
+	count = 3,
+};
+
+inline constexpr uint32 meshVertexBufferSignatureCount = static_cast<uint32>(MeshBufferSignature::count);
+
+inline constexpr uint32 getMeshBufferSignatureIndex(const MeshBufferSignature signature)
+{
+	const uint32 signatureIndex = static_cast<uint32>(signature);
+	if (signatureIndex >= meshVertexBufferSignatureCount)
+	{
+		return uint32MaxValue;
+	}
+
+	return signatureIndex;
+}
+
+inline constexpr uint32 getMeshBufferSignatureFlag(const MeshBufferSignature signature)
+{
+	const uint32 signatureIndex = getMeshBufferSignatureIndex(signature);
+	if (signatureIndex == uint32MaxValue)
+	{
+		return 0;
+	}
+
+	return static_cast<uint32>(1u << signatureIndex);
+}
+
 struct MeshAssetHandle
 {
 	string meshRelativePath = {};
@@ -30,11 +62,62 @@ struct MeshAssetHandle
 	MeshAssetHandleState state = MeshAssetHandleState::pending;
 	MeshAssetGpuState gpuState = MeshAssetGpuState::none;
 	shared_pointer<MeshAsset> meshAsset = nullptr;
-	unique_pointer<BufferResourceObject> vertexBufferObject = nullptr;
+	unique_pointer<BufferResourceObject> vertexBufferObjects[meshVertexBufferSignatureCount] = {};
+	uint32 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
+	uint32 vertexBufferStridesInBytes[meshVertexBufferSignatureCount] =
+	{
+		static_cast<uint32>(sizeof(MeshAsset::PositionData)),
+		static_cast<uint32>(sizeof(MeshAsset::NormalData)),
+		static_cast<uint32>(sizeof(MeshAsset::TexcoordData))
+	};
 	unique_pointer<BufferResourceObject> indexBufferObject = nullptr;
-	uint32 vertexBufferSizeInBytes = 0;
 	uint32 indexBufferSizeInBytes = 0;
-	uint32 vertexStrideInBytes = static_cast<uint32>(sizeof(MeshAsset::VertexData));
+	uint32 requiredVertexBufferFlags = 0;
+	uint32 activeVertexBufferFlags = 0;
+
+	BufferResourceObject* getBufferObject(const MeshBufferSignature signature)
+	{
+		const uint32 signatureIndex = getMeshBufferSignatureIndex(signature);
+		if (signatureIndex == uint32MaxValue)
+		{
+			return nullptr;
+		}
+
+		return vertexBufferObjects[signatureIndex].get();
+	}
+
+	const BufferResourceObject* getBufferObject(const MeshBufferSignature signature) const
+	{
+		const uint32 signatureIndex = getMeshBufferSignatureIndex(signature);
+		if (signatureIndex == uint32MaxValue)
+		{
+			return nullptr;
+		}
+
+		return vertexBufferObjects[signatureIndex].get();
+	}
+
+	uint32 getBufferSizeInBytes(const MeshBufferSignature signature) const
+	{
+		const uint32 signatureIndex = getMeshBufferSignatureIndex(signature);
+		if (signatureIndex == uint32MaxValue)
+		{
+			return 0;
+		}
+
+		return vertexBufferSizesInBytes[signatureIndex];
+	}
+
+	uint32 getBufferStrideInBytes(const MeshBufferSignature signature) const
+	{
+		const uint32 signatureIndex = getMeshBufferSignatureIndex(signature);
+		if (signatureIndex == uint32MaxValue)
+		{
+			return 0;
+		}
+
+		return vertexBufferStridesInBytes[signatureIndex];
+	}
 };
 
 class MeshStreaming final : public StaticModule<MeshStreaming>

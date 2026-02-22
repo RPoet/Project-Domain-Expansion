@@ -158,6 +158,7 @@
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineAndroid.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineApple.h" />
+    <ClInclude Include="Engine\Code\Engine\Platform\SIMDMath.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h" />

@@ -36,9 +36,11 @@ bool FrameworkObjMeshLoaderTestCase::runTest(Framework& framework)
 		meshAsset.vertexCount > 0 && meshAsset.indexCount > 0,
 		"run: loaded mesh has vertices and indices") && runResult;
 	runResult = expectCondition(
-		meshAsset.vertexCount == static_cast<uint32>(meshAsset.vertices.size())
+		meshAsset.vertexCount == static_cast<uint32>(meshAsset.positionVertices.size())
+		&& meshAsset.vertexCount == static_cast<uint32>(meshAsset.normalVertices.size())
+		&& meshAsset.vertexCount == static_cast<uint32>(meshAsset.texcoordVertices.size())
 		&& meshAsset.indexCount == static_cast<uint32>(meshAsset.indices.size()),
-		"run: mesh counts match buffer sizes") && runResult;
+		"run: mesh counts match stream buffer sizes") && runResult;
 
 	MeshAsset missingMeshAsset = {};
 	string missingErrorText = {};
