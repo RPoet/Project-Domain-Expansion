@@ -20,6 +20,8 @@ public:
 	uint32 getFrameBufferCount() const;
 
 	bool isRenderable() const override;
+	uint32 getWidth() const override;
+	uint32 getHeight() const override;
 	uint32 getCurrentImageIndex() const override;
 	void present() override;
 

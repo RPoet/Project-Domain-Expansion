@@ -42,6 +42,16 @@ void Renderer::render(CommandList* commandList)
 		ResourceState::renderTarget);
 	commandList->setRenderTarget(backBufferView);
 
+	ViewportArea viewportArea = {};
+	viewportArea.width = static_cast<float>(swapChain->getWidth());
+	viewportArea.height = static_cast<float>(swapChain->getHeight());
+	commandList->setViewport(viewportArea);
+
+	ScissorRectArea scissorRectArea = {};
+	scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
+	scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
+	commandList->setScissorRect(scissorRectArea);
+
 	commandList->clearRenderTarget(
 		backBufferView,
 		clearColor.red,

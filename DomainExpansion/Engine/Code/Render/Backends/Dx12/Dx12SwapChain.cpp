@@ -152,6 +152,16 @@ bool Dx12SwapChain::isRenderable() const
 		&& backBufferHeight > 0;
 }
 
+uint32 Dx12SwapChain::getWidth() const
+{
+	return backBufferWidth;
+}
+
+uint32 Dx12SwapChain::getHeight() const
+{
+	return backBufferHeight;
+}
+
 uint32 Dx12SwapChain::getCurrentImageIndex() const
 {
 	if (swapChain == nullptr)
@@ -182,8 +192,10 @@ bool Dx12SwapChain::createBackBufferResources()
 	backBufferResources.resize(frameBufferCount);
 	for (uint32 frameIndex = 0; frameIndex < frameBufferCount; ++frameIndex)
 	{
-		unique_pointer<Dx12ResourceObject> backBufferResource(new Dx12ResourceObject());
-		if (FAILED(swapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&backBufferResource->resource))))
+		unique_pointer<Dx12TextureResourceObject> backBufferResource(new Dx12TextureResourceObject());
+		if (FAILED(swapChain->GetBuffer(
+			frameIndex,
+			IID_PPV_ARGS(&backBufferResource->getUnderlyingResource()))))
 		{
 			releaseBackBufferResources();
 			return false;

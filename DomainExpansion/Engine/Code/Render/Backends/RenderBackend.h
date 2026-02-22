@@ -36,6 +36,12 @@ public:
 	bool create(const RenderBackendCreateOptions& options);
 	void destroy();
 	virtual CommandList* acquireCommandList() = 0;
+	virtual CommandList* acquireCommandList(CommandListType commandListType)
+	{
+		unused(commandListType);
+		return acquireCommandList();
+	}
+	virtual bool supportsCommandListType(CommandListType commandListType) const = 0;
 	virtual void releaseCommandList(CommandList* commandList) = 0;
 	virtual void queueCommandList(CommandList* commandList) = 0;
 	virtual void executeQueuedCommandLists() = 0;

@@ -14,31 +14,32 @@ void RenderCommand::enqueue(const string& name, CommandFunction&& commandFunctio
 
 void RenderCommand::flush()
 {
-	if (commandQueue.empty())
-	{
-		return;
-	}
+	bool runCommand = !commandQueue.empty();
+	RenderBackend* renderBackend = nullptr;
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	if (renderBackendModule == nullptr)
 	{
 		error << "[RenderCommand][Error] backend_module_missing" << lineBreak;
-		clear();
-		return;
+		runCommand = false;
+	}
+	else
+	{
+		renderBackend = renderBackendModule->getBackend();
+		if (renderBackend == nullptr)
+		{
+			error << "[RenderCommand][Error] backend_missing" << lineBreak;
+			runCommand = false;
+		}
 	}
 
-	RenderBackend* renderBackend = renderBackendModule->getBackend();
-	if (renderBackend == nullptr)
+	if (runCommand)
 	{
-		error << "[RenderCommand][Error] backend_missing" << lineBreak;
-		clear();
-		return;
-	}
-
-	for (uint32 commandIndex = 0; commandIndex < static_cast<uint32>(commandQueue.size()); ++commandIndex)
-	{
-		CommandPack& commandPack = commandQueue[commandIndex];
-		commandPack.second(moveValue(commandPack.first), *renderBackend);
+		for (uint32 commandIndex = 0; commandIndex < static_cast<uint32>(commandQueue.size()); ++commandIndex)
+		{
+			CommandPack& commandPack = commandQueue[commandIndex];
+			commandPack.second(moveValue(commandPack.first), *renderBackend);
+		}
 	}
 
 	clear();

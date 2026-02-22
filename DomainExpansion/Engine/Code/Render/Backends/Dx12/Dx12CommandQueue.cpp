@@ -24,13 +24,13 @@ void Dx12CommandQueue::enqueue(CommandList* commandListInterface)
 		return;
 	}
 
-	ID3D12GraphicsCommandList* nativeCommandList = dx12CommandList->getNativeCommandList();
-	if (nativeCommandList == nullptr)
+	ID3D12GraphicsCommandList* nativeGraphicsCommandList = dx12CommandList->getNativeCommandList();
+	if (nativeGraphicsCommandList == nullptr)
 	{
 		return;
 	}
 
-	queuedCommandLists.push_back(nativeCommandList);
+	queuedCommandLists.push_back(nativeGraphicsCommandList);
 }
 
 void Dx12CommandQueue::executeQueued()

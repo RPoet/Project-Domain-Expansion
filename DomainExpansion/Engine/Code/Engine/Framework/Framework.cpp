@@ -389,6 +389,16 @@ bool Framework::update()
 				ResourceState::present,
 				ResourceState::renderTarget);
 			commandList->setRenderTarget(renderTargetView);
+
+			ViewportArea viewportArea = {};
+			viewportArea.width = static_cast<float>(swapChain->getWidth());
+			viewportArea.height = static_cast<float>(swapChain->getHeight());
+			commandList->setViewport(viewportArea);
+
+			ScissorRectArea scissorRectArea = {};
+			scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
+			scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
+			commandList->setScissorRect(scissorRectArea);
 			commandList->clearRenderTarget(
 				renderTargetView,
 				0.07f,

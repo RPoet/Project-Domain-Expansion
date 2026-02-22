@@ -50,6 +50,16 @@ Dx12RenderBackend::Dx12RenderBackend()
 
 CommandList* Dx12RenderBackend::acquireCommandList()
 {
+	return acquireCommandList(CommandListType::graphics);
+}
+
+CommandList* Dx12RenderBackend::acquireCommandList(const CommandListType commandListType)
+{
+	if (!supportsCommandListType(commandListType))
+	{
+		return nullptr;
+	}
+
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
 	{
 		if (graphicsCommandListInUse[commandListIndex])
@@ -62,6 +72,11 @@ CommandList* Dx12RenderBackend::acquireCommandList()
 	}
 
 	return nullptr;
+}
+
+bool Dx12RenderBackend::supportsCommandListType(const CommandListType commandListType) const
+{
+	return commandListType == CommandListType::graphics;
 }
 
 void Dx12RenderBackend::releaseCommandList(CommandList* commandList)
@@ -122,10 +137,16 @@ SyncObject* Dx12RenderBackend::getSyncObject()
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
 {
 	// TO DO : Replace per-view descriptor heap allocation with descriptor/view allocator module.
-	Dx12ResourceObject* dx12ResourceObject = static_cast<Dx12ResourceObject*>(resourceObject);
+	if (resourceObject == nullptr
+		|| resourceObject->getResourceObjectType() != ResourceObjectType::texture)
+	{
+		return nullptr;
+	}
+
+	TextureResourceObject* textureResourceObject = static_cast<TextureResourceObject*>(resourceObject);
+	Dx12TextureResourceObject* dx12TextureResourceObject = static_cast<Dx12TextureResourceObject*>(textureResourceObject);
 	if (device == nullptr
-		|| dx12ResourceObject == nullptr
-		|| dx12ResourceObject->resource == nullptr)
+		|| dx12TextureResourceObject->getUnderlyingResource() == nullptr)
 	{
 		return nullptr;
 	}
@@ -142,7 +163,7 @@ RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* reso
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	device->CreateRenderTargetView(dx12ResourceObject->resource.Get(), nullptr, descriptorHandle);
+	device->CreateRenderTargetView(dx12TextureResourceObject->getUnderlyingResource().Get(), nullptr, descriptorHandle);
 
 	unique_pointer<Dx12RenderTargetView> renderTargetView(new Dx12RenderTargetView());
 	renderTargetView->descriptorHeap = descriptorHeap;
@@ -451,7 +472,7 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 bool Dx12RenderBackend::createCommandResources()
 {
 	CommandListInitializeOptions initializeOptions = {};
-	initializeOptions.nativeGraphicsDevice = device.Get();
+	initializeOptions.renderBackend = this;
 	initializeOptions.commandListType = CommandListType::graphics;
 
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)

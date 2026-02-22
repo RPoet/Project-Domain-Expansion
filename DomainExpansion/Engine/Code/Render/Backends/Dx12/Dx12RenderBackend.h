@@ -16,6 +16,8 @@ public:
 	~Dx12RenderBackend() override = default;
 
 	CommandList* acquireCommandList() override;
+	CommandList* acquireCommandList(CommandListType commandListType) override;
+	bool supportsCommandListType(CommandListType commandListType) const override;
 	void releaseCommandList(CommandList* commandList) override;
 	void queueCommandList(CommandList* commandList) override;
 	void executeQueuedCommandLists() override;
