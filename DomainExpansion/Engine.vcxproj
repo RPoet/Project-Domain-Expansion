@@ -53,7 +53,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -61,6 +61,11 @@
       <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)D3D12" mkdir "$(OutDir)D3D12"
+copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\D3D12Core.dll" "$(OutDir)D3D12\D3D12Core.dll"
+copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12SDKLayers.dll" "$(OutDir)D3D12\d3d12SDKLayers.dll"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -71,7 +76,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Engine\Code;$(ProjectDir)Engine\Code\ThirdParty\ImGui;$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -81,6 +86,11 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)D3D12" mkdir "$(OutDir)D3D12"
+copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\D3D12Core.dll" "$(OutDir)D3D12\D3D12Core.dll"
+copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12SDKLayers.dll" "$(OutDir)D3D12\d3d12SDKLayers.dll"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
@@ -111,6 +121,7 @@
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12AgilitySdkBootstrap.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp" />

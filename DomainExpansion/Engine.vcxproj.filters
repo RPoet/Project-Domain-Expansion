@@ -101,6 +101,9 @@
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12AgilitySdkBootstrap.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
