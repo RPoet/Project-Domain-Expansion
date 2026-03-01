@@ -158,15 +158,48 @@ bool MeshStreaming::resolveMeshAbsolutePath(
 
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 {
-	if (pendingGpuUploadHandles.empty())
+	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
+	if (gpuUploader == nullptr)
+	{
+		error << "[MeshStreaming][Error] reason=gpu_uploader_missing" << lineBreak;
+		return;
+	}
+
+	SyncObject* syncObject = renderBackend.getSyncObject();
+	if (syncObject != nullptr)
+	{
+		gpuUploader->setFenceValue(syncObject->getCompletedFenceValue());
+	}
+
+	if (pendingGpuUploadHandles.empty() && !gpuUploader->hasQueuedUploadRequests())
 	{
 		return;
 	}
 
-	GPUUploader::get()->setFenceValue(renderBackend.getSyncObject()->getCompletedFenceValue());
-
 	vector<shared_pointer<MeshAssetHandle>> processingHandles;
 	processingHandles.swap(pendingGpuUploadHandles);
+
+	CommandList* uploadCommandList = renderBackend.acquireCommandList();
+	if (uploadCommandList == nullptr)
+	{
+		error << "[MeshStreaming][Error] reason=gpu_upload_command_list_acquire_failed" << lineBreak;
+		for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
+		{
+			shared_pointer<MeshAssetHandle>& handle = processingHandles[handleIndex];
+			if (handle == nullptr || handle->gpuState != MeshAssetGpuState::pending)
+			{
+				continue;
+			}
+
+			handle->gpuState = MeshAssetGpuState::failed;
+			error << "[MeshStreaming][Error] mesh=" << handle->meshRelativePath
+				  << " lod=" << handle->lodLevel
+				  << " reason=gpu_upload_command_list_acquire_failed" << lineBreak;
+		}
+		return;
+	}
+
+	vector<shared_pointer<MeshAssetHandle>> uploadedHandles;
 	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
 	{
 		shared_pointer<MeshAssetHandle>& handle = processingHandles[handleIndex];
@@ -180,6 +213,29 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		if (!uploadMeshHandleToGpu(renderBackend, *handle))
 		{
 			handle->gpuState = MeshAssetGpuState::failed;
+			continue;
+		}
+
+		uploadedHandles.push_back(handle);
+	}
+
+	if (gpuUploader->hasQueuedUploadRequests())
+	{
+		uploadCommandList->reset();
+		gpuUploader->uploadQueuedBuffers(*uploadCommandList);
+		uploadCommandList->close();
+		renderBackend.queueCommandList(uploadCommandList);
+	}
+	else
+	{
+		renderBackend.releaseCommandList(uploadCommandList);
+	}
+
+	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(uploadedHandles.size()); ++handleIndex)
+	{
+		shared_pointer<MeshAssetHandle>& handle = uploadedHandles[handleIndex];
+		if (handle == nullptr)
+		{
 			continue;
 		}
 

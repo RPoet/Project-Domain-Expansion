@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-inline std::uint64_t roundUpToPowerOfTwo(std::uint64_t value)
+inline uint64_t roundUpToPowerOfTwo(uint64_t value)
 {
 	if (value <= 1)
 	{

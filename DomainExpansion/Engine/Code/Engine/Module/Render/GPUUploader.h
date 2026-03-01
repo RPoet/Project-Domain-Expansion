@@ -40,19 +40,37 @@ public:
 		const BufferUploadRequestOptions& uploadRequestOptions);
 	void setFenceValue(uint64 fenceValue);
 	void uploadQueuedBuffers(CommandList& commandList);
+	bool hasQueuedUploadRequests() const;
 
 private:
 	struct UploadBufferPoolBlock
 	{
+		unique_pointer<BufferResourceObject> bufferObject = nullptr;
+		char* mappedMemory = nullptr;
 		uint64 capacityInBytes = 0;
 		uint64 usedInBytes = 0;
 		uint64 lastUsedFenceValue = 0;
 	};
 
+	struct QueuedUploadRequest
+	{
+		BufferResourceObject* destinationBufferObject = nullptr;
+		BufferResourceObject* sourceBufferObject = nullptr;
+		uint64 destinationOffsetInBytes = 0;
+		uint64 sourceOffsetInBytes = 0;
+		uint64 copySizeInBytes = 0;
+	};
+
 	static constexpr uint64 minimumPoolBlockSizeInBytes = 64ull * 1024ull;
 	static constexpr uint64 idleReleaseFenceThreshold = 180;
 
-	bool reserveUploadSpace(uint64 requestSizeInBytes);
+	bool reserveUploadSpace(
+		RenderBackend& renderBackend,
+		uint64 requestSizeInBytes,
+		uint32& outBlockIndex,
+		uint64& outBlockOffsetInBytes);
+	bool createUploadPoolBlock(RenderBackend& renderBackend, uint64 requestSizeInBytes);
+	static void clearUploadBufferBlock(UploadBufferPoolBlock& poolBlock);
 	void releaseIdlePoolBlocks();
 	void resetFrameAllocations();
 	void clearPool();
@@ -60,4 +78,5 @@ private:
 	GPUUploaderMode uploaderMode = GPUUploaderMode::staging;
 	uint64 currentFenceValue = 0;
 	vector<UploadBufferPoolBlock> uploadBufferPoolBlocks;
+	vector<QueuedUploadRequest> queuedUploadRequests;
 };

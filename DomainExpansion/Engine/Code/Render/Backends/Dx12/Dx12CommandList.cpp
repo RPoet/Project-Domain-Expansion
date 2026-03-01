@@ -284,12 +284,27 @@ void Dx12CommandList::copyBuffer(
 	const uint64 sourceOffsetInBytes,
 	const uint64 copySizeInBytes)
 {
-	unused(destinationBufferObject);
-	unused(destinationOffsetInBytes);
-	unused(sourceBufferObject);
-	unused(sourceOffsetInBytes);
-	unused(copySizeInBytes);
-	// TO DO : Implement buffer copy recording when uploader queue path is implemented.
+	if (!isRecordingReady()
+		|| destinationBufferObject == nullptr
+		|| sourceBufferObject == nullptr
+		|| copySizeInBytes == 0)
+	{
+		return;
+	}
+
+	ID3D12Resource* destinationDx12Buffer = static_cast<ID3D12Resource*>(destinationBufferObject->getNativeResource());
+	ID3D12Resource* sourceDx12Buffer = static_cast<ID3D12Resource*>(sourceBufferObject->getNativeResource());
+	if (destinationDx12Buffer == nullptr || sourceDx12Buffer == nullptr)
+	{
+		return;
+	}
+
+	commandList->CopyBufferRegion(
+		destinationDx12Buffer,
+		destinationOffsetInBytes,
+		sourceDx12Buffer,
+		sourceOffsetInBytes,
+		copySizeInBytes);
 }
 
 void Dx12CommandList::drawIndexed(

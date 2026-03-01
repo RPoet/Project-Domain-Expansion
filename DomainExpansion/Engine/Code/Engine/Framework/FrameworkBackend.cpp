@@ -364,6 +364,9 @@ bool Framework::enqueueBackendRenderFrameCommand()
 	renderCommand.enqueue("Render", [this](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);
+		renderBackendReference.executeQueuedCommandLists();
+		renderBackendReference.releaseQueuedRenderResources();
+
 		CommandList* commandList = renderBackendReference.acquireCommandList();
 		if (commandList == nullptr)
 		{

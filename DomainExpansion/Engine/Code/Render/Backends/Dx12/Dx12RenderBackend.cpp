@@ -34,6 +34,34 @@ static bool isDx12FailureSeverity(const D3D12_MESSAGE_SEVERITY severity)
 		|| severity == D3D12_MESSAGE_SEVERITY_ERROR;
 }
 
+static D3D12_HEAP_TYPE getDx12BufferHeapType(const BufferObjectMemoryType memoryType)
+{
+	switch (memoryType)
+	{
+	case BufferObjectMemoryType::uploadHeap:
+		return D3D12_HEAP_TYPE_UPLOAD;
+	case BufferObjectMemoryType::readbackHeap:
+		return D3D12_HEAP_TYPE_READBACK;
+	case BufferObjectMemoryType::defaultHeap:
+	default:
+		return D3D12_HEAP_TYPE_DEFAULT;
+	}
+}
+
+static D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryType memoryType)
+{
+	switch (memoryType)
+	{
+	case BufferObjectMemoryType::uploadHeap:
+		return D3D12_RESOURCE_STATE_GENERIC_READ;
+	case BufferObjectMemoryType::readbackHeap:
+		return D3D12_RESOURCE_STATE_COPY_DEST;
+	case BufferObjectMemoryType::defaultHeap:
+	default:
+		return D3D12_RESOURCE_STATE_COMMON;
+	}
+}
+
 Dx12RenderBackend::Dx12RenderBackend()
 {
 	commandQueue.reset(new Dx12CommandQueue());
@@ -138,8 +166,46 @@ SyncObject* Dx12RenderBackend::getSyncObject()
 unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 	const BufferObjectCreateOptions& createOptions)
 {
-	unused(createOptions);
-	return nullptr;
+	if (device == nullptr || createOptions.sizeInBytes == 0)
+	{
+		return nullptr;
+	}
+
+	D3D12_HEAP_PROPERTIES heapProperties = {};
+	heapProperties.Type = getDx12BufferHeapType(createOptions.memoryType);
+	heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heapProperties.CreationNodeMask = 1;
+	heapProperties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC resourceDescription = {};
+	resourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resourceDescription.Alignment = 0;
+	resourceDescription.Width = createOptions.sizeInBytes;
+	resourceDescription.Height = 1;
+	resourceDescription.DepthOrArraySize = 1;
+	resourceDescription.MipLevels = 1;
+	resourceDescription.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDescription.SampleDesc.Count = 1;
+	resourceDescription.SampleDesc.Quality = 0;
+	resourceDescription.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	com_pointer<ID3D12Resource> dx12BufferResource;
+	if (FAILED(device->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDescription,
+		getDx12BufferInitialState(createOptions.memoryType),
+		nullptr,
+		IID_PPV_ARGS(&dx12BufferResource))))
+	{
+		return nullptr;
+	}
+
+	unique_pointer<Dx12BufferObject> createdBufferObject(new Dx12BufferObject());
+	createdBufferObject->getUnderlyingResource() = dx12BufferResource;
+	return createdBufferObject;
 }
 
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
