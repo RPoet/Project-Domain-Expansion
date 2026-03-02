@@ -3,11 +3,13 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <memory_resource>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -29,6 +31,10 @@ using string = std::string;
 using wstring = std::wstring;
 using output_stream = std::ostream;
 using error_stream = std::ostream;
+using input_file_stream = std::ifstream;
+using output_file_stream = std::ofstream;
+using string_input_stream = std::istringstream;
+using stream_position = std::streampos;
 using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
 using steady_clock = std::chrono::steady_clock;
