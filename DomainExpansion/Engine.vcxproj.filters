@@ -80,6 +80,9 @@
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -93,6 +96,12 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderModule.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp">
@@ -229,6 +238,9 @@
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -298,6 +310,12 @@
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\CommandList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -329,6 +347,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Screen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\ShaderAsset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Renderer.h">

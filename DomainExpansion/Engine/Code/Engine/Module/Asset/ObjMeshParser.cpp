@@ -51,7 +51,7 @@ static bool parseObjIndexValue(
 		return true;
 	}
 
-	std::istringstream parser(tokenText);
+	string_input_stream parser(tokenText);
 	int32 value = 0;
 	parser >> value;
 	if (!parser || !parser.eof())
@@ -154,7 +154,7 @@ bool ObjMeshParser::parse(
 	outMeshAsset = {};
 	outErrorText.clear();
 
-	std::ifstream fileStream(meshFilePath);
+	input_file_stream fileStream(meshFilePath);
 	if (!fileStream.is_open())
 	{
 		outErrorText = "file_open_failed";
@@ -178,7 +178,7 @@ bool ObjMeshParser::parse(
 			continue;
 		}
 
-		std::istringstream lineParser(lineText);
+		string_input_stream lineParser(lineText);
 		string token = {};
 		lineParser >> token;
 		if (!lineParser || token.empty() || token[0] == '#')

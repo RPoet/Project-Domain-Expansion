@@ -8,6 +8,7 @@ void Framework::registerTest()
 	addTestCase(createFrameworkEntityUpdateTestCase());
 	addTestCase(createFrameworkObjMeshLoaderTestCase());
 	addTestCase(createFrameworkRootSignatureLifecycleTestCase());
+	addTestCase(createFrameworkShaderPackageTestCase());
 	addTestCase(createFrameworkWorldSerializationTestCase());
 }
 

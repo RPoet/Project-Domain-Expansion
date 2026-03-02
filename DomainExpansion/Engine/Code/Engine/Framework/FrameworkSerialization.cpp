@@ -103,7 +103,7 @@ static bool parseBoolText(const string& text, bool& outValue)
 
 static bool parseIntText(const string& text, int32& outValue)
 {
-	std::istringstream parser(text);
+	string_input_stream parser(text);
 	int32 parsedValue = 0;
 	parser >> parsedValue;
 	if (!parser || !parser.eof())
@@ -121,7 +121,7 @@ static bool parseFloat3Text(
 	float& outY,
 	float& outZ)
 {
-	std::istringstream parser(text);
+	string_input_stream parser(text);
 	char separatorA = 0;
 	char separatorB = 0;
 	parser >> outX >> separatorA >> outY >> separatorB >> outZ;
@@ -154,7 +154,7 @@ bool frameworkSerializationLoadWorldFromFile(
 	outWorld.reset();
 	outErrorText.clear();
 
-	std::ifstream fileStream(worldFilePath);
+	input_file_stream fileStream(worldFilePath);
 	if (!fileStream.is_open())
 	{
 		outErrorText = "file_open_failed";
@@ -451,7 +451,7 @@ bool frameworkSerializationSaveWorldToFile(
 		return false;
 	}
 
-	std::ofstream fileStream(worldFilePath, std::ios::trunc);
+	output_file_stream fileStream(worldFilePath, output_file_stream::trunc);
 	if (!fileStream.is_open())
 	{
 		outErrorText = "file_open_failed";

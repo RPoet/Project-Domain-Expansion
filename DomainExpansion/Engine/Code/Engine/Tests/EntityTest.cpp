@@ -3,6 +3,7 @@
 #include "Engine/Tests/FrameworkEntityUpdateTestCase.h"
 #include "Engine/Tests/FrameworkObjMeshLoaderTestCase.h"
 #include "Engine/Tests/FrameworkRootSignatureLifecycleTestCase.h"
+#include "Engine/Tests/FrameworkShaderPackageTestCase.h"
 #include "Engine/Tests/FrameworkWorldSerializationTestCase.h"
 
 unique_pointer<FrameworkTestCase> createFrameworkEntityAddRemoveTestCase()
@@ -23,6 +24,11 @@ unique_pointer<FrameworkTestCase> createFrameworkObjMeshLoaderTestCase()
 unique_pointer<FrameworkTestCase> createFrameworkRootSignatureLifecycleTestCase()
 {
 	return unique_pointer<FrameworkTestCase>(new FrameworkRootSignatureLifecycleTestCase());
+}
+
+unique_pointer<FrameworkTestCase> createFrameworkShaderPackageTestCase()
+{
+	return unique_pointer<FrameworkTestCase>(new FrameworkShaderPackageTestCase());
 }
 
 unique_pointer<FrameworkTestCase> createFrameworkWorldSerializationTestCase()

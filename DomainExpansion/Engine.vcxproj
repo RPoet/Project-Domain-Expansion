@@ -114,11 +114,14 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
@@ -167,6 +170,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\UpdateOrderRecordingComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h" />
@@ -190,6 +194,8 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
     <ClInclude Include="Engine\Code\Render\CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\RenderCommand.h" />
@@ -201,6 +207,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\SyncObject.h" />
     <ClInclude Include="Engine\Code\Render\SwapChain.h" />
     <ClInclude Include="Engine\Code\Render\Screen.h" />
+    <ClInclude Include="Engine\Code\Render\ShaderAsset.h" />
     <ClInclude Include="Engine\Code\Render\Renderer.h" />
     <ClInclude Include="Engine\Code\Render\ResourceTypes.h" />
     <ClInclude Include="Engine\Code\Engine\Window\WindowsWindowObject.h" />

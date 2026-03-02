@@ -1,0 +1,169 @@
+#include "Engine/Tests/FrameworkShaderPackageTestCase.h"
+
+#include "Engine/Framework/Framework.h"
+#include "Engine/Module/Asset/ShaderModule.h"
+#include "Engine/Module/Asset/ShaderPackageModule.h"
+
+static const ShaderPackageVariant* findShaderPackageVariantByName(
+	const ShaderPackageAsset& shaderPackageAsset,
+	const string& variantName)
+{
+	for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackageAsset.variants.size()); ++variantIndex)
+	{
+		const ShaderPackageVariant& variant = shaderPackageAsset.variants[variantIndex];
+		if (variant.name == variantName)
+		{
+			return &variant;
+		}
+	}
+
+	return nullptr;
+}
+
+const char* FrameworkShaderPackageTestCase::getTestCaseName() const
+{
+	return "FrameworkShaderPackageTestCase";
+}
+
+bool FrameworkShaderPackageTestCase::beginTest(Framework& framework)
+{
+	unused(framework);
+
+	bool beginResult = true;
+	shared_pointer<ShaderModule> shaderModule = ShaderModule::get();
+	shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
+	beginResult = expectCondition(shaderModule != nullptr, "begin: shader module exists") && beginResult;
+	beginResult = expectCondition(shaderPackageModule != nullptr, "begin: shader package module exists") && beginResult;
+	if (!beginResult || shaderModule == nullptr || shaderPackageModule == nullptr)
+	{
+		return false;
+	}
+
+	shaderPackageModule->clear();
+	shaderModule->clear();
+	return expectCondition(
+		shaderModule->getCachedShaderCount() == 0 && shaderPackageModule->getCachedPackageCount() == 0,
+		"begin: clear shader caches");
+}
+
+bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
+{
+	unused(framework);
+
+	bool runResult = true;
+	shared_pointer<ShaderModule> shaderModule = ShaderModule::get();
+	shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
+	runResult = expectCondition(shaderModule != nullptr, "run: shader module exists") && runResult;
+	runResult = expectCondition(shaderPackageModule != nullptr, "run: shader package module exists") && runResult;
+	if (!runResult || shaderModule == nullptr || shaderPackageModule == nullptr)
+	{
+		return false;
+	}
+
+	const string packageRelativePath = "Shaders/Packages/TestBasic.shaderpkg";
+	shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage(packageRelativePath);
+	runResult = expectCondition(shaderPackage != nullptr, "run: shader package load handle exists") && runResult;
+	runResult = expectCondition(
+		shaderPackage != nullptr && shaderPackage->state == ShaderPackageState::ready,
+		"run: shader package load success") && runResult;
+	runResult = expectCondition(
+		shaderPackage != nullptr && shaderPackage->variants.size() == 2,
+		"run: shader package variant count is 2") && runResult;
+
+	const ShaderPackageVariant* graphicsVariant = shaderPackage != nullptr
+		? findShaderPackageVariantByName(*shaderPackage, "GraphicsDefault")
+		: nullptr;
+	const ShaderPackageVariant* computeVariant = shaderPackage != nullptr
+		? findShaderPackageVariantByName(*shaderPackage, "ComputeOnly")
+		: nullptr;
+	runResult = expectCondition(graphicsVariant != nullptr, "run: graphics variant exists") && runResult;
+	runResult = expectCondition(computeVariant != nullptr, "run: compute variant exists") && runResult;
+
+	shared_pointer<ShaderAsset> graphicsVertexShader = graphicsVariant != nullptr
+		? graphicsVariant->getShader(ShaderStage::vertex)
+		: nullptr;
+	shared_pointer<ShaderAsset> graphicsPixelShader = graphicsVariant != nullptr
+		? graphicsVariant->getShader(ShaderStage::pixel)
+		: nullptr;
+	shared_pointer<ShaderAsset> computeShader = computeVariant != nullptr
+		? computeVariant->getShader(ShaderStage::compute)
+		: nullptr;
+
+	runResult = expectCondition(
+		graphicsVertexShader != nullptr && !graphicsVertexShader->byteCode.empty(),
+		"run: graphics vertex shader linked") && runResult;
+	runResult = expectCondition(
+		graphicsPixelShader != nullptr && !graphicsPixelShader->byteCode.empty(),
+		"run: graphics pixel shader linked") && runResult;
+	runResult = expectCondition(
+		computeShader != nullptr && !computeShader->byteCode.empty(),
+		"run: compute shader linked") && runResult;
+	runResult = expectCondition(
+		shaderModule->getCachedShaderCount() == 3 && shaderPackageModule->getCachedPackageCount() == 1,
+		"run: initial cache counts") && runResult;
+
+	shared_pointer<ShaderPackageAsset> cachedShaderPackage = shaderPackageModule->getOrLoadPackage(packageRelativePath);
+	runResult = expectCondition(
+		cachedShaderPackage == shaderPackage,
+		"run: package cache hit reuses pointer") && runResult;
+
+	shaderPackageModule->clear();
+	shared_pointer<ShaderPackageAsset> reloadedPackageAfterPackageClear = shaderPackageModule->getOrLoadPackage(packageRelativePath);
+	runResult = expectCondition(
+		reloadedPackageAfterPackageClear != nullptr
+		&& reloadedPackageAfterPackageClear->state == ShaderPackageState::ready
+		&& reloadedPackageAfterPackageClear != shaderPackage,
+		"run: package clear forces package reload") && runResult;
+
+	const ShaderPackageVariant* reloadedGraphicsVariantAfterPackageClear =
+		reloadedPackageAfterPackageClear != nullptr
+		? findShaderPackageVariantByName(*reloadedPackageAfterPackageClear, "GraphicsDefault")
+		: nullptr;
+	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterPackageClear =
+		reloadedGraphicsVariantAfterPackageClear != nullptr
+		? reloadedGraphicsVariantAfterPackageClear->getShader(ShaderStage::vertex)
+		: nullptr;
+	runResult = expectCondition(
+		reloadedGraphicsVertexShaderAfterPackageClear == graphicsVertexShader,
+		"run: package reload reuses shader cache") && runResult;
+
+	shaderModule->clear();
+	shaderPackageModule->clear();
+	shared_pointer<ShaderPackageAsset> reloadedPackageAfterShaderClear = shaderPackageModule->getOrLoadPackage(packageRelativePath);
+	const ShaderPackageVariant* reloadedGraphicsVariantAfterShaderClear =
+		reloadedPackageAfterShaderClear != nullptr
+		? findShaderPackageVariantByName(*reloadedPackageAfterShaderClear, "GraphicsDefault")
+		: nullptr;
+	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterShaderClear =
+		reloadedGraphicsVariantAfterShaderClear != nullptr
+		? reloadedGraphicsVariantAfterShaderClear->getShader(ShaderStage::vertex)
+		: nullptr;
+	runResult = expectCondition(
+		reloadedPackageAfterShaderClear != nullptr
+		&& reloadedPackageAfterShaderClear->state == ShaderPackageState::ready,
+		"run: shader clear reloads package") && runResult;
+	runResult = expectCondition(
+		reloadedGraphicsVertexShaderAfterShaderClear != nullptr
+		&& reloadedGraphicsVertexShaderAfterShaderClear != graphicsVertexShader,
+		"run: shader clear forces shader reload") && runResult;
+
+	return runResult;
+}
+
+bool FrameworkShaderPackageTestCase::endTest(Framework& framework)
+{
+	unused(framework);
+
+	shared_pointer<ShaderModule> shaderModule = ShaderModule::get();
+	shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
+	if (shaderPackageModule != nullptr)
+	{
+		shaderPackageModule->clear();
+	}
+	if (shaderModule != nullptr)
+	{
+		shaderModule->clear();
+	}
+
+	return expectCondition(true, "end: shader package test cleanup");
+}
