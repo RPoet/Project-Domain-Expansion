@@ -1,6 +1,21 @@
 ﻿#pragma once
 
 #include "Engine/Platform/PlatformDefine.h"
+#include "Render/RenderTypes.h"
+
+enum class ResourceObjectType : uint32
+{
+	unknown = 0,
+	texture = 1,
+	buffer = 2,
+};
+
+enum class BufferObjectMemoryType : uint32
+{
+	defaultHeap = 0,
+	uploadHeap = 1,
+	readbackHeap = 2,
+};
 
 struct MeshAsset
 {

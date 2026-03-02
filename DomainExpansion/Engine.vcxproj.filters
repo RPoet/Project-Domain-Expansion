@@ -77,6 +77,9 @@
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -235,6 +238,9 @@
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -274,7 +280,16 @@
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12Converter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateDesc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderTargetView.h">
@@ -328,6 +343,12 @@
     <ClInclude Include="Engine\Code\Render\RenderTargetView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Render\PipelineStateManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\PipelineStateObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\RootSignatureManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -353,6 +374,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\RenderTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\ResourceTypes.h">

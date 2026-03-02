@@ -3,6 +3,7 @@
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/CommandList.h"
 #include "Render/CommandQueue.h"
+#include "Render/PipelineStateObject.h"
 #include "Render/RenderTargetView.h"
 #include "Render/RootSignatureObject.h"
 #include "Render/ResourceObject.h"
@@ -51,7 +52,9 @@ public:
 	virtual SyncObject* getSyncObject() = 0;
 	virtual unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) = 0;
 	virtual RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) = 0;
+	virtual PipelineStateObject* getOrCreatePipelineStateObject(const PipelineStateDesc& pipelineStateDesc) = 0;
 	virtual void clearRootSignatureObjects() = 0;
+	virtual void clearPipelineStateObjects() = 0;
 	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
 	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
 	virtual void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) = 0;

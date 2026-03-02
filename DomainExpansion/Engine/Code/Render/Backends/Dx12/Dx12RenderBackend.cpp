@@ -1,6 +1,7 @@
 #include "Render/Backends/Dx12/Dx12RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
+#include "Render/Backends/Dx12/Dx12Converter.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
@@ -8,77 +9,7 @@
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 
 #include <cassert>
-#include <d3d12sdklayers.h>
 #include <cstring>
-
-static const char* getDx12MessageSeverityText(const D3D12_MESSAGE_SEVERITY severity)
-{
-	switch (severity)
-	{
-	case D3D12_MESSAGE_SEVERITY_CORRUPTION:
-		return "corruption";
-	case D3D12_MESSAGE_SEVERITY_ERROR:
-		return "error";
-	case D3D12_MESSAGE_SEVERITY_WARNING:
-		return "warning";
-	case D3D12_MESSAGE_SEVERITY_INFO:
-		return "info";
-	case D3D12_MESSAGE_SEVERITY_MESSAGE:
-		return "message";
-	default:
-		return "unknown";
-	}
-}
-
-static bool isDx12FailureSeverity(const D3D12_MESSAGE_SEVERITY severity)
-{
-	return severity == D3D12_MESSAGE_SEVERITY_CORRUPTION
-		|| severity == D3D12_MESSAGE_SEVERITY_ERROR;
-}
-
-static D3D12_HEAP_TYPE getDx12BufferHeapType(const BufferObjectMemoryType memoryType)
-{
-	switch (memoryType)
-	{
-	case BufferObjectMemoryType::uploadHeap:
-		return D3D12_HEAP_TYPE_UPLOAD;
-	case BufferObjectMemoryType::readbackHeap:
-		return D3D12_HEAP_TYPE_READBACK;
-	case BufferObjectMemoryType::defaultHeap:
-	default:
-		return D3D12_HEAP_TYPE_DEFAULT;
-	}
-}
-
-static D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryType memoryType)
-{
-	switch (memoryType)
-	{
-	case BufferObjectMemoryType::uploadHeap:
-		return D3D12_RESOURCE_STATE_GENERIC_READ;
-	case BufferObjectMemoryType::readbackHeap:
-		return D3D12_RESOURCE_STATE_COPY_DEST;
-	case BufferObjectMemoryType::defaultHeap:
-	default:
-		return D3D12_RESOURCE_STATE_COMMON;
-	}
-}
-
-static D3D12_SHADER_VISIBILITY getDx12ShaderVisibility(const ShaderVisibility shaderVisibility)
-{
-	const uint32 shaderVisibilityFlags = getShaderVisibilityFlags(shaderVisibility);
-	if (shaderVisibilityFlags == getShaderVisibilityFlags(ShaderVisibility::vertex))
-	{
-		return D3D12_SHADER_VISIBILITY_VERTEX;
-	}
-
-	if (shaderVisibilityFlags == getShaderVisibilityFlags(ShaderVisibility::pixel))
-	{
-		return D3D12_SHADER_VISIBILITY_PIXEL;
-	}
-
-	return D3D12_SHADER_VISIBILITY_ALL;
-}
 
 Dx12RenderBackend::Dx12RenderBackend()
 {
@@ -302,9 +233,257 @@ RootSignatureObject* Dx12RenderBackend::getOrCreateRootSignatureObject(const Roo
 	return rootSignatureManager.addOrGet(rootSignatureHash, dx12RootSignatureDesc, Dx12RootSignatureObject(dx12RootSignatureDesc, rootSignature));
 }
 
+PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const PipelineStateDesc& pipelineStateDesc)
+{
+	Dx12PipelineStateDesc dx12PipelineStateDesc = {};
+	dx12PipelineStateDesc.pipelineStateType = pipelineStateDesc.pipelineStateType;
+	dx12PipelineStateDesc.inputElements = pipelineStateDesc.inputElements;
+	dx12PipelineStateDesc.wireframe = pipelineStateDesc.wireframe;
+	dx12PipelineStateDesc.sampleCount = pipelineStateDesc.sampleCount;
+	dx12PipelineStateDesc.renderTargets = pipelineStateDesc.renderTargets;
+	dx12PipelineStateDesc.depthStencilDesc = pipelineStateDesc.depthStencilDesc;
+	dx12PipelineStateDesc.cullMode = pipelineStateDesc.cullMode;
+	if (pipelineStateDesc.sampleCount == 0)
+	{
+		error << "[Dx12PipelineState][Error] reason=sample_count_zero" << lineBreak;
+		return nullptr;
+	}
+
+	RootSignatureObject* rootSignatureObject = getOrCreateRootSignatureObject(pipelineStateDesc.rootSignatureDesc);
+	if (rootSignatureObject == nullptr)
+	{
+		error << "[Dx12PipelineState][Error] reason=root_signature_create_failed" << lineBreak;
+		return nullptr;
+	}
+
+	Dx12RootSignatureObject* dx12RootSignatureObject = static_cast<Dx12RootSignatureObject*>(rootSignatureObject);
+	dx12PipelineStateDesc.rootSignatureHash = dx12RootSignatureObject->getPlatformRootSignatureDesc().getHashValue();
+
+	if (pipelineStateDesc.pipelineStateType == PipelineStateType::graphics)
+	{
+		const bool missingVertexShader = !isShaderAssetReady(pipelineStateDesc.vertexShader);
+		const bool missingPixelShader = !isShaderAssetReady(pipelineStateDesc.pixelShader);
+		const bool missingInputLayout = pipelineStateDesc.inputElements.empty();
+		const bool missingRenderTargets = pipelineStateDesc.renderTargets.empty();
+		const bool tooManyRenderTargets = pipelineStateDesc.renderTargets.size() > D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+		bool invalidRenderTargetFormat = false;
+		for (uint32 renderTargetIndex = 0; renderTargetIndex < static_cast<uint32>(pipelineStateDesc.renderTargets.size()); ++renderTargetIndex)
+		{
+			if (pipelineStateDesc.renderTargets[renderTargetIndex].colorFormat == TextureFormat::unknown)
+			{
+				invalidRenderTargetFormat = true;
+				break;
+			}
+		}
+
+		const bool hasDepthStencilFormat = pipelineStateDesc.depthStencilDesc.depthStencilFormat != TextureFormat::unknown;
+		const bool invalidDepthStencilState = !hasDepthStencilFormat
+			&& (pipelineStateDesc.depthStencilDesc.depthTestEnabled
+				|| pipelineStateDesc.depthStencilDesc.depthWriteEnabled
+				|| pipelineStateDesc.depthStencilDesc.stencilEnabled);
+		if (missingVertexShader
+			|| missingPixelShader
+			|| missingInputLayout
+			|| missingRenderTargets
+			|| tooManyRenderTargets
+			|| invalidRenderTargetFormat
+			|| invalidDepthStencilState)
+		{
+			error << "[Dx12PipelineState][Error] reason=graphics_pipeline_invalid"
+				  << " missingVertexShader=" << static_cast<uint32>(missingVertexShader)
+				  << " missingPixelShader=" << static_cast<uint32>(missingPixelShader)
+				  << " missingInputLayout=" << static_cast<uint32>(missingInputLayout)
+				  << " missingRenderTargets=" << static_cast<uint32>(missingRenderTargets)
+				  << " tooManyRenderTargets=" << static_cast<uint32>(tooManyRenderTargets)
+				  << " invalidRenderTargetFormat=" << static_cast<uint32>(invalidRenderTargetFormat)
+				  << " invalidDepthStencilState=" << static_cast<uint32>(invalidDepthStencilState) << lineBreak;
+			return nullptr;
+		}
+
+		dx12PipelineStateDesc.vertexShaderHash = hashShaderByteCode(*pipelineStateDesc.vertexShader);
+		dx12PipelineStateDesc.pixelShaderHash = hashShaderByteCode(*pipelineStateDesc.pixelShader);
+		dx12PipelineStateDesc.vertexShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.vertexShader->byteCode.size());
+		dx12PipelineStateDesc.pixelShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.pixelShader->byteCode.size());
+	}
+	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
+	{
+		if (!isShaderAssetReady(pipelineStateDesc.computeShader))
+		{
+			error << "[Dx12PipelineState][Error] reason=compute_shader_missing" << lineBreak;
+			return nullptr;
+		}
+
+		dx12PipelineStateDesc.computeShaderHash = hashShaderByteCode(*pipelineStateDesc.computeShader);
+		dx12PipelineStateDesc.computeShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.computeShader->byteCode.size());
+	}
+	else
+	{
+		error << "[Dx12PipelineState][Error] reason=pipeline_type_invalid value="
+			  << static_cast<uint32>(pipelineStateDesc.pipelineStateType) << lineBreak;
+		return nullptr;
+	}
+
+	const uint64 pipelineStateHash = dx12PipelineStateDesc.getHashValue();
+	PipelineStateObject* foundPipelineStateObject =
+		pipelineStateManager.find(pipelineStateHash, dx12PipelineStateDesc);
+	if (foundPipelineStateObject != nullptr)
+	{
+		return foundPipelineStateObject;
+	}
+
+	assert(device != nullptr);
+	com_pointer<ID3D12PipelineState> pipelineState;
+	if (pipelineStateDesc.pipelineStateType == PipelineStateType::graphics)
+	{
+		const vector<char>& vertexShaderByteCode = pipelineStateDesc.vertexShader->byteCode;
+		const vector<char>& pixelShaderByteCode = pipelineStateDesc.pixelShader->byteCode;
+		vector<D3D12_INPUT_ELEMENT_DESC> inputElementDescriptions = {};
+		inputElementDescriptions.reserve(pipelineStateDesc.inputElements.size());
+		for (uint32 elementIndex = 0; elementIndex < static_cast<uint32>(pipelineStateDesc.inputElements.size()); ++elementIndex)
+		{
+			const PipelineInputElementDesc& inputElement = pipelineStateDesc.inputElements[elementIndex];
+			const char* semanticName = getDx12VertexInputSemanticName(inputElement.semantic);
+			const DXGI_FORMAT inputFormat = getDx12VertexInputFormat(inputElement.format);
+			const bool invalidInputElement = semanticName == nullptr || inputFormat == DXGI_FORMAT_UNKNOWN;
+			if (invalidInputElement)
+			{
+				error << "[Dx12PipelineState][Error] reason=input_layout_element_invalid"
+					  << " elementIndex=" << elementIndex
+					  << " semantic=" << static_cast<uint32>(inputElement.semantic)
+					  << " format=" << static_cast<uint32>(inputElement.format)
+					  << " inputSlot=" << inputElement.inputSlot
+					  << " alignedByteOffset=" << inputElement.alignedByteOffset << lineBreak;
+				return nullptr;
+			}
+
+			D3D12_INPUT_ELEMENT_DESC dx12InputElement = {};
+			dx12InputElement.SemanticName = semanticName;
+			dx12InputElement.SemanticIndex = inputElement.semanticIndex;
+			dx12InputElement.Format = inputFormat;
+			dx12InputElement.InputSlot = inputElement.inputSlot;
+			dx12InputElement.AlignedByteOffset = inputElement.alignedByteOffset;
+			dx12InputElement.InputSlotClass = getDx12VertexInputClassification(inputElement.inputClassification);
+			dx12InputElement.InstanceDataStepRate = inputElement.instanceDataStepRate;
+			inputElementDescriptions.push_back(dx12InputElement);
+		}
+
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc = {};
+		graphicsPipelineStateDesc.pRootSignature = dx12RootSignatureObject->getRootSignature().Get();
+		graphicsPipelineStateDesc.VS = { vertexShaderByteCode.data(), vertexShaderByteCode.size() };
+		graphicsPipelineStateDesc.PS = { pixelShaderByteCode.data(), pixelShaderByteCode.size() };
+		graphicsPipelineStateDesc.InputLayout = {
+			inputElementDescriptions.data(),
+			static_cast<uint32>(inputElementDescriptions.size())
+		};
+
+		D3D12_RASTERIZER_DESC rasterizerDesc = {};
+		rasterizerDesc.FillMode = pipelineStateDesc.wireframe ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
+		rasterizerDesc.CullMode = getDx12CullMode(pipelineStateDesc.cullMode);
+		rasterizerDesc.FrontCounterClockwise = boolFalse;
+		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+		rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+		rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+		rasterizerDesc.DepthClipEnable = boolTrue;
+		rasterizerDesc.MultisampleEnable = boolFalse;
+		rasterizerDesc.AntialiasedLineEnable = boolFalse;
+		rasterizerDesc.ForcedSampleCount = 0;
+		rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+		graphicsPipelineStateDesc.RasterizerState = rasterizerDesc;
+
+		D3D12_BLEND_DESC blendDesc = {};
+		blendDesc.AlphaToCoverageEnable = boolFalse;
+		blendDesc.IndependentBlendEnable = pipelineStateDesc.renderTargets.size() > 1 ? boolTrue : boolFalse;
+		const PipelineRenderTargetBlendDesc defaultRenderTargetBlendDesc = {};
+		for (uint32 renderTargetIndex = 0; renderTargetIndex < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++renderTargetIndex)
+		{
+			const bool hasRenderTargetDesc = renderTargetIndex < static_cast<uint32>(pipelineStateDesc.renderTargets.size());
+			const PipelineRenderTargetBlendDesc& selectedBlendDesc = hasRenderTargetDesc
+				? pipelineStateDesc.renderTargets[renderTargetIndex].blendDesc
+				: defaultRenderTargetBlendDesc;
+			blendDesc.RenderTarget[renderTargetIndex] = getDx12RenderTargetBlendDesc(selectedBlendDesc);
+		}
+
+		graphicsPipelineStateDesc.BlendState = blendDesc;
+
+		D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
+		const bool hasDepthStencil = pipelineStateDesc.depthStencilDesc.depthStencilFormat != TextureFormat::unknown;
+		depthStencilDesc.DepthEnable = hasDepthStencil && pipelineStateDesc.depthStencilDesc.depthTestEnabled;
+		depthStencilDesc.DepthWriteMask = (hasDepthStencil && pipelineStateDesc.depthStencilDesc.depthWriteEnabled)
+			? D3D12_DEPTH_WRITE_MASK_ALL
+			: D3D12_DEPTH_WRITE_MASK_ZERO;
+		depthStencilDesc.DepthFunc = getDx12CompareOperation(pipelineStateDesc.depthStencilDesc.depthCompareOperation);
+		depthStencilDesc.StencilEnable = hasDepthStencil && pipelineStateDesc.depthStencilDesc.stencilEnabled;
+		depthStencilDesc.StencilReadMask = static_cast<UINT8>(pipelineStateDesc.depthStencilDesc.stencilReadMask & 0xFFu);
+		depthStencilDesc.StencilWriteMask = static_cast<UINT8>(pipelineStateDesc.depthStencilDesc.stencilWriteMask & 0xFFu);
+		depthStencilDesc.FrontFace.StencilFailOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.frontFace.stencilFailOperation);
+		depthStencilDesc.FrontFace.StencilDepthFailOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.frontFace.stencilDepthFailOperation);
+		depthStencilDesc.FrontFace.StencilPassOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.frontFace.stencilPassOperation);
+		depthStencilDesc.FrontFace.StencilFunc = getDx12CompareOperation(pipelineStateDesc.depthStencilDesc.frontFace.stencilCompareOperation);
+		depthStencilDesc.BackFace.StencilFailOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.backFace.stencilFailOperation);
+		depthStencilDesc.BackFace.StencilDepthFailOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.backFace.stencilDepthFailOperation);
+		depthStencilDesc.BackFace.StencilPassOp = getDx12StencilOperation(pipelineStateDesc.depthStencilDesc.backFace.stencilPassOperation);
+		depthStencilDesc.BackFace.StencilFunc = getDx12CompareOperation(pipelineStateDesc.depthStencilDesc.backFace.stencilCompareOperation);
+		graphicsPipelineStateDesc.DepthStencilState = depthStencilDesc;
+
+		graphicsPipelineStateDesc.SampleMask = 0xFFFFFFFFu;
+		graphicsPipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		graphicsPipelineStateDesc.NumRenderTargets = static_cast<uint32>(pipelineStateDesc.renderTargets.size());
+		for (uint32 renderTargetIndex = 0; renderTargetIndex < graphicsPipelineStateDesc.NumRenderTargets; ++renderTargetIndex)
+		{
+			graphicsPipelineStateDesc.RTVFormats[renderTargetIndex] = getDx12TextureFormat(pipelineStateDesc.renderTargets[renderTargetIndex].colorFormat);
+		}
+		graphicsPipelineStateDesc.DSVFormat = getDx12TextureFormat(pipelineStateDesc.depthStencilDesc.depthStencilFormat);
+		graphicsPipelineStateDesc.SampleDesc.Count = pipelineStateDesc.sampleCount;
+		graphicsPipelineStateDesc.SampleDesc.Quality = 0;
+		graphicsPipelineStateDesc.NodeMask = 0;
+		graphicsPipelineStateDesc.CachedPSO = {};
+		graphicsPipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		if (FAILED(device->CreateGraphicsPipelineState(
+			&graphicsPipelineStateDesc,
+			IID_PPV_ARGS(&pipelineState))))
+		{
+			error << "[Dx12PipelineState][Error] reason=create_graphics_pso_failed hash="
+				  << pipelineStateHash << lineBreak;
+			return nullptr;
+		}
+	}
+	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
+	{
+		const vector<char>& computeShaderByteCode = pipelineStateDesc.computeShader->byteCode;
+		D3D12_COMPUTE_PIPELINE_STATE_DESC computePipelineStateDesc = {};
+		computePipelineStateDesc.pRootSignature = dx12RootSignatureObject->getRootSignature().Get();
+		computePipelineStateDesc.CS = { computeShaderByteCode.data(), computeShaderByteCode.size() };
+		computePipelineStateDesc.NodeMask = 0;
+		computePipelineStateDesc.CachedPSO = {};
+		computePipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		if (FAILED(device->CreateComputePipelineState(
+			&computePipelineStateDesc,
+			IID_PPV_ARGS(&pipelineState))))
+		{
+			error << "[Dx12PipelineState][Error] reason=create_compute_pso_failed hash="
+				  << pipelineStateHash << lineBreak;
+			return nullptr;
+		}
+	}
+	else
+	{
+		error << "[Dx12PipelineState][Error] reason=pipeline_type_unsupported value="
+			  << static_cast<uint32>(pipelineStateDesc.pipelineStateType) << lineBreak;
+		return nullptr;
+	}
+
+	Dx12PipelineStateObject createdPipelineStateObject(dx12PipelineStateDesc, pipelineState);
+	return pipelineStateManager.addOrGet(pipelineStateHash, dx12PipelineStateDesc, moveValue(createdPipelineStateObject));
+}
+
 void Dx12RenderBackend::clearRootSignatureObjects()
 {
 	rootSignatureManager.clear();
+}
+
+void Dx12RenderBackend::clearPipelineStateObjects()
+{
+	pipelineStateManager.clear();
 }
 
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
@@ -566,6 +745,7 @@ bool Dx12RenderBackend::createBackendResources()
 
 void Dx12RenderBackend::destroyBackendResources()
 {
+	clearPipelineStateObjects();
 	clearRootSignatureObjects();
 
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)

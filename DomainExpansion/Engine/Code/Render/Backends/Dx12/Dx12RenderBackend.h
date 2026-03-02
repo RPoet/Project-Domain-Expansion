@@ -3,8 +3,11 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include "Render/Backends/RenderBackend.h"
+#include "Render/Backends/Dx12/Dx12PipelineStateDesc.h"
+#include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureDesc.h"
+#include "Render/PipelineStateManager.h"
 #include "Render/RootSignatureManager.h"
 
 class Dx12CommandList;
@@ -29,7 +32,9 @@ public:
 	SyncObject* getSyncObject() override;
 	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
 	RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) override;
+	PipelineStateObject* getOrCreatePipelineStateObject(const PipelineStateDesc& pipelineStateDesc) override;
 	void clearRootSignatureObjects() override;
+	void clearPipelineStateObjects() override;
 	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
 	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
@@ -69,6 +74,7 @@ private:
 	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
 	vector<bool> graphicsCommandListInUse;
 	RootSignatureManager<Dx12RootSignatureDesc, Dx12RootSignatureObject> rootSignatureManager;
+	PipelineStateManager<Dx12PipelineStateDesc, Dx12PipelineStateObject> pipelineStateManager;
 	vector<CommandList*> queuedCommandLists;
 	vector<RenderTargetView*> queuedRenderTargetViews;
 	unique_pointer<CommandQueue> commandQueue;

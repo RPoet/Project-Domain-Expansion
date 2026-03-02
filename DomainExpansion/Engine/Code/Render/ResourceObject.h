@@ -1,13 +1,6 @@
 #pragma once
 
-#include "Engine/Platform/PlatformDefine.h"
-
-enum class ResourceObjectType : uint32
-{
-	unknown = 0,
-	texture = 1,
-	buffer = 2,
-};
+#include "Render/ResourceTypes.h"
 
 template<typename BaseType, typename PlatformResourceType>
 class UnderlyingResource : public BaseType
@@ -34,13 +27,6 @@ public:
 
 	virtual const void* getNativeResource() const { return nullptr; }
 	virtual void* getNativeResource() { return nullptr; }
-};
-
-enum class BufferObjectMemoryType : uint32
-{
-	defaultHeap = 0,
-	uploadHeap = 1,
-	readbackHeap = 2,
 };
 
 struct BufferObjectCreateOptions

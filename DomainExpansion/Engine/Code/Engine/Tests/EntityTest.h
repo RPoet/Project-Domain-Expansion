@@ -6,5 +6,6 @@ unique_pointer<FrameworkTestCase> createFrameworkEntityAddRemoveTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkEntityUpdateTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkObjMeshLoaderTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkRootSignatureLifecycleTestCase();
+unique_pointer<FrameworkTestCase> createFrameworkPipelineStateLifecycleTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkShaderPackageTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkWorldSerializationTestCase();
