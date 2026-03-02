@@ -187,6 +187,14 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	pushConstantRange.sizeInBytes = 16;
 	pushConstantRange.shaderVisibility = ShaderVisibility::allGraphics;
 	rootSignatureDesc.pushConstantRanges.push_back(pushConstantRange);
+	RootSignatureObject* pipelineRootSignatureObject = testRenderBackend->getOrCreateRootSignatureObject(rootSignatureDesc);
+	runResult = expectCondition(
+		pipelineRootSignatureObject != nullptr,
+		"run: create root signature for pipeline bind") && runResult;
+	if (!runResult)
+	{
+		return false;
+	}
 
 	PipelineStateDesc graphicsPipelineDescA = {};
 	graphicsPipelineDescA.pipelineStateType = PipelineStateType::graphics;
@@ -246,6 +254,20 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		computePipeline1 != nullptr && computePipeline1 == computePipeline0,
 		"run: cache hit for compute pipeline") && runResult;
+
+	CommandList* pipelineBindCommandList = testRenderBackend->acquireCommandList(CommandListType::graphics);
+	runResult = expectCondition(pipelineBindCommandList != nullptr, "run: acquire command list for pipeline bind") && runResult;
+	bool pipelineBindExecuted = false;
+	if (pipelineBindCommandList != nullptr)
+	{
+		pipelineBindCommandList->reset();
+		pipelineBindCommandList->setPipeline(graphicsPipelineA0, pipelineRootSignatureObject);
+		pipelineBindCommandList->setPipeline(computePipeline0, pipelineRootSignatureObject);
+		pipelineBindCommandList->close();
+		testRenderBackend->releaseCommandList(pipelineBindCommandList);
+		pipelineBindExecuted = true;
+	}
+	runResult = expectCondition(pipelineBindExecuted, "run: bind graphics and compute pipelines on command list") && runResult;
 
 	testRenderBackend->clearPipelineStateObjects();
 	PipelineStateObject* graphicsPipelineA2 = testRenderBackend->getOrCreatePipelineStateObject(graphicsPipelineDescA);

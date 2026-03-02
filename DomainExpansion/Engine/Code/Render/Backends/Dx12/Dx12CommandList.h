@@ -27,6 +27,7 @@ public:
 	void setPrimitiveTopology(PrimitiveTopology primitiveTopology) override;
 	void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) override;
 	void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) override;
+	void setPipeline(PipelineStateObject* pipelineStateObject, RootSignatureObject* rootSignatureObject) override;
 	void copyBuffer(
 		BufferResourceObject* destinationBufferObject,
 		uint64 destinationOffsetInBytes,

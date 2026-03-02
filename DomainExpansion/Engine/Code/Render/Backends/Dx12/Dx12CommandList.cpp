@@ -1,4 +1,6 @@
 #include "Render/Backends/Dx12/Dx12CommandList.h"
+#include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
+#include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
@@ -275,6 +277,50 @@ void Dx12CommandList::setIndexBuffer(const IndexBufferBinding& indexBufferBindin
 	indexBufferView.SizeInBytes = indexBufferBinding.sizeInBytes;
 
 	commandList->IASetIndexBuffer(&indexBufferView);
+}
+
+void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, RootSignatureObject* rootSignatureObject)
+{
+	if (!isRecordingReady() || pipelineStateObject == nullptr || rootSignatureObject == nullptr)
+	{
+		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_precondition_failed");
+		return;
+	}
+
+	Dx12PipelineStateObject* dx12PipelineStateObject = static_cast<Dx12PipelineStateObject*>(pipelineStateObject);
+	Dx12RootSignatureObject* dx12RootSignatureObject = static_cast<Dx12RootSignatureObject*>(rootSignatureObject);
+	ID3D12PipelineState* dx12PipelineState = dx12PipelineStateObject->getPipelineState().Get();
+	ID3D12RootSignature* dx12RootSignature = dx12RootSignatureObject->getRootSignature().Get();
+	if (dx12PipelineState == nullptr || dx12RootSignature == nullptr)
+	{
+		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_native_object_missing");
+		return;
+	}
+
+	const uint64 pipelineRootSignatureHash = dx12PipelineStateObject->getPlatformPipelineStateDesc().rootSignatureHash;
+	const uint64 boundRootSignatureHash = dx12RootSignatureObject->getPlatformRootSignatureDesc().getHashValue();
+	if (pipelineRootSignatureHash != boundRootSignatureHash)
+	{
+		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_root_signature_mismatch");
+		return;
+	}
+
+	const PipelineStateType pipelineStateType = dx12PipelineStateObject->getPlatformPipelineStateDesc().pipelineStateType;
+	if (pipelineStateType == PipelineStateType::graphics)
+	{
+		commandList->SetGraphicsRootSignature(dx12RootSignature);
+	}
+	else if (pipelineStateType == PipelineStateType::compute)
+	{
+		commandList->SetComputeRootSignature(dx12RootSignature);
+	}
+	else
+	{
+		assert(false && "[Dx12CommandList][Assert] reason=pipeline_type_unsupported");
+		return;
+	}
+
+	commandList->SetPipelineState(dx12PipelineState);
 }
 
 void Dx12CommandList::copyBuffer(

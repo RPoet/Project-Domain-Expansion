@@ -6,6 +6,8 @@
 #include "Render/ResourceState.h"
 
 class RenderBackend;
+class PipelineStateObject;
+class RootSignatureObject;
 
 enum class CommandListType : uint32
 {
@@ -110,6 +112,7 @@ public:
 	virtual void setPrimitiveTopology(PrimitiveTopology primitiveTopology) = 0;
 	virtual void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) = 0;
 	virtual void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) = 0;
+	virtual void setPipeline(PipelineStateObject* pipelineStateObject, RootSignatureObject* rootSignatureObject) = 0;
 	virtual void copyBuffer(
 		BufferResourceObject* destinationBufferObject,
 		uint64 destinationOffsetInBytes,

@@ -7,8 +7,6 @@
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
-
-#include <cassert>
 #include <cstring>
 
 Dx12RenderBackend::Dx12RenderBackend()
