@@ -6,6 +6,7 @@ void Framework::registerTest()
 	clearTestCases();
 	addTestCase(createFrameworkEntityAddRemoveTestCase());
 	addTestCase(createFrameworkEntityUpdateTestCase());
+	addTestCase(createFrameworkBridgeLifecycleTestCase());
 	addTestCase(createFrameworkObjMeshLoaderTestCase());
 	addTestCase(createFrameworkRootSignatureLifecycleTestCase());
 	addTestCase(createFrameworkPipelineStateLifecycleTestCase());

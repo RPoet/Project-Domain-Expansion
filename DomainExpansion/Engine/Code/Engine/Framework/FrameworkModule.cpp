@@ -2,6 +2,7 @@
 #include "Engine/Module/Asset/MeshStreaming.h"
 #include "Engine/Module/Asset/ShaderModule.h"
 #include "Engine/Module/Asset/ShaderPackageModule.h"
+#include "Engine/Module/Bridge/BridgeModule.h"
 #include "Engine/Module/Render/GPUUploader.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
@@ -15,6 +16,7 @@ void Framework::registerModule()
 	}
 
 	addModule(Timer::get());
+	addModule(BridgeModule::get());
 	addModule(GPUUploader::get());
 	addModule(MeshStreaming::get());
 	addModule(ShaderModule::get());

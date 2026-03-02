@@ -106,12 +106,14 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\EntityTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp" />
@@ -146,6 +148,9 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Bridge\BaseBridge.h" />
+    <ClInclude Include="Engine\Code\Bridge\Brdige.h" />
+    <ClInclude Include="Engine\Code\Bridge\DefaultBridge.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
@@ -160,6 +165,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\World.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Module.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Bridge\BridgeModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Singleton.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
@@ -169,6 +175,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\EntityTest.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityAddRemoveTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h" />
