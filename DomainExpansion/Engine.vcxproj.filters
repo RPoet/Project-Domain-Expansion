@@ -77,6 +77,9 @@
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -223,6 +226,9 @@
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -241,6 +247,9 @@
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineApple.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Platform\InplaceVector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Platform\Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -257,6 +266,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderTargetView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RootSignatureDesc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RootSignatureObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12ResourceObject.h">
@@ -293,6 +308,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\RenderTargetView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\RootSignatureManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\RootSignatureObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\ResourceObject.h">

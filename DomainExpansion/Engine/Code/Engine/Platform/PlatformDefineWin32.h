@@ -34,3 +34,11 @@ using HandleEvent = HANDLE;
 template <typename type_name>
 using platform_com_pointer = Microsoft::WRL::ComPtr<type_name>;
 
+inline constexpr uint64 platformHashOffsetBasis = 14695981039346656037ull;
+inline constexpr uint64 platformHashPrime = 1099511628211ull;
+
+inline constexpr uint64 platformHashCombine(const uint64 currentHash, const uint64 value)
+{
+	return (currentHash ^ value) * platformHashPrime;
+}
+

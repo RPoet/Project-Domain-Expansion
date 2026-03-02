@@ -3,6 +3,9 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include "Render/Backends/RenderBackend.h"
+#include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
+#include "Render/Backends/Dx12/Dx12RootSignatureDesc.h"
+#include "Render/RootSignatureManager.h"
 
 class Dx12CommandList;
 class Dx12CommandQueue;
@@ -25,6 +28,8 @@ public:
 	SwapChain* getSwapChain() override;
 	SyncObject* getSyncObject() override;
 	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
+	RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) override;
+	void clearRootSignatureObjects() override;
 	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
 	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
@@ -63,6 +68,7 @@ private:
 
 	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
 	vector<bool> graphicsCommandListInUse;
+	RootSignatureManager<Dx12RootSignatureDesc, Dx12RootSignatureObject> rootSignatureManager;
 	vector<CommandList*> queuedCommandLists;
 	vector<RenderTargetView*> queuedRenderTargetViews;
 	unique_pointer<CommandQueue> commandQueue;

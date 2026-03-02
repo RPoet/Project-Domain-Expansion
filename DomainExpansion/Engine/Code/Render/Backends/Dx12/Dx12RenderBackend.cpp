@@ -2,10 +2,12 @@
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
+#include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 
+#include <cassert>
 #include <d3d12sdklayers.h>
 #include <cstring>
 
@@ -60,6 +62,22 @@ static D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryT
 	default:
 		return D3D12_RESOURCE_STATE_COMMON;
 	}
+}
+
+static D3D12_SHADER_VISIBILITY getDx12ShaderVisibility(const ShaderVisibility shaderVisibility)
+{
+	const uint32 shaderVisibilityFlags = getShaderVisibilityFlags(shaderVisibility);
+	if (shaderVisibilityFlags == getShaderVisibilityFlags(ShaderVisibility::vertex))
+	{
+		return D3D12_SHADER_VISIBILITY_VERTEX;
+	}
+
+	if (shaderVisibilityFlags == getShaderVisibilityFlags(ShaderVisibility::pixel))
+	{
+		return D3D12_SHADER_VISIBILITY_PIXEL;
+	}
+
+	return D3D12_SHADER_VISIBILITY_ALL;
 }
 
 Dx12RenderBackend::Dx12RenderBackend()
@@ -206,6 +224,87 @@ unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 	unique_pointer<Dx12BufferObject> createdBufferObject(new Dx12BufferObject());
 	createdBufferObject->getUnderlyingResource() = dx12BufferResource;
 	return createdBufferObject;
+}
+
+RootSignatureObject* Dx12RenderBackend::getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc)
+{
+	Dx12RootSignatureDesc dx12RootSignatureDesc = {};
+	dx12RootSignatureDesc.flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	for (uint32 rangeIndex = 0; rangeIndex < static_cast<uint32>(rootSignatureDesc.pushConstantRanges.size()); ++rangeIndex)
+	{
+		const PushConstantRange& pushConstantRange = rootSignatureDesc.pushConstantRanges[rangeIndex];
+		const bool pushConstantSizeZero = pushConstantRange.sizeInBytes == 0;
+		const bool pushConstantOffsetMisaligned = (pushConstantRange.offsetInBytes & 3u) != 0;
+		const bool pushConstantSizeMisaligned = (pushConstantRange.sizeInBytes & 3u) != 0;
+		if (pushConstantSizeZero || pushConstantOffsetMisaligned || pushConstantSizeMisaligned)
+		{
+			error << "[Dx12RootSignature][Error] reason=push_constant_invalid"
+				  << " rangeIndex=" << rangeIndex
+				  << " sizeZero=" << static_cast<uint32>(pushConstantSizeZero)
+				  << " offsetMisaligned=" << static_cast<uint32>(pushConstantOffsetMisaligned)
+				  << " sizeMisaligned=" << static_cast<uint32>(pushConstantSizeMisaligned)
+				  << " offsetInBytes=" << pushConstantRange.offsetInBytes
+				  << " sizeInBytes=" << pushConstantRange.sizeInBytes << lineBreak;
+			return nullptr;
+		}
+
+		D3D12_ROOT_PARAMETER rootParameter = {};
+		rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParameter.ShaderVisibility = getDx12ShaderVisibility(pushConstantRange.shaderVisibility);
+		// TO DO : Replace temporary offset->register mapping when root-constant binder is finalized.
+		rootParameter.Constants.ShaderRegister = pushConstantRange.offsetInBytes / 4u;
+		rootParameter.Constants.RegisterSpace = 0;
+		rootParameter.Constants.Num32BitValues = pushConstantRange.sizeInBytes / 4u;
+		dx12RootSignatureDesc.rootParameters.push_back(rootParameter);
+	}
+
+	const uint64 rootSignatureHash = dx12RootSignatureDesc.getHashValue();
+	RootSignatureObject* foundRootSignatureObject = rootSignatureManager.find(rootSignatureHash, dx12RootSignatureDesc);
+	if (foundRootSignatureObject != nullptr)
+	{
+		return foundRootSignatureObject;
+	}
+
+	assert(device != nullptr);
+
+	const D3D12_ROOT_SIGNATURE_DESC rootSignatureDescription = dx12RootSignatureDesc.getNativeDesc();
+
+	com_pointer<ID3DBlob> serializedRootSignature;
+	com_pointer<ID3DBlob> errorBlob;
+	if (FAILED(D3D12SerializeRootSignature(
+		&rootSignatureDescription,
+		D3D_ROOT_SIGNATURE_VERSION_1,
+		&serializedRootSignature,
+		&errorBlob)))
+	{
+		const char* errorText = "serialize_failed";
+		if (errorBlob != nullptr && errorBlob->GetBufferPointer() != nullptr)
+		{
+			errorText = static_cast<const char*>(errorBlob->GetBufferPointer());
+		}
+
+		error << "[Dx12RootSignature][Error] reason=" << errorText
+			  << " hash=" << rootSignatureHash << lineBreak;
+		return nullptr;
+	}
+
+	com_pointer<ID3D12RootSignature> rootSignature;
+	if (FAILED(device->CreateRootSignature(
+		0,
+		serializedRootSignature->GetBufferPointer(),
+		serializedRootSignature->GetBufferSize(),
+		IID_PPV_ARGS(&rootSignature))))
+	{
+		error << "[Dx12RootSignature][Error] reason=create_root_signature_failed hash=" << rootSignatureHash << lineBreak;
+		return nullptr;
+	}
+
+	return rootSignatureManager.addOrGet(rootSignatureHash, dx12RootSignatureDesc, Dx12RootSignatureObject(dx12RootSignatureDesc, rootSignature));
+}
+
+void Dx12RenderBackend::clearRootSignatureObjects()
+{
+	rootSignatureManager.clear();
 }
 
 RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
@@ -467,6 +566,8 @@ bool Dx12RenderBackend::createBackendResources()
 
 void Dx12RenderBackend::destroyBackendResources()
 {
+	clearRootSignatureObjects();
+
 	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
 	{
 		Dx12CommandList* dx12CommandList = graphicsCommandListPool[commandListIndex].get();

@@ -4,6 +4,7 @@
 #include "Render/CommandList.h"
 #include "Render/CommandQueue.h"
 #include "Render/RenderTargetView.h"
+#include "Render/RootSignatureObject.h"
 #include "Render/ResourceObject.h"
 #include "Render/SwapChain.h"
 #include "Render/SyncObject.h"
@@ -49,6 +50,8 @@ public:
 	virtual SwapChain* getSwapChain() = 0;
 	virtual SyncObject* getSyncObject() = 0;
 	virtual unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) = 0;
+	virtual RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) = 0;
+	virtual void clearRootSignatureObjects() = 0;
 	virtual RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) = 0;
 	virtual void destroyRenderTargetView(RenderTargetView* renderTargetView) = 0;
 	virtual void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) = 0;

@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "Engine/Platform/InplaceVector.h"
 #include "Engine/Platform/Math.h"
 #include "Engine/Platform/SIMDMath.h"
 
