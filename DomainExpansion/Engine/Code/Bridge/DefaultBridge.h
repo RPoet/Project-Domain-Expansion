@@ -4,12 +4,15 @@
 #include "Engine/Module/Bridge/BridgeModule.h"
 
 template <typename object_type, uint32 default_size = 4096>
-class DefaultBridge final : public BaseBridge
+class DefaultBridge : public BaseBridge
 {
 public:
+	using BridgeType = DefaultBridge<object_type, default_size>;
 	using ObjectDesc = typename object_type::ObjectDesc;
 	using StaticProperty = typename object_type::StaticProperty;
 	using DynamicProperty = typename object_type::DynamicProperty;
+	using StaticData = StaticProperty;
+	using DynamicData = DynamicProperty;
 	using PackedHandle = uint32;
 
 	inline static constexpr uint32 handleIndexBits = 24;
@@ -79,6 +82,14 @@ public:
 		PackedHandle getPackedHandle() const
 		{
 			return packedHandle;
+		}
+
+		PackedHandle release()
+		{
+			const PackedHandle releasedHandle = packedHandle;
+			owner = nullptr;
+			packedHandle = invalidPackedHandle;
+			return releasedHandle;
 		}
 
 		uint32 getIndex() const
@@ -203,22 +214,7 @@ public:
 		return getStaticProperty(handleReference.getPackedHandle());
 	}
 
-	StaticProperty* getStaticProperty(const HandleReference& handleReference)
-	{
-		return getStaticProperty(handleReference.getPackedHandle());
-	}
-
 	const StaticProperty* getStaticProperty(const PackedHandle packedHandle) const
-	{
-		if (!isHandleAlive(packedHandle))
-		{
-			return nullptr;
-		}
-
-		return &staticProperties[unpackHandleIndex(packedHandle)];
-	}
-
-	StaticProperty* getStaticProperty(const PackedHandle packedHandle)
 	{
 		if (!isHandleAlive(packedHandle))
 		{
@@ -233,22 +229,7 @@ public:
 		return getDynamicProperty(handleReference.getPackedHandle());
 	}
 
-	DynamicProperty* getDynamicProperty(const HandleReference& handleReference)
-	{
-		return getDynamicProperty(handleReference.getPackedHandle());
-	}
-
 	const DynamicProperty* getDynamicProperty(const PackedHandle packedHandle) const
-	{
-		if (!isHandleAlive(packedHandle))
-		{
-			return nullptr;
-		}
-
-		return &dynamicProperties[unpackHandleIndex(packedHandle)];
-	}
-
-	DynamicProperty* getDynamicProperty(const PackedHandle packedHandle)
 	{
 		if (!isHandleAlive(packedHandle))
 		{

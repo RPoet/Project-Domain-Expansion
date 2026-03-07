@@ -324,11 +324,10 @@ bool Framework::update()
 	activeWorldObject->tick(deltaTimeSeconds);
 	postUpdateModules();
 
+	// TO DO : consider the way to use conditional variable ? those backend call looks not correct placed in here.
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (renderBackendModule != nullptr
-		&& renderBackendModule->isBackendCreated()
-		&& windowsWindowObject != nullptr
-		&& !windowsWindowObject->isWindowMinimized())
+	if (renderBackendModule != nullptr && renderBackendModule->isBackendCreated()
+		&& windowsWindowObject != nullptr && !windowsWindowObject->isWindowMinimized())
 	{
 		RenderCommand& renderCommand = RenderCommand::get();
 		renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
@@ -528,6 +527,13 @@ const WindowsWindowObject* Framework::getWindowObject() const
 // TO DO : Refactor this, RenderCommand must be working like it has its own world, and not included in the Framework.
 void Framework::flushRenderCommandQueue()
 {
+	// TO DO : need No Backend version to run test flow w/o backend initialization
+	if (executionFlow == FrameworkExecutionFlow::testFlow)
+	{
+		RenderCommand::get().clear();
+		return;
+	}
+
 	RenderCommand::get().flush();
 
 	if (!executionCompleted

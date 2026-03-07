@@ -35,13 +35,12 @@ public:
 	const Component* getComponentByIndex(uint32 componentIndex) const;
 
 private:
+	uint32 addEntityObject(unique_pointer<Entity> entity);
 	bool isValidEntityIndex(uint32 entityIndex) const;
 	Entity* getEntity(uint32 entityIndex);
 	const Entity* getEntity(uint32 entityIndex) const;
-	void tickEntityComponents(const Entity& entity, float deltaTimeSeconds);
 	bool removeComponentIndexFromEntity(Entity& entity, uint32 componentIndex);
 	bool replaceComponentIndexInEntity(Entity& entity, uint32 fromComponentIndex, uint32 toComponentIndex);
-	void assignEntityOwnership(Entity& entity, uint32 entityIndex);
 
 	wstring worldName;
 	unsynchronized_pool_resource componentIndexPoolResource;

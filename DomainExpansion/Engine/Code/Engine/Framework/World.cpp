@@ -17,29 +17,31 @@ void World::setWorldName(const wstring& worldName)
 
 uint32 World::createEntity()
 {
-	unique_pointer<Entity> entity(new Entity(&componentIndexPoolResource));
+	return addEntityObject(unique_pointer<Entity>(new Entity(&componentIndexPoolResource)));
+}
+
+uint32 World::createPlaceableEntity()
+{
+	return addEntityObject(unique_pointer<Entity>(new PlaceableEntity(&componentIndexPoolResource)));
+}
+
+uint32 World::addEntityObject(unique_pointer<Entity> entity)
+{
+	assert(entity != nullptr);
+	if (entity == nullptr)
+	{
+		return invalidEntityIndex;
+	}
+
 	entityStorage.push_back(moveValue(entity));
 	const uint32 entityIndex = static_cast<uint32>(entityStorage.size() - 1);
 	Entity* createdEntity = entityStorage[entityIndex].get();
 	if (createdEntity != nullptr)
 	{
-		assignEntityOwnership(*createdEntity, entityIndex);
+		createdEntity->ownerWorld = this;
+		createdEntity->ownerEntityIndex = entityIndex;
+		createdEntity->initEntity();
 	}
-
-	return entityIndex;
-}
-
-uint32 World::createPlaceableEntity()
-{
-	unique_pointer<Entity> placeableEntity(new PlaceableEntity(&componentIndexPoolResource));
-	entityStorage.push_back(moveValue(placeableEntity));
-	const uint32 entityIndex = static_cast<uint32>(entityStorage.size() - 1);
-	Entity* createdEntity = entityStorage[entityIndex].get();
-	if (createdEntity != nullptr)
-	{
-		assignEntityOwnership(*createdEntity, entityIndex);
-	}
-
 	return entityIndex;
 }
 
@@ -137,6 +139,12 @@ bool World::attachComponent(const uint32 entityIndex, unique_pointer<Component> 
 	componentOwnerIndices.push_back(entityIndex);
 	const uint32 componentIndex = static_cast<uint32>(componentStorage.size() - 1);
 	entity->componentIndices.push_back(componentIndex);
+	Component* createdComponent = componentStorage[componentIndex].get();
+	if (createdComponent != nullptr)
+	{
+		createdComponent->setOwner(this, entityIndex, componentIndex, entity->getEntityHandle());
+		createdComponent->initComponent();
+	}
 	return true;
 }
 
@@ -218,7 +226,8 @@ bool World::removeEntity(const uint32 entityIndex)
 		Entity* movedEntity = entityStorage[entityIndex].get();
 		if (movedEntity != nullptr)
 		{
-			assignEntityOwnership(*movedEntity, entityIndex);
+			movedEntity->ownerWorld = this;
+			movedEntity->ownerEntityIndex = entityIndex;
 
 			if (movedEntity->parentEntityIndex != invalidEntityIndex)
 			{
@@ -278,7 +287,16 @@ bool World::removeEntity(const uint32 entityIndex)
 				{
 					componentOwnerIndices[movedComponentIndex] = entityIndex;
 				}
+
+				Component* movedComponent = getComponentByIndex(movedComponentIndex);
+				if (movedComponent != nullptr)
+				{
+					movedComponent->setOwner(this, entityIndex, movedComponentIndex, movedEntity->getEntityHandle());
+					movedComponent->initComponent();
+				}
 			}
+
+			movedEntity->initEntity();
 		}
 	}
 
@@ -332,6 +350,17 @@ bool World::removeComponent(const uint32 entityIndex, const uint32 componentInde
 		{
 			replaceComponentIndexInEntity(*movedOwnerEntity, lastComponentIndex, componentIndex);
 		}
+
+		Component* movedComponent = componentStorage[componentIndex].get();
+		if (movedComponent != nullptr)
+		{
+			assert(movedOwnerEntity != nullptr);
+			const BridgeHandle movedOwnerEntityHandle = movedOwnerEntity != nullptr
+				? movedOwnerEntity->getEntityHandle()
+				: invalidBridgeHandle;
+			movedComponent->setOwner(this, movedOwnerEntityIndex, componentIndex, movedOwnerEntityHandle);
+			movedComponent->initComponent();
+		}
 	}
 
 	componentStorage.pop_back();
@@ -361,7 +390,7 @@ void World::tick(const float deltaTimeSeconds)
 	for (uint32 traversalIndex = 0; traversalIndex < static_cast<uint32>(traversalEntityIndices.size()); ++traversalIndex)
 	{
 		const uint32 entityIndex = traversalEntityIndices[traversalIndex];
-		const Entity* entity = getEntity(entityIndex);
+		Entity* entity = getEntity(entityIndex);
 		if (entity == nullptr)
 		{
 			continue;
@@ -369,7 +398,7 @@ void World::tick(const float deltaTimeSeconds)
 
 		if (entity->activeState)
 		{
-			tickEntityComponents(*entity, deltaTimeSeconds);
+			entity->tick(deltaTimeSeconds);
 		}
 
 		uint32 childEntityIndex = entity->firstChildEntityIndex;
@@ -465,25 +494,6 @@ const Entity* World::getEntity(const uint32 entityIndex) const
 	return entityStorage[entityIndex].get();
 }
 
-void World::tickEntityComponents(const Entity& entity, const float deltaTimeSeconds)
-{
-	for (uint32 componentArrayIndex = 0; componentArrayIndex < static_cast<uint32>(entity.componentIndices.size()); ++componentArrayIndex)
-	{
-		const uint32 componentIndex = entity.componentIndices[componentArrayIndex];
-		if (componentIndex >= static_cast<uint32>(componentStorage.size()))
-		{
-			continue;
-		}
-
-		if (componentStorage[componentIndex] == nullptr)
-		{
-			continue;
-		}
-
-		componentStorage[componentIndex]->tick(deltaTimeSeconds);
-	}
-}
-
 bool World::removeComponentIndexFromEntity(Entity& entity, const uint32 componentIndex)
 {
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < static_cast<uint32>(entity.componentIndices.size()); ++componentArrayIndex)
@@ -517,10 +527,4 @@ bool World::replaceComponentIndexInEntity(
 	}
 
 	return false;
-}
-
-void World::assignEntityOwnership(Entity& entity, const uint32 entityIndex)
-{
-	entity.ownerWorld = this;
-	entity.ownerEntityIndex = entityIndex;
 }

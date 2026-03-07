@@ -17,19 +17,22 @@ void RenderCommand::flush()
 	bool runCommand = !commandQueue.empty();
 	RenderBackend* renderBackend = nullptr;
 
-	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (renderBackendModule == nullptr)
+	if (runCommand)
 	{
-		error << "[RenderCommand][Error] backend_module_missing" << lineBreak;
-		runCommand = false;
-	}
-	else
-	{
-		renderBackend = renderBackendModule->getBackend();
-		if (renderBackend == nullptr)
+		shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+		if (renderBackendModule == nullptr)
 		{
-			error << "[RenderCommand][Error] backend_missing" << lineBreak;
+			error << "[RenderCommand][Error] backend_module_missing" << lineBreak;
 			runCommand = false;
+		}
+		else
+		{
+			renderBackend = renderBackendModule->getBackend();
+			if (renderBackend == nullptr)
+			{
+				error << "[RenderCommand][Error] backend_missing" << lineBreak;
+				runCommand = false;
+			}
 		}
 	}
 

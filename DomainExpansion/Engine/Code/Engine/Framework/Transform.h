@@ -12,3 +12,21 @@ struct Transform
 	float scaleY = 1.0f;
 	float scaleZ = 1.0f;
 };
+
+inline bool operator==(const Transform& left, const Transform& right)
+{
+	return left.positionX == right.positionX
+		&& left.positionY == right.positionY
+		&& left.positionZ == right.positionZ
+		&& left.rotationPitch == right.rotationPitch
+		&& left.rotationYaw == right.rotationYaw
+		&& left.rotationRoll == right.rotationRoll
+		&& left.scaleX == right.scaleX
+		&& left.scaleY == right.scaleY
+		&& left.scaleZ == right.scaleZ;
+}
+
+inline bool operator!=(const Transform& left, const Transform& right)
+{
+	return !(left == right);
+}

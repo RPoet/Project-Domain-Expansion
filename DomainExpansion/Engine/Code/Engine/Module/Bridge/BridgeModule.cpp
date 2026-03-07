@@ -1,8 +1,13 @@
 #include "Engine/Module/Bridge/BridgeModule.h"
 
+#include "Bridge/EntityBridge.h"
+#include "Bridge/MeshBridge.h"
+
 bool BridgeModule::init(Framework& framework)
 {
 	unused(framework);
+	unused(EntityBridge::get());
+	unused(MeshBridge::get());
 	return true;
 }
 

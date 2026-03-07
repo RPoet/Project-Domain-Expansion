@@ -18,7 +18,9 @@ private:
 	uint32 childComponentIndex = invalidComponentIndex;
 	uint32 parentComponentIndex = invalidComponentIndex;
 	vector<uint32> updateOrderStorage;
+	vector<uint32> childInitEntityIndexStorage;
+	vector<uint32> childInitComponentIndexStorage;
 	uint32 parentTickCount = 0;
 	uint32 childTickCount = 0;
+	uint32 childInitCount = 0;
 };
-

@@ -1,10 +1,98 @@
 #include "Engine/Framework/Entity.h"
+
 #include "Engine/Framework/Component.h"
 #include "Engine/Framework/World.h"
+
+static bool isSameEntityBridgeDynamicData(
+	const EntityBridge::DynamicData& left,
+	const EntityBridge::DynamicData& right)
+{
+	return left.entityIndex == right.entityIndex
+		&& left.hasTransform == right.hasTransform
+		&& left.transform == right.transform;
+}
 
 Entity::Entity(memory_resource* componentIndexMemoryResource)
 	: componentIndices(componentIndexMemoryResource != nullptr ? componentIndexMemoryResource : getDefaultMemoryResource())
 {
+}
+
+void Entity::initEntity()
+{
+	EntityBridge::DynamicData dynamicData = {};
+	buildEntityBridgeDynamicData(dynamicData);
+	if (!entityBridgeHandle.isValid())
+	{
+		EntityBridge::ObjectDesc entityObjectDesc = {};
+		entityObjectDesc.dynamicProperty = dynamicData;
+		entityBridgeHandle = EntityBridge::get().createEntityHandle(entityObjectDesc);
+		assert(entityBridgeHandle.isValid());
+		return;
+	}
+
+	const EntityBridge::DynamicData* currentDynamicData = EntityBridge::get().getDynamicData(entityBridgeHandle);
+	if (currentDynamicData == nullptr || isSameEntityBridgeDynamicData(*currentDynamicData, dynamicData))
+	{
+		return;
+	}
+
+	EntityBridge::get().updateDynamicData(entityBridgeHandle, dynamicData);
+}
+
+void Entity::buildEntityBridgeDynamicData(EntityBridge::DynamicData& dynamicData)
+{
+	dynamicData = {};
+	dynamicData.entityIndex = ownerEntityIndex;
+
+	if (ownerWorld == nullptr)
+	{
+		return;
+	}
+}
+
+void Entity::requestEntityBridgeUpdate()
+{
+	if (!entityBridgeHandle.isValid())
+	{
+		return;
+	}
+
+	EntityBridge::DynamicData nextDynamicData = {};
+	buildEntityBridgeDynamicData(nextDynamicData);
+
+	const EntityBridge::DynamicData* currentDynamicData = EntityBridge::get().getDynamicData(entityBridgeHandle);
+	if (currentDynamicData != nullptr && isSameEntityBridgeDynamicData(*currentDynamicData, nextDynamicData))
+	{
+		return;
+	}
+
+	EntityBridge::get().updateDynamicData(entityBridgeHandle, nextDynamicData);
+}
+
+void Entity::tickComponents(const float deltaTimeSeconds)
+{
+	if (ownerWorld == nullptr)
+	{
+		return;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < static_cast<uint32>(componentIndices.size()); ++componentArrayIndex)
+	{
+		const uint32 componentIndex = componentIndices[componentArrayIndex];
+		Component* component = ownerWorld->getComponentByIndex(componentIndex);
+		if (component == nullptr)
+		{
+			continue;
+		}
+
+		component->tick(deltaTimeSeconds);
+	}
+}
+
+void Entity::tick(const float deltaTimeSeconds)
+{
+	tickComponents(deltaTimeSeconds);
+	requestEntityBridgeUpdate();
 }
 
 bool Entity::addComponent(unique_pointer<Component> component)
@@ -40,6 +128,11 @@ const World* Entity::getOwnerWorld() const
 uint32 Entity::getEntityIndex() const
 {
 	return ownerEntityIndex;
+}
+
+BridgeHandle Entity::getEntityHandle() const
+{
+	return entityBridgeHandle.getPackedHandle();
 }
 
 uint32 Entity::getComponentCount() const

@@ -16,9 +16,9 @@ void Framework::registerModule()
 	}
 
 	addModule(Timer::get());
+	addModule(MeshStreaming::get());
 	addModule(BridgeModule::get());
 	addModule(GPUUploader::get());
-	addModule(MeshStreaming::get());
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());
 	addModule(RenderBackendModule::get());
