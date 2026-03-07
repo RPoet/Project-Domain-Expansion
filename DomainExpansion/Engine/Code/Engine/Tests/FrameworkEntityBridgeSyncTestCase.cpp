@@ -44,7 +44,7 @@ bool FrameworkEntityBridgeSyncTestCase::beginTest(Framework& framework)
 		placeableEntity->addComponent(moveValue(meshComponent)),
 		"begin: add mesh component to placeable entity") && beginResult;
 
-	entityHandle = placeableEntity->getEntityBridgePackedHandle();
+	entityHandle = placeableEntity->getEntityHandle();
 	beginResult = expectCondition(entityHandle != invalidBridgeHandle, "begin: entity bridge handle exists") && beginResult;
 	MeshComponent* createdMeshComponent = nullptr;
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)

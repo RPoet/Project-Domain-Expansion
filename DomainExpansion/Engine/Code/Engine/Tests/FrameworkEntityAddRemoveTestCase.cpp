@@ -62,9 +62,9 @@ bool FrameworkEntityAddRemoveTestCase::beginTest(Framework& framework)
 	const Entity* rootEntity = testWorld.getEntityByIndex(rootEntityIndex);
 	const Entity* firstChildEntity = testWorld.getEntityByIndex(firstChildEntityIndex);
 	const Entity* secondChildEntity = testWorld.getEntityByIndex(secondChildEntityIndex);
-	rootEntityBridgeHandle = rootEntity != nullptr ? rootEntity->getEntityBridgePackedHandle() : uint32MaxValue;
-	firstChildEntityBridgeHandle = firstChildEntity != nullptr ? firstChildEntity->getEntityBridgePackedHandle() : uint32MaxValue;
-	secondChildEntityBridgeHandle = secondChildEntity != nullptr ? secondChildEntity->getEntityBridgePackedHandle() : uint32MaxValue;
+	rootEntityBridgeHandle = rootEntity != nullptr ? rootEntity->getEntityHandle() : uint32MaxValue;
+	firstChildEntityBridgeHandle = firstChildEntity != nullptr ? firstChildEntity->getEntityHandle() : uint32MaxValue;
+	secondChildEntityBridgeHandle = secondChildEntity != nullptr ? secondChildEntity->getEntityHandle() : uint32MaxValue;
 
 	bool beginResult = true;
 	beginResult = expectCondition(
@@ -161,14 +161,14 @@ bool FrameworkEntityAddRemoveTestCase::runTest(Framework& framework)
 
 	const Entity* movedEntity = testWorld.getEntityByIndex(0);
 	const Entity* remainingEntity = testWorld.getEntityByIndex(1);
-	const uint32 movedEntityBridgeHandle = movedEntity != nullptr ? movedEntity->getEntityBridgePackedHandle() : uint32MaxValue;
+	const uint32 movedEntityBridgeHandle = movedEntity != nullptr ? movedEntity->getEntityHandle() : uint32MaxValue;
 	const EntityBridge::DynamicData* movedDynamicData = EntityBridge::get().getDynamicData(movedEntityBridgeHandle);
 	runResult = expectCondition(
-		movedEntityBridgeHandle == secondChildEntityBridgeHandle
-			&& remainingEntity != nullptr
-			&& remainingEntity->getEntityBridgePackedHandle() == firstChildEntityBridgeHandle
-			&& movedDynamicData != nullptr
-			&& movedDynamicData->entityIndex == secondChildEntityIndex,
+			movedEntityBridgeHandle == secondChildEntityBridgeHandle
+				&& remainingEntity != nullptr
+				&& remainingEntity->getEntityHandle() == firstChildEntityBridgeHandle
+				&& movedDynamicData != nullptr
+				&& movedDynamicData->entityIndex == secondChildEntityIndex,
 		"run: moved entity keeps bridge handle and defers entity index update") && runResult;
 	runResult = expectCondition(
 		movedComponentInitCount == 3
