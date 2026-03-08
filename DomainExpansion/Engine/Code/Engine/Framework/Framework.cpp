@@ -1,10 +1,8 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
-#include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
-#include "Engine/Module/Asset/MeshStreaming.h"
 #include "Render/RenderCommand.h"
 
 static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
@@ -54,6 +52,7 @@ bool Framework::initialize(
 	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	activeWorldFilePath.clear();
+	worldUpdateSerial = 0;
 
 	const bool forceEnableDebugLayer =
 		executionFlow == FrameworkExecutionFlow::worldFlow
@@ -156,6 +155,7 @@ void Framework::shutdown()
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	windowsWindowObject = nullptr;
 	activeWorldFilePath.clear();
+	worldUpdateSerial = 0;
 }
 
 void Framework::setExecutionFlow(const FrameworkExecutionFlow executionFlow)
@@ -323,177 +323,7 @@ bool Framework::update()
 
 	activeWorldObject->tick(deltaTimeSeconds);
 	postUpdateModules();
-
-	// TO DO : consider the way to use conditional variable ? those backend call looks not correct placed in here.
-	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (renderBackendModule != nullptr && renderBackendModule->isBackendCreated()
-		&& windowsWindowObject != nullptr && !windowsWindowObject->isWindowMinimized())
-	{
-		RenderCommand& renderCommand = RenderCommand::get();
-		renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
-		{
-			unused(commandName);
-			MeshStreaming::get()->flushGpuRequests(renderBackendReference);
-		});
-
-		renderCommand.enqueue("Render", [](string&& commandName, RenderBackend& renderBackendReference)
-		{
-			unused(commandName);
-
-			SwapChain* swapChain = renderBackendReference.getSwapChain();
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			if (swapChain == nullptr
-				|| syncObject == nullptr)
-			{
-				return;
-			}
-
-			syncObject->wait();
-			if (!swapChain->isRenderable())
-			{
-				return;
-			}
-
-			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-			if (outputResource == nullptr)
-			{
-				renderBackendReference.releaseQueuedRenderResources();
-				return;
-			}
-
-			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
-			CommandList* commandList = renderBackendReference.acquireCommandList();
-			if (renderTargetView == nullptr || commandList == nullptr)
-			{
-				if (commandList != nullptr)
-				{
-					renderBackendReference.releaseCommandList(commandList);
-				}
-				if (renderTargetView != nullptr)
-				{
-					renderBackendReference.destroyRenderTargetView(renderTargetView);
-				}
-				return;
-			}
-
-			commandList->reset();
-			commandList->resourceBarrier(
-				outputResource,
-				ResourceState::present,
-				ResourceState::renderTarget);
-			commandList->setRenderTarget(renderTargetView);
-
-			ViewportArea viewportArea = {};
-			viewportArea.width = static_cast<float>(swapChain->getWidth());
-			viewportArea.height = static_cast<float>(swapChain->getHeight());
-			commandList->setViewport(viewportArea);
-
-			ScissorRectArea scissorRectArea = {};
-			scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
-			scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
-			commandList->setScissorRect(scissorRectArea);
-			commandList->clearRenderTarget(
-				renderTargetView,
-				0.07f,
-				0.11f,
-				0.17f,
-				1.0f);
-			commandList->close();
-
-			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
-			renderBackendReference.queueCommandList(commandList);
-		});
-
-		renderCommand.enqueue("UI", [](string&& commandName, RenderBackend& renderBackendReference)
-		{
-			unused(commandName);
-
-			shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
-			if (imGuiLayerModule == nullptr)
-			{
-				return;
-			}
-
-			SwapChain* swapChain = renderBackendReference.getSwapChain();
-			if (swapChain == nullptr
-				|| !swapChain->isRenderable())
-			{
-				return;
-			}
-
-			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-			if (outputResource == nullptr)
-			{
-				return;
-			}
-
-			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
-			CommandList* commandList = renderBackendReference.acquireCommandList();
-			if (renderTargetView == nullptr || commandList == nullptr)
-			{
-				if (commandList != nullptr)
-				{
-					renderBackendReference.releaseCommandList(commandList);
-				}
-				if (renderTargetView != nullptr)
-				{
-					renderBackendReference.destroyRenderTargetView(renderTargetView);
-				}
-				return;
-			}
-
-			commandList->reset();
-			commandList->setRenderTarget(renderTargetView);
-			imGuiLayerModule->buildAndRender(commandList);
-			commandList->close();
-
-			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
-			renderBackendReference.queueCommandList(commandList);
-		});
-
-		renderCommand.enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
-		{
-			unused(commandName);
-
-			CommandQueue* commandQueue = renderBackendReference.getCommandQueue();
-			SwapChain* swapChain = renderBackendReference.getSwapChain();
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			if (commandQueue == nullptr
-				|| swapChain == nullptr
-				|| syncObject == nullptr
-				|| !swapChain->isRenderable())
-			{
-				renderBackendReference.releaseQueuedRenderResources();
-				return;
-			}
-
-			ResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-			if (outputResource == nullptr)
-			{
-				return;
-			}
-
-			CommandList* commandList = renderBackendReference.acquireCommandList();
-			if (commandList == nullptr)
-			{
-				renderBackendReference.releaseQueuedRenderResources();
-				return;
-			}
-
-			commandList->reset();
-			commandList->resourceBarrier(
-				outputResource,
-				ResourceState::renderTarget,
-				ResourceState::present);
-			commandList->close();
-
-			renderBackendReference.queueCommandList(commandList);
-			renderBackendReference.executeQueuedCommandLists();
-			swapChain->present();
-			syncObject->signal();
-			renderBackendReference.releaseQueuedRenderResources();
-		});
-	}
+	++worldUpdateSerial;
 
 	return true;
 }
@@ -523,29 +353,13 @@ const WindowsWindowObject* Framework::getWindowObject() const
 	return windowsWindowObject;
 }
 
-
-// TO DO : Refactor this, RenderCommand must be working like it has its own world, and not included in the Framework.
-void Framework::flushRenderCommandQueue()
+uint64 Framework::getWorldUpdateSerial() const
 {
-	// TO DO : need No Backend version to run test flow w/o backend initialization
-	if (executionFlow == FrameworkExecutionFlow::testFlow)
-	{
-		RenderCommand::get().clear();
-		return;
-	}
+	return worldUpdateSerial;
+}
 
-	RenderCommand::get().flush();
-
-	if (!executionCompleted
-		&& (executionFlow == FrameworkExecutionFlow::worldFlow
-			|| executionFlow == FrameworkExecutionFlow::backendFlow))
-	{
-		if (processBackendValidationFailFast())
-		{
-			return;
-		}
-	}
-
+void Framework::notifyRenderCommandQueueFlushed()
+{
 	if (executionFlow == FrameworkExecutionFlow::backendFlow
 		&& !executionCompleted)
 	{

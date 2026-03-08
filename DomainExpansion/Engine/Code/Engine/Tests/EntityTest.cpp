@@ -3,6 +3,7 @@
 #include "Engine/Tests/FrameworkEntityBridgeTestCase.h"
 #include "Engine/Tests/FrameworkEntityBridgeSyncTestCase.h"
 #include "Engine/Tests/FrameworkEntityAddRemoveTestCase.h"
+#include "Engine/Tests/FrameworkRenderWorldTestCase.h"
 #include "Engine/Tests/FrameworkEntityUpdateTestCase.h"
 #include "Engine/Tests/FrameworkObjMeshLoaderTestCase.h"
 #include "Engine/Tests/FrameworkPipelineStateLifecycleTestCase.h"
@@ -28,6 +29,11 @@ unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeTestCase()
 unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeSyncTestCase()
 {
 	return unique_pointer<FrameworkTestCase>(new FrameworkEntityBridgeSyncTestCase());
+}
+
+unique_pointer<FrameworkTestCase> createFrameworkRenderWorldTestCase()
+{
+	return unique_pointer<FrameworkTestCase>(new FrameworkRenderWorldTestCase());
 }
 
 unique_pointer<FrameworkTestCase> createFrameworkBridgeLifecycleTestCase()

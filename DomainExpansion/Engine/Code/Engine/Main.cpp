@@ -1,6 +1,7 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Engine/Window/WindowsWindowObject.h"
+#include "Render/RenderWorld.h"
 
 enum class ApplicationRunMode : uint32
 {
@@ -269,6 +270,16 @@ int WINAPI wWinMain(
 		return initializeExitCode != 0 ? initializeExitCode : -2;
 	}
 
+	RenderWorld renderWorld = {};
+	if (!renderWorld.initialize(windowsWindowObject))
+	{
+		const int32 initializeExitCode = framework.getRuntimeExitCode();
+		renderWorld.shutdown();
+		framework.shutdown();
+		windowsWindowObject.destroy();
+		return initializeExitCode != 0 ? initializeExitCode : -3;
+	}
+
 	while (windowsWindowObject.pumpMessages())
 	{
 		if (!framework.update())
@@ -277,7 +288,27 @@ int WINAPI wWinMain(
 			break;
 		}
 
-		framework.flushRenderCommandQueue();
+		RenderWorld::UpdateInput renderWorldUpdateInput = {};
+		renderWorldUpdateInput.worldFlow = framework.getExecutionFlow() == FrameworkExecutionFlow::worldFlow;
+		renderWorldUpdateInput.worldUpdateSerial = framework.getWorldUpdateSerial();
+		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = framework.getExecutionFlow() == FrameworkExecutionFlow::testFlow;
+		renderWorldUpdateInput.renderCommandFlushInput.validateAfterFlush =
+			framework.getExecutionFlow() == FrameworkExecutionFlow::worldFlow
+			|| framework.getExecutionFlow() == FrameworkExecutionFlow::backendFlow;
+		renderWorldUpdateInput.renderCommandFlushInput.processBackendValidationFailFast = [&framework]() -> bool
+		{
+			return framework.processBackendValidationFailFast();
+		};
+		renderWorldUpdateInput.renderCommandFlushInput.onFlushed = [&framework]()
+		{
+			framework.notifyRenderCommandQueueFlushed();
+		};
+
+		if (!renderWorld.update(renderWorldUpdateInput))
+		{
+			error << "RenderWorld update failed." << lineBreak;
+			break;
+		}
 
 		if (framework.isExecutionCompleted())
 		{
@@ -288,6 +319,7 @@ int WINAPI wWinMain(
 	}
 
 	const int32 runtimeExitCode = framework.getRuntimeExitCode();
+	renderWorld.shutdown();
 	framework.shutdown();
 	windowsWindowObject.destroy();
 	return runtimeExitCode;

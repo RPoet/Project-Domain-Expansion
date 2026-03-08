@@ -17,6 +17,7 @@ public:
 
 	inline static constexpr uint32 handleIndexBits = 24;
 	inline static constexpr uint32 handleGenerationBits = 8;
+	inline static constexpr uint32 maxObjectCount = default_size;
 	inline static constexpr PackedHandle invalidPackedHandle = uint32MaxValue;
 	inline static constexpr uint32 handleIndexMask = (1u << handleIndexBits) - 1u;
 	inline static constexpr uint32 handleGenerationMask = (1u << handleGenerationBits) - 1u;
@@ -237,6 +238,16 @@ public:
 		}
 
 		return &dynamicProperties[unpackHandleIndex(packedHandle)];
+	}
+
+	PackedHandle getPackedHandleBySlotIndex(const uint32 slotIndex) const
+	{
+		if (slotIndex >= nextUnusedIndex || !slotAlive[slotIndex])
+		{
+			return invalidPackedHandle;
+		}
+
+		return packHandle(slotIndex, slotGeneration[slotIndex]);
 	}
 
 	void requestDelete(const PackedHandle packedHandle)

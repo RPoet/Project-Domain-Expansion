@@ -117,6 +117,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.cpp" />
@@ -138,6 +139,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\RenderBackend.cpp" />
     <ClCompile Include="Engine\Code\Render\RenderCommand.cpp" />
+    <ClCompile Include="Engine\Code\Render\RenderWorld.cpp" />
     <ClCompile Include="Engine\Code\Render\Screen.cpp" />
     <ClCompile Include="Engine\Code\Render\Renderer.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\World.cpp" />
@@ -185,6 +187,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.h" />
@@ -221,6 +224,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
     <ClInclude Include="Engine\Code\Render\CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\RenderCommand.h" />
+    <ClInclude Include="Engine\Code\Render\RenderWorld.h" />
     <ClInclude Include="Engine\Code\Render\RenderTargetView.h" />
     <ClInclude Include="Engine\Code\Render\PipelineStateManager.h" />
     <ClInclude Include="Engine\Code\Render\PipelineStateObject.h" />

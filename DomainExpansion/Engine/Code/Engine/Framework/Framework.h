@@ -56,7 +56,9 @@ public:
 	const FrameworkBackendOptions& getBackendOptions() const;
 	WindowsWindowObject* getWindowObject();
 	const WindowsWindowObject* getWindowObject() const;
-	void flushRenderCommandQueue();
+	uint64 getWorldUpdateSerial() const;
+	bool processBackendValidationFailFast();
+	void notifyRenderCommandQueueFlushed();
 	void onWindowResize(uint32 width, uint32 height);
 
 	void registerModule();
@@ -81,7 +83,6 @@ private:
 	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);
 	void resetBackendTestState();
-	bool processBackendValidationFailFast();
 	void finalizeTestFlow();
 	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;
@@ -96,6 +97,7 @@ private:
 	FrameworkBackendOptions backendOptions = {};
 	FrameworkBackendTestState backendTestState = {};
 	string activeWorldFilePath = {};
+	uint64 worldUpdateSerial = 0;
 
 	bool executionCompleted = false;
 	bool moduleRegistrationCompleted = false;
