@@ -13,6 +13,6 @@ public:
 	virtual uint32 getWidth() const = 0;
 	virtual uint32 getHeight() const = 0;
 	virtual uint32 getCurrentImageIndex() const = 0;
-	virtual ResourceObject* getCurrentBackBufferResource() = 0;
+	virtual TextureResourceObject* getCurrentBackBufferResource() = 0;
 	virtual void present() = 0;
 };

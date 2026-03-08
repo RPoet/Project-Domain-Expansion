@@ -10,9 +10,18 @@ public:
 	using CommandFunction = function<void(string&&, RenderBackend&)>;
 	using CommandPack = pair<string, CommandFunction>;
 
+	struct RenderCommandFlushInput
+	{
+		bool clearOnly = false;
+		bool validateAfterFlush = false;
+		function<bool()> processBackendValidationFailFast = {};
+		function<void()> onFlushed = {};
+	};
+
 	void enqueue(string&& name, CommandFunction&& commandFunction);
 	void enqueue(const string& name, CommandFunction&& commandFunction);
 	void flush();
+	static void flushRenderCommandQueue(const RenderCommandFlushInput& flushInput);
 	void clear();
 	uint32 getPendingCommandCount() const;
 

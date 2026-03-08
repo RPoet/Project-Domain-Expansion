@@ -2,12 +2,34 @@
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
 #include "Render/Backends/Dx12/Dx12Converter.h"
+#include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 #include <cstring>
+
+static bool validateTextureObjectCreateOptions(
+	ID3D12Device* device,
+	const TextureObjectCreateOptions& createOptions)
+{
+	if (device == nullptr
+		|| createOptions.width == 0
+		|| createOptions.format == TextureFormat::unknown
+		|| (createOptions.dimension != TextureDimension::texture1D && createOptions.height == 0)
+		|| createOptions.depthOrArraySize == 0
+		|| createOptions.depthOrArraySize > 0xFFFFu
+		|| createOptions.mipLevels == 0
+		|| createOptions.mipLevels > 0xFFFFu
+		|| createOptions.sampleCount == 0)
+	{
+		return false;
+	}
+
+	return getDx12TextureDimension(createOptions.dimension) != D3D12_RESOURCE_DIMENSION_UNKNOWN
+		&& getDx12TextureFormat(createOptions.format) != DXGI_FORMAT_UNKNOWN;
+}
 
 Dx12RenderBackend::Dx12RenderBackend()
 {
@@ -153,6 +175,72 @@ unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 	unique_pointer<Dx12BufferObject> createdBufferObject(new Dx12BufferObject());
 	createdBufferObject->getUnderlyingResource() = dx12BufferResource;
 	return createdBufferObject;
+}
+
+unique_pointer<TextureResourceObject> Dx12RenderBackend::createTextureObject(
+	const TextureObjectCreateOptions& createOptions)
+{
+	const bool validCreateOptions = validateTextureObjectCreateOptions(device.Get(), createOptions);
+	assert(validCreateOptions);
+	if (!validCreateOptions)
+	{
+		return nullptr;
+	}
+
+	D3D12_HEAP_PROPERTIES heapProperties = {};
+	heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+	heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heapProperties.CreationNodeMask = 1;
+	heapProperties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC resourceDescription = {};
+	resourceDescription.Dimension = getDx12TextureDimension(createOptions.dimension);
+	resourceDescription.Alignment = createOptions.alignment;
+	resourceDescription.Width = createOptions.width;
+	resourceDescription.Height = createOptions.height;
+	resourceDescription.DepthOrArraySize = static_cast<uint16>(createOptions.depthOrArraySize);
+	resourceDescription.MipLevels = static_cast<uint16>(createOptions.mipLevels);
+	resourceDescription.Format = getDx12TextureFormat(createOptions.format);
+	resourceDescription.SampleDesc.Count = createOptions.sampleCount;
+	resourceDescription.SampleDesc.Quality = createOptions.sampleQuality;
+	resourceDescription.Layout = getDx12TextureLayout(createOptions.layout);
+	resourceDescription.Flags = getDx12TextureResourceFlags(createOptions.flags);
+
+	D3D12_CLEAR_VALUE clearValue = {};
+	D3D12_CLEAR_VALUE* clearValuePointer = nullptr;
+	if ((createOptions.flags & getTextureObjectFlag(TextureObjectFlag::allowDepthStencil)) != 0)
+	{
+		clearValue.Format = resourceDescription.Format;
+		clearValue.DepthStencil.Depth = createOptions.clearDepth;
+		clearValue.DepthStencil.Stencil = static_cast<UINT8>(createOptions.clearStencil & 0xFFu);
+		clearValuePointer = &clearValue;
+	}
+	else if ((createOptions.flags & getTextureObjectFlag(TextureObjectFlag::allowRenderTarget)) != 0)
+	{
+		clearValue.Format = resourceDescription.Format;
+		clearValue.Color[0] = createOptions.clearColors[0];
+		clearValue.Color[1] = createOptions.clearColors[1];
+		clearValue.Color[2] = createOptions.clearColors[2];
+		clearValue.Color[3] = createOptions.clearColors[3];
+		clearValuePointer = &clearValue;
+	}
+
+	com_pointer<ID3D12Resource> dx12TextureResource;
+	if (FAILED(device->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDescription,
+		getDx12ResourceState(createOptions.initialState),
+		clearValuePointer,
+		IID_PPV_ARGS(&dx12TextureResource))))
+	{
+		return nullptr;
+	}
+
+	unique_pointer<Dx12TextureResourceObject> createdTextureObject(new Dx12TextureResourceObject());
+	createdTextureObject->getUnderlyingResource() = dx12TextureResource;
+	return createdTextureObject;
 }
 
 RootSignatureObject* Dx12RenderBackend::getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc)
@@ -484,16 +572,14 @@ void Dx12RenderBackend::clearPipelineStateObjects()
 	pipelineStateManager.clear();
 }
 
-RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* resourceObject)
+RenderTargetView* Dx12RenderBackend::createRenderTargetView(TextureResourceObject* textureResourceObject)
 {
 	// TO DO : Replace per-view descriptor heap allocation with descriptor/view allocator module.
-	if (resourceObject == nullptr
-		|| resourceObject->getResourceObjectType() != ResourceObjectType::texture)
+	if (textureResourceObject == nullptr)
 	{
 		return nullptr;
 	}
 
-	TextureResourceObject* textureResourceObject = static_cast<TextureResourceObject*>(resourceObject);
 	Dx12TextureResourceObject* dx12TextureResourceObject = static_cast<Dx12TextureResourceObject*>(textureResourceObject);
 	if (device == nullptr
 		|| dx12TextureResourceObject->getUnderlyingResource() == nullptr)
@@ -524,6 +610,66 @@ RenderTargetView* Dx12RenderBackend::createRenderTargetView(ResourceObject* reso
 void Dx12RenderBackend::destroyRenderTargetView(RenderTargetView* renderTargetView)
 {
 	delete renderTargetView;
+}
+
+// TO DO : refactor view system.
+DepthStencilView* Dx12RenderBackend::createDepthStencilView(TextureResourceObject* textureResourceObject)
+{
+	if (textureResourceObject == nullptr)
+	{
+		return nullptr;
+	}
+
+	Dx12TextureResourceObject* dx12TextureResourceObject = static_cast<Dx12TextureResourceObject*>(textureResourceObject);
+	if (device == nullptr
+		|| dx12TextureResourceObject->getUnderlyingResource() == nullptr)
+	{
+		return nullptr;
+	}
+
+	const D3D12_RESOURCE_DESC resourceDescription = dx12TextureResourceObject->getUnderlyingResource()->GetDesc();
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDescription = {};
+	descriptorHeapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	descriptorHeapDescription.NumDescriptors = 1;
+	descriptorHeapDescription.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	descriptorHeapDescription.NodeMask = 0;
+
+	com_pointer<ID3D12DescriptorHeap> descriptorHeap;
+	if (FAILED(device->CreateDescriptorHeap(&descriptorHeapDescription, IID_PPV_ARGS(&descriptorHeap))))
+	{
+		return nullptr;
+	}
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDescription = {};
+	depthStencilViewDescription.Format = resourceDescription.Format;
+	depthStencilViewDescription.ViewDimension = resourceDescription.SampleDesc.Count > 1
+		? D3D12_DSV_DIMENSION_TEXTURE2DMS
+		: D3D12_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDescription.Flags = D3D12_DSV_FLAG_NONE;
+
+	const D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	device->CreateDepthStencilView(
+		dx12TextureResourceObject->getUnderlyingResource().Get(),
+		&depthStencilViewDescription,
+		descriptorHandle);
+
+	unique_pointer<Dx12DepthStencilView> depthStencilView(new Dx12DepthStencilView());
+	depthStencilView->descriptorHeap = descriptorHeap;
+	depthStencilView->descriptorHandle = descriptorHandle;
+	if (resourceDescription.Format == DXGI_FORMAT_D24_UNORM_S8_UINT)
+	{
+		depthStencilView->textureFormat = TextureFormat::d24UnormS8Uint;
+	}
+	else if (resourceDescription.Format == DXGI_FORMAT_D32_FLOAT)
+	{
+		depthStencilView->textureFormat = TextureFormat::d32Float;
+	}
+	return depthStencilView.release();
+}
+
+void Dx12RenderBackend::destroyDepthStencilView(DepthStencilView* depthStencilView)
+{
+	delete depthStencilView;
 }
 
 void Dx12RenderBackend::queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView)

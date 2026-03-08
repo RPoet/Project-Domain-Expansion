@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Engine/Platform/PlatformDefine.h"
+#include "Render/DepthStencilView.h"
 #include "Render/RenderTargetView.h"
 #include "Render/ResourceObject.h"
 #include "Render/ResourceState.h"
@@ -81,21 +82,30 @@ public:
 		ResourceObject* resourceObject,
 		ResourceState beforeState,
 		ResourceState afterState) = 0;
-	// TO DO : Migrate render-target view binding to unified descriptor/view binding path.
-	virtual void setRenderTarget(RenderTargetView* renderTargetView) = 0;
-	// TO DO : Migrate clear operation to the same unified descriptor/view binding path.
+	virtual void setRenderTargets(
+		RenderTargetView* const* renderTargetViews,
+		uint32 renderTargetViewCount,
+		DepthStencilView* depthStencilView) = 0;
 	virtual void clearRenderTarget(
 		RenderTargetView* renderTargetView,
 		float red,
 		float green,
 		float blue,
 		float alpha) = 0;
+	virtual void clearDepthStencil(
+		DepthStencilView* depthStencilView,
+		float depthValue,
+		uint32 stencilValue) = 0;
 	virtual void setViewport(const ViewportArea& viewportArea) = 0;
 	virtual void setScissorRect(const ScissorRectArea& scissorRectArea) = 0;
 	virtual void setPrimitiveTopology(PrimitiveTopology primitiveTopology) = 0;
 	virtual void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) = 0;
 	virtual void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) = 0;
 	virtual void setPipeline(PipelineStateObject* pipelineStateObject, RootSignatureObject* rootSignatureObject) = 0;
+	virtual void setGraphicsPushConstants(
+		uint32 pushConstantRangeIndex,
+		const void* data,
+		uint32 sizeInBytes) = 0;
 	virtual void copyBuffer(
 		BufferResourceObject* destinationBufferObject,
 		uint64 destinationOffsetInBytes,

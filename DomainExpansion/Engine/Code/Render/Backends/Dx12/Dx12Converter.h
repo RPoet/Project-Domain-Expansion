@@ -59,6 +59,51 @@ inline D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryT
 	}
 }
 
+inline D3D12_RESOURCE_STATES getDx12ResourceState(const ResourceState resourceState)
+{
+	if (resourceState == ResourceState::unknown)
+	{
+		return D3D12_RESOURCE_STATE_COMMON;
+	}
+
+	static constexpr D3D12_RESOURCE_STATES dx12ResourceStates[] = {
+		D3D12_RESOURCE_STATE_COMMON,
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		D3D12_RESOURCE_STATE_INDEX_BUFFER,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		D3D12_RESOURCE_STATE_DEPTH_READ,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_STREAM_OUT,
+		D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_COPY_SOURCE,
+		D3D12_RESOURCE_STATE_RESOLVE_DEST,
+		D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+		D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+		D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PRESENT,
+		D3D12_RESOURCE_STATE_PREDICATION,
+	};
+	static_assert(
+		static_cast<uint32>(ResourceState::count) - 1 == static_cast<uint32>(sizeof(dx12ResourceStates) / sizeof(dx12ResourceStates[0])),
+		"[Dx12Converter][Assert] reason=resource_state_table_size_mismatch");
+
+	const uint32 resourceStateIndex = static_cast<uint32>(resourceState);
+	assert(resourceStateIndex > static_cast<uint32>(ResourceState::unknown) && resourceStateIndex < static_cast<uint32>(ResourceState::count));
+	if (resourceStateIndex <= static_cast<uint32>(ResourceState::unknown)
+		|| resourceStateIndex >= static_cast<uint32>(ResourceState::count))
+	{
+		return D3D12_RESOURCE_STATE_COMMON;
+	}
+
+	return dx12ResourceStates[resourceStateIndex - 1];
+}
+
 inline D3D12_SHADER_VISIBILITY getDx12ShaderVisibility(const ShaderVisibility shaderVisibility)
 {
 	const uint32 shaderVisibilityFlags = getShaderVisibilityFlags(shaderVisibility);
@@ -105,6 +150,73 @@ inline DXGI_FORMAT getDx12TextureFormat(const TextureFormat textureFormat)
 	default:
 		return DXGI_FORMAT_UNKNOWN;
 	}
+}
+
+inline D3D12_RESOURCE_DIMENSION getDx12TextureDimension(const TextureDimension textureDimension)
+{
+	switch (textureDimension)
+	{
+	case TextureDimension::texture1D:
+		return D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+	case TextureDimension::texture2D:
+		return D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	case TextureDimension::texture3D:
+		return D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+	default:
+		return D3D12_RESOURCE_DIMENSION_UNKNOWN;
+	}
+}
+
+inline D3D12_TEXTURE_LAYOUT getDx12TextureLayout(const TextureLayout textureLayout)
+{
+	switch (textureLayout)
+	{
+	case TextureLayout::rowMajor:
+		return D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	case TextureLayout::standardSwizzle64KB:
+		return D3D12_TEXTURE_LAYOUT_64KB_STANDARD_SWIZZLE;
+	case TextureLayout::undefinedSwizzle64KB:
+		return D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
+	case TextureLayout::unknown:
+	default:
+		return D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	}
+}
+
+inline D3D12_RESOURCE_FLAGS getDx12TextureResourceFlags(const uint32 textureFlags)
+{
+	D3D12_RESOURCE_FLAGS dx12Flags = D3D12_RESOURCE_FLAG_NONE;
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::allowRenderTarget)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	}
+
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::allowDepthStencil)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	}
+
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::allowUnorderedAccess)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	}
+
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::denyShaderResource)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+	}
+
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::allowCrossAdapter)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
+	}
+
+	if ((textureFlags & getTextureObjectFlag(TextureObjectFlag::allowSimultaneousAccess)) != 0)
+	{
+		dx12Flags |= D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+	}
+
+	return dx12Flags;
 }
 
 inline D3D12_BLEND getDx12BlendFactor(const PipelineBlendFactor blendFactor)

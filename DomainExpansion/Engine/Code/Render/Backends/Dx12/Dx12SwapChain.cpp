@@ -120,7 +120,7 @@ void Dx12SwapChain::shutdown()
 	backBufferHeight = 0;
 }
 
-ResourceObject* Dx12SwapChain::getBackBufferResource(const uint32 imageIndex)
+TextureResourceObject* Dx12SwapChain::getBackBufferResource(const uint32 imageIndex)
 {
 	if (imageIndex >= backBufferResources.size())
 	{
@@ -130,7 +130,7 @@ ResourceObject* Dx12SwapChain::getBackBufferResource(const uint32 imageIndex)
 	return backBufferResources[imageIndex].get();
 }
 
-ResourceObject* Dx12SwapChain::getCurrentBackBufferResource()
+TextureResourceObject* Dx12SwapChain::getCurrentBackBufferResource()
 {
 	if (!isRenderable())
 	{

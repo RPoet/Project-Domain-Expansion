@@ -205,6 +205,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12Converter.h" />
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12DepthStencilView.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateDesc.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateObject.h" />
@@ -224,6 +225,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
     <ClInclude Include="Engine\Code\Render\CommandQueue.h" />
+    <ClInclude Include="Engine\Code\Render\DepthStencilView.h" />
     <ClInclude Include="Engine\Code\Render\RenderCommand.h" />
     <ClInclude Include="Engine\Code\Render\RenderWorld.h" />
     <ClInclude Include="Engine\Code\Render\RenderTargetView.h" />

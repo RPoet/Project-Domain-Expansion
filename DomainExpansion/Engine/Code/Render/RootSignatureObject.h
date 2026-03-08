@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Render/Backends/RenderBackendDefinitions.h"
 #include "Engine/Platform/PlatformDefine.h"
+
+inline constexpr uint32 rootSignatureDescPushConstantRangeInlineCapacity = 8;
 
 enum class ShaderVisibility : uint32
 {
@@ -24,7 +27,7 @@ struct PushConstantRange
 
 struct RootSignatureDesc
 {
-	InplaceVector<PushConstantRange, 8> pushConstantRanges = {};
+	InplaceVector<PushConstantRange, rootSignatureDescPushConstantRangeInlineCapacity> pushConstantRanges = {};
 };
 
 class RootSignatureObject

@@ -14,10 +14,10 @@ struct Dx12PipelineStateDesc
 	uint32 vertexShaderByteCodeSize = 0;
 	uint32 pixelShaderByteCodeSize = 0;
 	uint32 computeShaderByteCodeSize = 0;
-	InplaceVector<PipelineInputElementDesc, 8> inputElements = {};
+	InplaceVector<PipelineInputElementDesc, pipelineStateDescInputElementInlineCapacity> inputElements = {};
 	bool wireframe = false;
 	uint32 sampleCount = 1;
-	InplaceVector<PipelineRenderTargetDesc, 8> renderTargets = {};
+	InplaceVector<PipelineRenderTargetDesc, renderBackendRenderTargetSlotCount> renderTargets = {};
 	PipelineDepthStencilDesc depthStencilDesc = {};
 	PipelineCullMode cullMode = PipelineCullMode::back;
 

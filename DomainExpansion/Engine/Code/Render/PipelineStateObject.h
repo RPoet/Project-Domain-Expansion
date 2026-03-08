@@ -1,8 +1,11 @@
 #pragma once
 
+#include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/RenderTypes.h"
 #include "Render/RootSignatureObject.h"
 #include "Render/ShaderAsset.h"
+
+inline constexpr uint32 pipelineStateDescInputElementInlineCapacity = 8;
 
 struct PipelineRenderTargetBlendDesc
 {
@@ -170,10 +173,10 @@ struct PipelineStateDesc
 	shared_pointer<ShaderAsset> vertexShader = nullptr;
 	shared_pointer<ShaderAsset> pixelShader = nullptr;
 	shared_pointer<ShaderAsset> computeShader = nullptr;
-	InplaceVector<PipelineInputElementDesc, 8> inputElements = {};
+	InplaceVector<PipelineInputElementDesc, pipelineStateDescInputElementInlineCapacity> inputElements = {};
 	bool wireframe = false;
 	uint32 sampleCount = 1;
-	InplaceVector<PipelineRenderTargetDesc, 8> renderTargets = {};
+	InplaceVector<PipelineRenderTargetDesc, renderBackendRenderTargetSlotCount> renderTargets = {};
 	PipelineDepthStencilDesc depthStencilDesc = {};
 	PipelineCullMode cullMode = PipelineCullMode::back;
 };

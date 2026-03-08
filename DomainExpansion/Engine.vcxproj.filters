@@ -343,6 +343,9 @@
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12Converter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12DepthStencilView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -395,6 +398,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\CommandList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\DepthStencilView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\CommandQueue.h">

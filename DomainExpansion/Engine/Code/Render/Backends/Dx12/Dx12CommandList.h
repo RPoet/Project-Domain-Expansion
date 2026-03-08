@@ -15,19 +15,30 @@ public:
 		ResourceObject* resourceObject,
 		ResourceState beforeState,
 		ResourceState afterState) override;
-	void setRenderTarget(RenderTargetView* renderTargetView) override;
+	void setRenderTargets(
+		RenderTargetView* const* renderTargetViews,
+		uint32 renderTargetViewCount,
+		DepthStencilView* depthStencilView) override;
 	void clearRenderTarget(
 		RenderTargetView* renderTargetView,
 		float red,
 		float green,
 		float blue,
 		float alpha) override;
+	void clearDepthStencil(
+		DepthStencilView* depthStencilView,
+		float depthValue,
+		uint32 stencilValue) override;
 	void setViewport(const ViewportArea& viewportArea) override;
 	void setScissorRect(const ScissorRectArea& scissorRectArea) override;
 	void setPrimitiveTopology(PrimitiveTopology primitiveTopology) override;
 	void setVertexBuffer(uint32 slotIndex, const VertexBufferBinding& vertexBufferBinding) override;
 	void setIndexBuffer(const IndexBufferBinding& indexBufferBinding) override;
 	void setPipeline(PipelineStateObject* pipelineStateObject, RootSignatureObject* rootSignatureObject) override;
+	void setGraphicsPushConstants(
+		uint32 pushConstantRangeIndex,
+		const void* data,
+		uint32 sizeInBytes) override;
 	void copyBuffer(
 		BufferResourceObject* destinationBufferObject,
 		uint64 destinationOffsetInBytes,

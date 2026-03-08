@@ -15,8 +15,8 @@ public:
 	bool initialize(RenderBackend& renderBackend, uint32 width, uint32 height);
 	bool resize(uint32 width, uint32 height) override;
 	void shutdown();
-	ResourceObject* getBackBufferResource(uint32 imageIndex);
-	ResourceObject* getCurrentBackBufferResource() override;
+	TextureResourceObject* getBackBufferResource(uint32 imageIndex);
+	TextureResourceObject* getCurrentBackBufferResource() override;
 	uint32 getFrameBufferCount() const;
 
 	bool isRenderable() const override;
@@ -33,7 +33,7 @@ private:
 
 	HandleWindow windowHandle = nullptr;
 	com_pointer<IDXGISwapChain4> swapChain;
-	vector<unique_pointer<ResourceObject>> backBufferResources;
+	vector<unique_pointer<TextureResourceObject>> backBufferResources;
 	uint32 frameBufferCount = 0;
 	uint32 backBufferWidth = 0;
 	uint32 backBufferHeight = 0;

@@ -4,6 +4,7 @@
 #include <dxgi1_6.h>
 #include "Render/Backends/RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateDesc.h"
+#include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureDesc.h"
@@ -31,12 +32,15 @@ public:
 	SwapChain* getSwapChain() override;
 	SyncObject* getSyncObject() override;
 	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
+	unique_pointer<TextureResourceObject> createTextureObject(const TextureObjectCreateOptions& createOptions) override;
 	RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) override;
 	PipelineStateObject* getOrCreatePipelineStateObject(const PipelineStateDesc& pipelineStateDesc) override;
 	void clearRootSignatureObjects() override;
 	void clearPipelineStateObjects() override;
-	RenderTargetView* createRenderTargetView(ResourceObject* resourceObject) override;
+	RenderTargetView* createRenderTargetView(TextureResourceObject* textureResourceObject) override;
 	void destroyRenderTargetView(RenderTargetView* renderTargetView) override;
+	DepthStencilView* createDepthStencilView(TextureResourceObject* textureResourceObject) override;
+	void destroyDepthStencilView(DepthStencilView* depthStencilView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
 	void releaseQueuedRenderResources() override;
 	bool reportDebugErrorsIfAny() override;

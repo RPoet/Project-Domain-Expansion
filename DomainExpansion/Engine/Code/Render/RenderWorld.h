@@ -5,7 +5,10 @@
 #include "Engine/Window/WindowsWindowObject.h"
 #include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/CommandList.h"
-#include "Render/Renderer.h"
+#include "Render/DepthStencilView.h"
+#include "Render/PipelineStateObject.h"
+#include "Render/RenderCommand.h"
+#include "Render/ResourceObject.h"
 
 struct MeshAssetHandle;
 
@@ -13,7 +16,7 @@ struct RenderWorldUpdateInput
 {
 	bool worldFlow = false;
 	uint64 worldUpdateSerial = 0;
-	Renderer::RenderCommandFlushInput renderCommandFlushInput = {};
+	RenderCommand::RenderCommandFlushInput renderCommandFlushInput = {};
 };
 
 struct RenderWorldMeshDrawData
@@ -31,6 +34,8 @@ struct RenderWorldMeshDrawCommand
 {
 	shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;
 	Transform transform = {};
+	PipelineStateDesc pipelineStateDesc = {};
+	float baseColor[4] = {}; // <-- Debug Color
 	PrimitiveTopology primitiveTopology = PrimitiveTopology::triangleList;
 	VertexBufferBinding vertexBufferBindings[renderBackendVertexBufferSlotCount] = {};
 	uint32 activeVertexBufferSlotFlags = 0;
@@ -41,6 +46,14 @@ struct RenderWorldMeshDrawCommand
 struct RenderWorldDrawPrepareResult
 {
 	vector<RenderWorldMeshDrawCommand> meshDrawCommands = {};
+};
+
+struct Temp_RenderWorldView
+{
+	unique_pointer<TextureResourceObject> depthTextureObject = nullptr;
+	DepthStencilView* depthStencilView = nullptr;
+	uint32 width = 0;
+	uint32 height = 0;
 };
 
 class RenderWorld
@@ -54,4 +67,5 @@ public:
 private:
 	WindowsWindowObject* windowObject = nullptr;
 	uint64 consumedWorldUpdateSerial = 0;
+	Temp_RenderWorldView view = {};
 };

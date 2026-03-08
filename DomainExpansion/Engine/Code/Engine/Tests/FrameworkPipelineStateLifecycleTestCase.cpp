@@ -220,7 +220,10 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	PipelineRenderTargetDesc renderTargetDesc = {};
 	renderTargetDesc.colorFormat = TextureFormat::rgba8Unorm;
 	graphicsPipelineDescA.renderTargets.push_back(renderTargetDesc);
-	graphicsPipelineDescA.depthStencilDesc.depthStencilFormat = TextureFormat::unknown;
+	graphicsPipelineDescA.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
+	graphicsPipelineDescA.depthStencilDesc.depthTestEnabled = true;
+	graphicsPipelineDescA.depthStencilDesc.depthWriteEnabled = true;
+	graphicsPipelineDescA.depthStencilDesc.depthCompareOperation = PipelineCompareOperation::lessEqual;
 	graphicsPipelineDescA.cullMode = PipelineCullMode::back;
 
 	PipelineStateObject* graphicsPipelineA0 = testRenderBackend->getOrCreatePipelineStateObject(graphicsPipelineDescA);
@@ -258,13 +261,56 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	CommandList* pipelineBindCommandList = testRenderBackend->acquireCommandList(CommandListType::graphics);
 	runResult = expectCondition(pipelineBindCommandList != nullptr, "run: acquire command list for pipeline bind") && runResult;
 	bool pipelineBindExecuted = false;
+	RenderTargetView* pipelineBindRenderTargetView = nullptr;
+	DepthStencilView* pipelineBindDepthStencilView = nullptr;
+	unique_pointer<TextureResourceObject> pipelineBindDepthTextureObject = nullptr;
 	if (pipelineBindCommandList != nullptr)
 	{
+		SwapChain* swapChain = testRenderBackend->getSwapChain();
+		TextureResourceObject* backBufferResource = swapChain != nullptr ? swapChain->getCurrentBackBufferResource() : nullptr;
+		if (backBufferResource != nullptr)
+		{
+			pipelineBindRenderTargetView = testRenderBackend->createRenderTargetView(backBufferResource);
+		}
+
+		TextureObjectCreateOptions depthTextureCreateOptions = {};
+		depthTextureCreateOptions.width = 64;
+		depthTextureCreateOptions.height = 64;
+		depthTextureCreateOptions.format = TextureFormat::d32Float;
+		depthTextureCreateOptions.flags = getTextureObjectFlag(TextureObjectFlag::allowDepthStencil);
+		depthTextureCreateOptions.initialState = ResourceState::depthWrite;
+		pipelineBindDepthTextureObject = testRenderBackend->createTextureObject(depthTextureCreateOptions);
+		if (pipelineBindDepthTextureObject != nullptr)
+		{
+			pipelineBindDepthStencilView = testRenderBackend->createDepthStencilView(pipelineBindDepthTextureObject.get());
+		}
+
 		pipelineBindCommandList->reset();
+		if (pipelineBindRenderTargetView != nullptr)
+		{
+			RenderTargetView* renderTargetViews[1] = { pipelineBindRenderTargetView };
+			pipelineBindCommandList->setRenderTargets(renderTargetViews, 1, pipelineBindDepthStencilView);
+			pipelineBindCommandList->clearRenderTarget(pipelineBindRenderTargetView, 0.0f, 0.0f, 0.0f, 1.0f);
+		}
+		if (pipelineBindDepthStencilView != nullptr)
+		{
+			pipelineBindCommandList->clearDepthStencil(pipelineBindDepthStencilView, 1.0f, 0);
+		}
+
 		pipelineBindCommandList->setPipeline(graphicsPipelineA0, pipelineRootSignatureObject);
+		const uint32 pushConstantData[4] = { 1, 2, 3, 4 };
+		pipelineBindCommandList->setGraphicsPushConstants(0, pushConstantData, static_cast<uint32>(sizeof(pushConstantData)));
 		pipelineBindCommandList->setPipeline(computePipeline0, pipelineRootSignatureObject);
 		pipelineBindCommandList->close();
 		testRenderBackend->releaseCommandList(pipelineBindCommandList);
+		if (pipelineBindRenderTargetView != nullptr)
+		{
+			testRenderBackend->destroyRenderTargetView(pipelineBindRenderTargetView);
+		}
+		if (pipelineBindDepthStencilView != nullptr)
+		{
+			testRenderBackend->destroyDepthStencilView(pipelineBindDepthStencilView);
+		}
 		pipelineBindExecuted = true;
 	}
 	runResult = expectCondition(pipelineBindExecuted, "run: bind graphics and compute pipelines on command list") && runResult;

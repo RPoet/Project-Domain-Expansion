@@ -4,7 +4,7 @@
 #include "Engine/Module/Asset/ShaderModule.h"
 #include "Engine/Module/Asset/ShaderPackageModule.h"
 
-static const ShaderPackageVariant* findShaderPackageVariantByName(
+static const ShaderPackageVariant* Temp_findShaderPackageVariantByName(
 	const ShaderPackageAsset& shaderPackageAsset,
 	const string& variantName)
 {
@@ -71,10 +71,10 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 		"run: shader package variant count is 2") && runResult;
 
 	const ShaderPackageVariant* graphicsVariant = shaderPackage != nullptr
-		? findShaderPackageVariantByName(*shaderPackage, "GraphicsDefault")
+		? Temp_findShaderPackageVariantByName(*shaderPackage, "GraphicsDefault")
 		: nullptr;
 	const ShaderPackageVariant* computeVariant = shaderPackage != nullptr
-		? findShaderPackageVariantByName(*shaderPackage, "ComputeOnly")
+		? Temp_findShaderPackageVariantByName(*shaderPackage, "ComputeOnly")
 		: nullptr;
 	runResult = expectCondition(graphicsVariant != nullptr, "run: graphics variant exists") && runResult;
 	runResult = expectCondition(computeVariant != nullptr, "run: compute variant exists") && runResult;
@@ -102,6 +102,22 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 		shaderModule->getCachedShaderCount() == 3 && shaderPackageModule->getCachedPackageCount() == 1,
 		"run: initial cache counts") && runResult;
 
+	const string geometryPackageRelativePath = "Shaders/Packages/GeometryBaseColor.shaderpkg";
+	shared_pointer<ShaderPackageAsset> geometryShaderPackage = shaderPackageModule->getOrLoadPackage(geometryPackageRelativePath);
+	runResult = expectCondition(geometryShaderPackage != nullptr, "run: geometry shader package load handle exists") && runResult;
+	runResult = expectCondition(
+		geometryShaderPackage != nullptr && geometryShaderPackage->state == ShaderPackageState::ready,
+		"run: geometry shader package load success") && runResult;
+	const ShaderPackageVariant* geometryVariant = geometryShaderPackage != nullptr
+		? Temp_findShaderPackageVariantByName(*geometryShaderPackage, "GeometryDefault")
+		: nullptr;
+	runResult = expectCondition(geometryVariant != nullptr, "run: geometry variant exists") && runResult;
+	runResult = expectCondition(
+		geometryVariant != nullptr
+		&& geometryVariant->getShader(ShaderStage::vertex) != nullptr
+		&& geometryVariant->getShader(ShaderStage::pixel) != nullptr,
+		"run: geometry shaders linked") && runResult;
+
 	shared_pointer<ShaderPackageAsset> cachedShaderPackage = shaderPackageModule->getOrLoadPackage(packageRelativePath);
 	runResult = expectCondition(
 		cachedShaderPackage == shaderPackage,
@@ -117,7 +133,7 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 
 	const ShaderPackageVariant* reloadedGraphicsVariantAfterPackageClear =
 		reloadedPackageAfterPackageClear != nullptr
-		? findShaderPackageVariantByName(*reloadedPackageAfterPackageClear, "GraphicsDefault")
+		? Temp_findShaderPackageVariantByName(*reloadedPackageAfterPackageClear, "GraphicsDefault")
 		: nullptr;
 	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterPackageClear =
 		reloadedGraphicsVariantAfterPackageClear != nullptr
@@ -132,7 +148,7 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 	shared_pointer<ShaderPackageAsset> reloadedPackageAfterShaderClear = shaderPackageModule->getOrLoadPackage(packageRelativePath);
 	const ShaderPackageVariant* reloadedGraphicsVariantAfterShaderClear =
 		reloadedPackageAfterShaderClear != nullptr
-		? findShaderPackageVariantByName(*reloadedPackageAfterShaderClear, "GraphicsDefault")
+		? Temp_findShaderPackageVariantByName(*reloadedPackageAfterShaderClear, "GraphicsDefault")
 		: nullptr;
 	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterShaderClear =
 		reloadedGraphicsVariantAfterShaderClear != nullptr

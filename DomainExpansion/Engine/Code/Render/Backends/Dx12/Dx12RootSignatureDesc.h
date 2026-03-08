@@ -4,6 +4,8 @@
 
 #include "Render/RootSignatureObject.h"
 
+inline constexpr uint32 dx12RootSignatureDescRootParameterInlineCapacity = 8;
+
 inline bool isEqualDx12RootParameter(
 	const D3D12_ROOT_PARAMETER& left,
 	const D3D12_ROOT_PARAMETER& right)
@@ -34,7 +36,7 @@ inline bool isEqualDx12RootParameter(
 struct Dx12RootSignatureDesc
 {
 	uint32 flags = 0;
-	InplaceVector<D3D12_ROOT_PARAMETER, 8> rootParameters = {};
+	InplaceVector<D3D12_ROOT_PARAMETER, dx12RootSignatureDescRootParameterInlineCapacity> rootParameters = {};
 
 	D3D12_ROOT_SIGNATURE_DESC getNativeDesc() const
 	{

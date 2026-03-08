@@ -1,22 +1,12 @@
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
+#include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/Backends/RenderBackend.h"
+#include "Render/Backends/Dx12/Dx12Converter.h"
+#include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
-
-static D3D12_RESOURCE_STATES getDx12ResourceState(const ResourceState resourceState)
-{
-	switch (resourceState)
-	{
-	case ResourceState::present:
-		return D3D12_RESOURCE_STATE_PRESENT;
-	case ResourceState::renderTarget:
-		return D3D12_RESOURCE_STATE_RENDER_TARGET;
-	default:
-		return D3D12_RESOURCE_STATE_COMMON;
-	}
-}
 
 static D3D12_COMMAND_LIST_TYPE getDx12CommandListType(const CommandListType commandListType)
 {
@@ -156,15 +146,54 @@ void Dx12CommandList::resourceBarrier(
 	commandList->ResourceBarrier(1, &transitionBarrier);
 }
 
-void Dx12CommandList::setRenderTarget(RenderTargetView* renderTargetView)
+void Dx12CommandList::setRenderTargets(
+	RenderTargetView* const* renderTargetViews,
+	const uint32 renderTargetViewCount,
+	DepthStencilView* depthStencilView)
 {
-	if (!isRecordingReady() || renderTargetView == nullptr)
+	const bool hasRenderTargets = renderTargetViewCount > 0;
+	const bool hasDepthStencil = depthStencilView != nullptr;
+	if (!isRecordingReady()
+		|| renderTargetViewCount > renderBackendRenderTargetSlotCount
+		|| (!hasRenderTargets && !hasDepthStencil))
 	{
 		return;
 	}
 
-	Dx12RenderTargetView* dx12RenderTargetView = static_cast<Dx12RenderTargetView*>(renderTargetView);
-	commandList->OMSetRenderTargets(1, &dx12RenderTargetView->descriptorHandle, boolFalse, nullptr);
+	assert(!hasRenderTargets || renderTargetViews != nullptr);
+	if (hasRenderTargets && renderTargetViews == nullptr)
+	{
+		return;
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE dx12RenderTargetDescriptorHandles[renderBackendRenderTargetSlotCount] = {};
+	for (uint32 renderTargetIndex = 0; renderTargetIndex < renderTargetViewCount; ++renderTargetIndex)
+	{
+		RenderTargetView* renderTargetView = renderTargetViews[renderTargetIndex];
+		assert(renderTargetView != nullptr);
+		if (renderTargetView == nullptr)
+		{
+			return;
+		}
+
+		Dx12RenderTargetView* dx12RenderTargetView = static_cast<Dx12RenderTargetView*>(renderTargetView);
+		dx12RenderTargetDescriptorHandles[renderTargetIndex] = dx12RenderTargetView->descriptorHandle;
+	}
+
+	const D3D12_CPU_DESCRIPTOR_HANDLE* depthStencilDescriptorHandle = nullptr;
+	D3D12_CPU_DESCRIPTOR_HANDLE dx12DepthStencilDescriptorHandle = {};
+	if (depthStencilView != nullptr)
+	{
+		Dx12DepthStencilView* dx12DepthStencilView = static_cast<Dx12DepthStencilView*>(depthStencilView);
+		dx12DepthStencilDescriptorHandle = dx12DepthStencilView->descriptorHandle;
+		depthStencilDescriptorHandle = &dx12DepthStencilDescriptorHandle;
+	}
+
+	commandList->OMSetRenderTargets(
+		renderTargetViewCount,
+		renderTargetViewCount > 0 ? dx12RenderTargetDescriptorHandles : nullptr,
+		boolFalse,
+		depthStencilDescriptorHandle);
 }
 
 void Dx12CommandList::clearRenderTarget(
@@ -182,6 +211,32 @@ void Dx12CommandList::clearRenderTarget(
 	Dx12RenderTargetView* dx12RenderTargetView = static_cast<Dx12RenderTargetView*>(renderTargetView);
 	const float clearColor[4] = { red, green, blue, alpha };
 	commandList->ClearRenderTargetView(dx12RenderTargetView->descriptorHandle, clearColor, 0, nullptr);
+}
+
+void Dx12CommandList::clearDepthStencil(
+	DepthStencilView* depthStencilView,
+	const float depthValue,
+	const uint32 stencilValue)
+{
+	if (!isRecordingReady() || depthStencilView == nullptr)
+	{
+		return;
+	}
+
+	Dx12DepthStencilView* dx12DepthStencilView = static_cast<Dx12DepthStencilView*>(depthStencilView);
+	D3D12_CLEAR_FLAGS clearFlags = D3D12_CLEAR_FLAG_DEPTH;
+	if (dx12DepthStencilView->getTextureFormat() == TextureFormat::d24UnormS8Uint)
+	{
+		clearFlags |= D3D12_CLEAR_FLAG_STENCIL;
+	}
+
+	commandList->ClearDepthStencilView(
+		dx12DepthStencilView->descriptorHandle,
+		clearFlags,
+		depthValue,
+		static_cast<UINT8>(stencilValue & 0xFFu),
+		0,
+		nullptr);
 }
 
 void Dx12CommandList::setViewport(const ViewportArea& viewportArea)
@@ -321,6 +376,24 @@ void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, Root
 	}
 
 	commandList->SetPipelineState(dx12PipelineState);
+}
+
+void Dx12CommandList::setGraphicsPushConstants(
+	const uint32 pushConstantRangeIndex,
+	const void* data,
+	const uint32 sizeInBytes)
+{
+	if (!isRecordingReady() || data == nullptr || sizeInBytes == 0 || (sizeInBytes & 3u) != 0)
+	{
+		assert(false && "[Dx12CommandList][Assert] reason=set_graphics_push_constants_precondition_failed");
+		return;
+	}
+
+	commandList->SetGraphicsRoot32BitConstants(
+		pushConstantRangeIndex,
+		sizeInBytes / 4u,
+		data,
+		0);
 }
 
 void Dx12CommandList::copyBuffer(

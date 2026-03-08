@@ -35,7 +35,7 @@ void Screen::present(ResourceObject* outputResource)
 		return;
 	}
 
-	ResourceObject* currentBackBufferResource = swapChain->getCurrentBackBufferResource();
+	TextureResourceObject* currentBackBufferResource = swapChain->getCurrentBackBufferResource();
 	if (currentBackBufferResource != outputResource)
 	{
 		return;

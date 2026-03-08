@@ -1,21 +1,19 @@
 #pragma once
 
 #include "Engine/Platform/PlatformDefine.h"
+#include "Engine/Platform/SIMDMath.h"
 #include "Render/Backends/RenderBackend.h"
+
+struct RenderWorldDrawPrepareResult;
 
 class Renderer
 {
 public:
-	struct RenderCommandFlushInput
-	{
-		bool clearOnly = false;
-		bool validateAfterFlush = false;
-		function<bool()> processBackendValidationFailFast = {};
-		function<void()> onFlushed = {};
-	};
-
-	static void flushRenderCommandQueue(const RenderCommandFlushInput& flushInput);
 	void setBackend(RenderBackend* renderBackend);
+	void drawGeometry(
+		CommandList* commandList,
+		const RenderWorldDrawPrepareResult& drawPrepareResult,
+		const float4x4& viewProjectionMatrix);
 	void render(CommandList* commandList);
 	ResourceObject* getOutputResource() const;
 
