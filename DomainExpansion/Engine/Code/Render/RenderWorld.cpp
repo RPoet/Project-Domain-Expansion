@@ -10,10 +10,10 @@
 class MeshCommandBuilder
 {
 private:
-	RenderWorld::BuildResult buildResult = {};
+	RenderWorldBuildResult buildResult = {};
 
 public:
-	RenderWorld::BuildResult build()
+	RenderWorldBuildResult build()
 	{
 		for (uint32 meshSlotIndex = 0; meshSlotIndex < MeshBridge::maxObjectCount; ++meshSlotIndex)
 		{
@@ -30,7 +30,11 @@ public:
 				|| !meshDynamicData->visible
 				|| meshStaticData->entityHandle == invalidBridgeHandle
 				|| meshStaticData->meshAssetHandle == nullptr
-				|| meshStaticData->meshAssetHandle->state != MeshAssetHandleState::ready)
+				|| meshStaticData->meshAssetHandle->state != MeshAssetHandleState::ready
+				|| meshStaticData->meshAssetHandle->gpuState != MeshAssetGpuState::ready
+				|| meshStaticData->meshAssetHandle->meshAsset == nullptr
+				|| meshStaticData->meshAssetHandle->indexBufferObject == nullptr
+				|| meshStaticData->meshAssetHandle->indexBufferSizeInBytes == 0)
 			{
 				continue;
 			}
@@ -41,13 +45,98 @@ public:
 				continue;
 			}
 
-			RenderWorld::MeshDrawData meshDrawData = {};
+			RenderWorldMeshDrawData meshDrawData = {};
 			meshDrawData.meshAssetHandle = meshStaticData->meshAssetHandle;
 			meshDrawData.transform = entityDynamicData->transform;
 			buildResult.meshDrawData.push_back(meshDrawData);
 		}
 
 		return moveValue(buildResult);
+	}
+};
+
+class MeshDrawCommandBuilder
+{
+private:
+	RenderWorldDrawPrepareResult drawPrepareResult = {};
+
+public:
+	RenderWorldDrawPrepareResult build(const RenderWorldBuildResult& buildResult)
+	{
+		for (uint32 meshDrawDataIndex = 0; meshDrawDataIndex < static_cast<uint32>(buildResult.meshDrawData.size()); ++meshDrawDataIndex)
+		{
+			const RenderWorldMeshDrawData& meshDrawData = buildResult.meshDrawData[meshDrawDataIndex];
+			const shared_pointer<MeshAssetHandle>& meshAssetHandle = meshDrawData.meshAssetHandle;
+
+			RenderWorldMeshDrawCommand meshDrawCommand = {};
+			meshDrawCommand.meshAssetHandle = meshAssetHandle;
+			meshDrawCommand.transform = meshDrawData.transform;
+			meshDrawCommand.indexCount = meshAssetHandle->meshAsset->indexCount;
+			meshDrawCommand.primitiveTopology = PrimitiveTopology::triangleList;
+			meshDrawCommand.indexBufferBinding.resourceObject = meshAssetHandle->indexBufferObject.get();
+			meshDrawCommand.indexBufferBinding.elementSize = IndexElementSize::thirtyTwoBits;
+			meshDrawCommand.indexBufferBinding.sizeInBytes = meshAssetHandle->indexBufferSizeInBytes;
+			meshDrawCommand.indexBufferBinding.offsetInBytes = 0;
+
+			for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
+			{
+				const MeshBufferSignature signature = static_cast<MeshBufferSignature>(signatureIndex);
+				const uint32 signatureFlag = getMeshBufferSignatureFlag(signature);
+				if ((meshAssetHandle->requiredVertexBufferFlags & signatureFlag) == 0)
+				{
+					continue;
+				}
+
+				BufferResourceObject* bufferObject = meshAssetHandle->getBufferObject(signature);
+				if (bufferObject == nullptr)
+				{
+					meshDrawCommand.activeVertexBufferSlotFlags = 0;
+					break;
+				}
+
+				VertexBufferBinding& vertexBufferBinding = meshDrawCommand.vertexBufferBindings[signatureIndex];
+				vertexBufferBinding.resourceObject = bufferObject;
+				vertexBufferBinding.strideInBytes = meshAssetHandle->getBufferStrideInBytes(signature);
+				vertexBufferBinding.sizeInBytes = meshAssetHandle->getBufferSizeInBytes(signature);
+				vertexBufferBinding.offsetInBytes = 0;
+				meshDrawCommand.activeVertexBufferSlotFlags |= static_cast<uint32>(1u << signatureIndex);
+			}
+
+			if (meshDrawCommand.activeVertexBufferSlotFlags == 0
+				|| meshDrawCommand.indexBufferBinding.resourceObject == nullptr
+				|| meshDrawCommand.indexBufferBinding.sizeInBytes == 0
+				|| meshDrawCommand.indexCount == 0)
+			{
+				continue;
+			}
+
+			bool validVertexBufferBinding = true;
+			for (uint32 slotIndex = 0; slotIndex < renderBackendVertexBufferSlotCount; ++slotIndex)
+			{
+				if ((meshDrawCommand.activeVertexBufferSlotFlags & static_cast<uint32>(1u << slotIndex)) == 0)
+				{
+					continue;
+				}
+
+				const VertexBufferBinding& vertexBufferBinding = meshDrawCommand.vertexBufferBindings[slotIndex];
+				if (vertexBufferBinding.resourceObject == nullptr
+					|| vertexBufferBinding.strideInBytes == 0
+					|| vertexBufferBinding.sizeInBytes == 0)
+				{
+					validVertexBufferBinding = false;
+					break;
+				}
+			}
+
+			if (!validVertexBufferBinding)
+			{
+				continue;
+			}
+
+			drawPrepareResult.meshDrawCommands.push_back(moveValue(meshDrawCommand));
+		}
+
+		return moveValue(drawPrepareResult);
 	}
 };
 
@@ -64,7 +153,7 @@ void RenderWorld::shutdown()
 	consumedWorldUpdateSerial = 0;
 }
 
-bool RenderWorld::update(const UpdateInput& updateInput)
+bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 {
 	assert(windowObject != nullptr);
 	if (windowObject == nullptr)
@@ -85,8 +174,10 @@ bool RenderWorld::update(const UpdateInput& updateInput)
 
 	consumedWorldUpdateSerial = updateInput.worldUpdateSerial;
 	MeshCommandBuilder builder = {};
-	BuildResult buildResult = builder.build();
-	unused(buildResult);
+	RenderWorldBuildResult buildResult = builder.build();
+	MeshDrawCommandBuilder drawCommandBuilder = {};
+	RenderWorldDrawPrepareResult drawPrepareResult = drawCommandBuilder.build(buildResult);
+	unused(drawPrepareResult);
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	if (renderBackendModule == nullptr
@@ -263,7 +354,7 @@ bool RenderWorld::update(const UpdateInput& updateInput)
 	return true;
 }
 
-RenderWorld::BuildResult RenderWorld::build()
+RenderWorldBuildResult RenderWorld::build()
 {
 	MeshCommandBuilder builder = {};
 	return builder.build();

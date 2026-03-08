@@ -1,5 +1,29 @@
 #include "Render/Renderer.h"
 
+#include "Render/RenderCommand.h"
+
+void Renderer::flushRenderCommandQueue(const RenderCommandFlushInput& flushInput)
+{
+	if (flushInput.clearOnly)
+	{
+		RenderCommand::get().clear();
+		return;
+	}
+
+	RenderCommand::get().flush();
+	if (flushInput.validateAfterFlush
+		&& flushInput.processBackendValidationFailFast
+		&& flushInput.processBackendValidationFailFast())
+	{
+		return;
+	}
+
+	if (flushInput.onFlushed)
+	{
+		flushInput.onFlushed();
+	}
+}
+
 void Renderer::setBackend(RenderBackend* renderBackend)
 {
 	this->renderBackend = renderBackend;

@@ -63,23 +63,6 @@ struct IndexBufferBinding
 	uint32 offsetInBytes = 0;
 };
 
-struct MeshDrawBindingState
-{
-	PrimitiveTopology primitiveTopology = PrimitiveTopology::triangleList;
-	uint32 vertexBufferSlot = 0;
-	VertexBufferBinding vertexBufferBinding = {};
-	IndexBufferBinding indexBufferBinding = {};
-};
-
-inline bool isValidMeshDrawBindingState(const MeshDrawBindingState& meshDrawBindingState)
-{
-	return meshDrawBindingState.vertexBufferBinding.resourceObject != nullptr
-		&& meshDrawBindingState.indexBufferBinding.resourceObject != nullptr
-		&& meshDrawBindingState.vertexBufferBinding.strideInBytes > 0
-		&& meshDrawBindingState.vertexBufferBinding.sizeInBytes > 0
-		&& meshDrawBindingState.indexBufferBinding.sizeInBytes > 0;
-}
-
 struct CommandListInitializeOptions
 {
 	RenderBackend* renderBackend = nullptr;
@@ -131,19 +114,4 @@ public:
 		uint32 startVertexLocation,
 		uint32 startInstanceLocation) = 0;
 	virtual void close() = 0;
-
-	bool bindMeshDrawState(const MeshDrawBindingState& meshDrawBindingState)
-	{
-		if (!isValidMeshDrawBindingState(meshDrawBindingState))
-		{
-			return false;
-		}
-
-		setPrimitiveTopology(meshDrawBindingState.primitiveTopology);
-		setVertexBuffer(
-			meshDrawBindingState.vertexBufferSlot,
-			meshDrawBindingState.vertexBufferBinding);
-		setIndexBuffer(meshDrawBindingState.indexBufferBinding);
-		return true;
-	}
 };

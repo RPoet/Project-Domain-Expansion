@@ -288,7 +288,7 @@ int WINAPI wWinMain(
 			break;
 		}
 
-		RenderWorld::UpdateInput renderWorldUpdateInput = {};
+		RenderWorldUpdateInput renderWorldUpdateInput = {};
 		renderWorldUpdateInput.worldFlow = framework.getExecutionFlow() == FrameworkExecutionFlow::worldFlow;
 		renderWorldUpdateInput.worldUpdateSerial = framework.getWorldUpdateSerial();
 		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = framework.getExecutionFlow() == FrameworkExecutionFlow::testFlow;

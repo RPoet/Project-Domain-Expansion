@@ -214,6 +214,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12ResourceObject.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h" />
+    <ClInclude Include="Engine\Code\Render\Backends\RenderBackendDefinitions.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h" />

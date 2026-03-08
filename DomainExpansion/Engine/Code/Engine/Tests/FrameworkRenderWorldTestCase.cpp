@@ -4,7 +4,12 @@
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
+#include "Bridge/MeshBridge.h"
 #include "Render/RenderWorld.h"
+
+class TestBufferResourceObject final : public BufferResourceObject
+{
+};
 
 const char* FrameworkRenderWorldTestCase::getTestCaseName() const
 {
@@ -49,23 +54,7 @@ bool FrameworkRenderWorldTestCase::beginTest(Framework& framework)
 
 bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 {
-	RenderWorld renderWorld = {};
-	RenderWorld::BuildResult buildResult = renderWorld.build();
-
 	bool runResult = true;
-	runResult = expectCondition(buildResult.meshDrawData.size() == 1, "run: render world builds one visible mesh draw") && runResult;
-
-	const RenderWorld::MeshDrawData* meshDrawData =
-		buildResult.meshDrawData.empty() ? nullptr : &buildResult.meshDrawData[0];
-	runResult = expectCondition(
-		meshDrawData != nullptr
-			&& meshDrawData->meshAssetHandle != nullptr
-			&& meshDrawData->meshAssetHandle->meshRelativePath == "Meshes/Sphere.obj"
-			&& meshDrawData->transform.positionX == 3.0f
-			&& meshDrawData->transform.positionY == 4.0f
-			&& meshDrawData->transform.scaleZ == 5.0f,
-		"run: render world joins mesh bridge and entity bridge data") && runResult;
-
 	World* activeWorld = framework.getActiveWorld();
 	PlaceableEntity* placeableEntity = activeWorld != nullptr
 		? static_cast<PlaceableEntity*>(activeWorld->getEntityByIndex(entityIndex))
@@ -90,11 +79,61 @@ bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 	}
 
 	runResult = expectCondition(meshComponent != nullptr, "run: mesh component exists before mutation") && runResult;
-	if (meshComponent != nullptr)
+	if (meshComponent == nullptr)
 	{
-		meshComponent->visible = false;
+		return false;
 	}
 
+	const MeshBridge::StaticData* meshStaticData = MeshBridge::get().getStaticData(meshComponent->getMeshHandle());
+	runResult = expectCondition(meshStaticData != nullptr, "run: mesh bridge static data exists before gpu injection") && runResult;
+	if (meshStaticData == nullptr || meshStaticData->meshAssetHandle == nullptr)
+	{
+		return false;
+	}
+
+	shared_pointer<MeshAssetHandle> actualMeshAssetHandle = meshStaticData->meshAssetHandle;
+	actualMeshAssetHandle->gpuState = MeshAssetGpuState::ready;
+	actualMeshAssetHandle->requiredVertexBufferFlags =
+		getMeshBufferSignatureFlag(MeshBufferSignature::position)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::normal)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::texcoord);
+	actualMeshAssetHandle->activeVertexBufferFlags = actualMeshAssetHandle->requiredVertexBufferFlags;
+	actualMeshAssetHandle->vertexBufferObjects[getMeshBufferSignatureIndex(MeshBufferSignature::position)] =
+		unique_pointer<BufferResourceObject>(new TestBufferResourceObject());
+	actualMeshAssetHandle->vertexBufferObjects[getMeshBufferSignatureIndex(MeshBufferSignature::normal)] =
+		unique_pointer<BufferResourceObject>(new TestBufferResourceObject());
+	actualMeshAssetHandle->vertexBufferObjects[getMeshBufferSignatureIndex(MeshBufferSignature::texcoord)] =
+		unique_pointer<BufferResourceObject>(new TestBufferResourceObject());
+	actualMeshAssetHandle->vertexBufferSizesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::position)] =
+		static_cast<uint32>(sizeof(MeshAsset::PositionData) * 4);
+	actualMeshAssetHandle->vertexBufferSizesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::normal)] =
+		static_cast<uint32>(sizeof(MeshAsset::NormalData) * 4);
+	actualMeshAssetHandle->vertexBufferSizesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::texcoord)] =
+		static_cast<uint32>(sizeof(MeshAsset::TexcoordData) * 4);
+	actualMeshAssetHandle->vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::position)] =
+		static_cast<uint32>(sizeof(MeshAsset::PositionData));
+	actualMeshAssetHandle->vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::normal)] =
+		static_cast<uint32>(sizeof(MeshAsset::NormalData));
+	actualMeshAssetHandle->vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::texcoord)] =
+		static_cast<uint32>(sizeof(MeshAsset::TexcoordData));
+	actualMeshAssetHandle->indexBufferObject = unique_pointer<BufferResourceObject>(new TestBufferResourceObject());
+	actualMeshAssetHandle->indexBufferSizeInBytes = static_cast<uint32>(sizeof(uint32) * 12);
+
+	RenderWorld renderWorld = {};
+	RenderWorldBuildResult buildResult = renderWorld.build();
+	runResult = expectCondition(buildResult.meshDrawData.size() == 1, "run: render world builds one visible gpu-ready mesh draw") && runResult;
+
+	const RenderWorldMeshDrawData* meshDrawData = buildResult.meshDrawData.empty() ? nullptr : &buildResult.meshDrawData[0];
+	runResult = expectCondition(
+		meshDrawData != nullptr
+			&& meshDrawData->meshAssetHandle == actualMeshAssetHandle
+			&& meshDrawData->meshAssetHandle->meshRelativePath == "Meshes/Sphere.obj"
+			&& meshDrawData->transform.positionX == 3.0f
+			&& meshDrawData->transform.positionY == 4.0f
+			&& meshDrawData->transform.scaleZ == 5.0f,
+		"run: render world joins gpu-ready mesh bridge and entity bridge data") && runResult;
+
+	meshComponent->visible = false;
 	placeableEntity->transform.positionX = 30.0f;
 	activeWorld->tick(0.016f);
 	return runResult;
@@ -103,7 +142,7 @@ bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 bool FrameworkRenderWorldTestCase::endTest(Framework& framework)
 {
 	RenderWorld renderWorld = {};
-	RenderWorld::BuildResult buildResult = renderWorld.build();
+	RenderWorldBuildResult buildResult = renderWorld.build();
 
 	bool endResult = true;
 	endResult = expectCondition(buildResult.meshDrawData.empty(), "end: invisible mesh is removed from render world") && endResult;

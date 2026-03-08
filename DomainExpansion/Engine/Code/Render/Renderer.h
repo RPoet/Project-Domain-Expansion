@@ -6,6 +6,15 @@
 class Renderer
 {
 public:
+	struct RenderCommandFlushInput
+	{
+		bool clearOnly = false;
+		bool validateAfterFlush = false;
+		function<bool()> processBackendValidationFailFast = {};
+		function<void()> onFlushed = {};
+	};
+
+	static void flushRenderCommandQueue(const RenderCommandFlushInput& flushInput);
 	void setBackend(RenderBackend* renderBackend);
 	void render(CommandList* commandList);
 	ResourceObject* getOutputResource() const;

@@ -370,6 +370,9 @@
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\RenderBackendDefinitions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
