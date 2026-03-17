@@ -3,7 +3,7 @@
 #include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/RenderTypes.h"
 #include "Render/RootSignatureObject.h"
-#include "Render/ShaderAsset.h"
+#include "Render/Shader.h"
 
 inline constexpr uint32 pipelineStateDescInputElementInlineCapacity = 8;
 
@@ -170,9 +170,9 @@ struct PipelineStateDesc
 {
 	PipelineStateType pipelineStateType = PipelineStateType::graphics;
 	RootSignatureDesc rootSignatureDesc = {};
-	shared_pointer<ShaderAsset> vertexShader = nullptr;
-	shared_pointer<ShaderAsset> pixelShader = nullptr;
-	shared_pointer<ShaderAsset> computeShader = nullptr;
+	shared_pointer<ShaderObject> vertexShader = nullptr;
+	shared_pointer<ShaderObject> pixelShader = nullptr;
+	shared_pointer<ShaderObject> computeShader = nullptr;
 	InplaceVector<PipelineInputElementDesc, pipelineStateDescInputElementInlineCapacity> inputElements = {};
 	bool wireframe = false;
 	uint32 sampleCount = 1;

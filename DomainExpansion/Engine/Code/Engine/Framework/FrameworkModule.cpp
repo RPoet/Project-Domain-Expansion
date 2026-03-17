@@ -1,4 +1,5 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
 #include "Engine/Module/Asset/ShaderModule.h"
 #include "Engine/Module/Asset/ShaderPackageModule.h"
@@ -19,6 +20,7 @@ void Framework::registerModule()
 	addModule(MeshStreaming::get());
 	addModule(BridgeModule::get());
 	addModule(GPUUploader::get());
+	addModule(DiskLoaderModule::get());
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());
 	addModule(RenderBackendModule::get());

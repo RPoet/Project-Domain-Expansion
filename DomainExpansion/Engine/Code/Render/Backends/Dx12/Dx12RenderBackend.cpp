@@ -347,8 +347,8 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 
 	if (pipelineStateDesc.pipelineStateType == PipelineStateType::graphics)
 	{
-		const bool missingVertexShader = !isShaderAssetReady(pipelineStateDesc.vertexShader);
-		const bool missingPixelShader = !isShaderAssetReady(pipelineStateDesc.pixelShader);
+		const bool missingVertexShader = pipelineStateDesc.vertexShader == nullptr;
+		const bool missingPixelShader = pipelineStateDesc.pixelShader == nullptr;
 		const bool missingInputLayout = pipelineStateDesc.inputElements.empty();
 		const bool missingRenderTargets = pipelineStateDesc.renderTargets.empty();
 		const bool tooManyRenderTargets = pipelineStateDesc.renderTargets.size() > D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
@@ -386,21 +386,26 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 			return nullptr;
 		}
 
-		dx12PipelineStateDesc.vertexShaderHash = hashShaderByteCode(*pipelineStateDesc.vertexShader);
-		dx12PipelineStateDesc.pixelShaderHash = hashShaderByteCode(*pipelineStateDesc.pixelShader);
-		dx12PipelineStateDesc.vertexShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.vertexShader->byteCode.size());
-		dx12PipelineStateDesc.pixelShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.pixelShader->byteCode.size());
+		const Dx12ShaderObject* dx12VertexShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.vertexShader.get());
+		const Dx12ShaderObject* dx12PixelShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.pixelShader.get());
+
+		dx12PipelineStateDesc.vertexShaderHash = dx12VertexShader->getShaderDataHash();
+		dx12PipelineStateDesc.pixelShaderHash = dx12PixelShader->getShaderDataHash();
+		dx12PipelineStateDesc.vertexShaderByteCodeSize = static_cast<uint32>(dx12VertexShader->getByteCode().size());
+		dx12PipelineStateDesc.pixelShaderByteCodeSize = static_cast<uint32>(dx12PixelShader->getByteCode().size());
 	}
 	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
 	{
-		if (!isShaderAssetReady(pipelineStateDesc.computeShader))
+		if (pipelineStateDesc.computeShader == nullptr)
 		{
 			error << "[Dx12PipelineState][Error] reason=compute_shader_missing" << lineBreak;
 			return nullptr;
 		}
 
-		dx12PipelineStateDesc.computeShaderHash = hashShaderByteCode(*pipelineStateDesc.computeShader);
-		dx12PipelineStateDesc.computeShaderByteCodeSize = static_cast<uint32>(pipelineStateDesc.computeShader->byteCode.size());
+		const Dx12ShaderObject* dx12ComputeShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.computeShader.get());
+
+		dx12PipelineStateDesc.computeShaderHash = dx12ComputeShader->getShaderDataHash();
+		dx12PipelineStateDesc.computeShaderByteCodeSize = static_cast<uint32>(dx12ComputeShader->getByteCode().size());
 	}
 	else
 	{
@@ -421,8 +426,11 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	com_pointer<ID3D12PipelineState> pipelineState;
 	if (pipelineStateDesc.pipelineStateType == PipelineStateType::graphics)
 	{
-		const vector<char>& vertexShaderByteCode = pipelineStateDesc.vertexShader->byteCode;
-		const vector<char>& pixelShaderByteCode = pipelineStateDesc.pixelShader->byteCode;
+		const Dx12ShaderObject* dx12VertexShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.vertexShader.get());
+		const Dx12ShaderObject* dx12PixelShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.pixelShader.get());
+
+		const vector<char>& vertexShaderByteCode = dx12VertexShader->getByteCode();
+		const vector<char>& pixelShaderByteCode = dx12PixelShader->getByteCode();
 		vector<D3D12_INPUT_ELEMENT_DESC> inputElementDescriptions = {};
 		inputElementDescriptions.reserve(pipelineStateDesc.inputElements.size());
 		for (uint32 elementIndex = 0; elementIndex < static_cast<uint32>(pipelineStateDesc.inputElements.size()); ++elementIndex)
@@ -535,7 +543,9 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	}
 	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
 	{
-		const vector<char>& computeShaderByteCode = pipelineStateDesc.computeShader->byteCode;
+		const Dx12ShaderObject* dx12ComputeShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.computeShader.get());
+
+		const vector<char>& computeShaderByteCode = dx12ComputeShader->getByteCode();
 		D3D12_COMPUTE_PIPELINE_STATE_DESC computePipelineStateDesc = {};
 		computePipelineStateDesc.pRootSignature = dx12RootSignatureObject->getRootSignature().Get();
 		computePipelineStateDesc.CS = { computeShaderByteCode.data(), computeShaderByteCode.size() };

@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
 
+#include "Render/Backends/Dx12/Dx12Shader.h"
 #include "Render/PipelineStateObject.h"
 #include "Render/ResourceTypes.h"
 
@@ -118,22 +119,6 @@ inline D3D12_SHADER_VISIBILITY getDx12ShaderVisibility(const ShaderVisibility sh
 	}
 
 	return D3D12_SHADER_VISIBILITY_ALL;
-}
-
-inline uint64 hashShaderByteCode(const ShaderAsset& shaderAsset)
-{
-	uint64 hashValue = platformHashOffsetBasis;
-	hashValue = platformHashCombine(hashValue, static_cast<uint64>(shaderAsset.byteCode.size()));
-	for (size_t byteCodeIndex = 0; byteCodeIndex < shaderAsset.byteCode.size(); ++byteCodeIndex)
-	{
-		hashValue = platformHashCombine(hashValue, static_cast<uint64>(static_cast<unsigned char>(shaderAsset.byteCode[byteCodeIndex])));
-	}
-	return hashValue;
-}
-
-inline bool isShaderAssetReady(const shared_pointer<ShaderAsset>& shaderAsset)
-{
-	return shaderAsset != nullptr && !shaderAsset->byteCode.empty();
 }
 
 inline DXGI_FORMAT getDx12TextureFormat(const TextureFormat textureFormat)

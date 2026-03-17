@@ -1,35 +1,49 @@
 #include "Engine/Module/Asset/ShaderModule.h"
 
+#include "Engine/Framework/Framework.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
+#include "Render/Backends/Dx12/Dx12Shader.h"
 
-#include <fstream>
-
-static bool readBinaryFileAll(const string& filePath, vector<char>& outBinaryData)
+static ShaderTargetPlatform getShaderTargetPlatformFromRenderBackendType(const RenderBackendType renderBackendType)
 {
-	outBinaryData.clear();
-
-	input_file_stream fileStream(filePath, input_file_stream::binary | input_file_stream::ate);
-	if (!fileStream.is_open())
+	switch (renderBackendType)
 	{
-		return false;
+	case RenderBackendType::dx12:
+		return ShaderTargetPlatform::dx12;
+	case RenderBackendType::vulkan:
+		return ShaderTargetPlatform::vulkan;
+	case RenderBackendType::metal:
+		return ShaderTargetPlatform::metal;
+	default:
+		return ShaderTargetPlatform::unknown;
+	}
+}
+
+static shared_pointer<ShaderObject> createShaderObjectForPlatform(
+	const shared_pointer<ShaderAsset>& shaderAsset,
+	const ShaderBinaryLoadRequest& binaryLoadRequest,
+	vector<char>&& shaderByteCode)
+{
+	if (binaryLoadRequest.targetPlatform == ShaderTargetPlatform::dx12)
+	{
+		shared_pointer<Dx12ShaderObject> dx12ShaderObject(new Dx12ShaderObject());
+		if (dx12ShaderObject == nullptr
+			|| !dx12ShaderObject->initialize(shaderAsset, binaryLoadRequest, moveValue(shaderByteCode)))
+		{
+			return nullptr;
+		}
+
+		return dx12ShaderObject;
 	}
 
-	const stream_position fileSize = fileStream.tellg();
-	if (fileSize <= 0)
-	{
-		return false;
-	}
-
-	outBinaryData.resize(static_cast<size_t>(fileSize));
-	fileStream.seekg(0, std::ios::beg);
-	fileStream.read(outBinaryData.data(), fileSize);
-	return fileStream.good();
+	return nullptr;
 }
 
 bool ShaderModule::init(Framework& framework)
 {
-	unused(framework);
 	clear();
+	activeTargetPlatform = getShaderTargetPlatformFromRenderBackendType(framework.getBackendOptions().backendType);
 	return true;
 }
 
@@ -46,58 +60,99 @@ void ShaderModule::shutdown()
 	clear();
 }
 
-shared_pointer<ShaderAssetHandle> ShaderModule::getOrLoadShader(const ShaderLoadRequest& loadRequest)
+shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
+	const ShaderLoadRequest& loadRequest,
+	const ShaderBinaryLoadRequest& binaryLoadRequest)
 {
-	if (!validateLoadRequest(loadRequest))
+	const ShaderBinaryLoadRequest normalizedBinaryLoadRequest = normalizeBinaryLoadRequest(binaryLoadRequest);
+	const bool validLoadRequest = validateLoadRequest(loadRequest);
+	const bool validBinaryLoadRequest = validateBinaryLoadRequest(normalizedBinaryLoadRequest);
+	assert(validLoadRequest && validBinaryLoadRequest);
+	if (!validLoadRequest || !validBinaryLoadRequest)
 	{
-		error << "[ShaderModule][Error] reason=invalid_load_request"
-			  << " stage=" << getShaderStageText(loadRequest.stage)
-			  << " path=" << loadRequest.shaderRelativePath
-			  << " entry=" << loadRequest.entryPoint
-			  << " profile=" << loadRequest.profile << lineBreak;
 		return nullptr;
 	}
 
-	const string cacheKey = buildShaderCacheKey(loadRequest);
+	const string cacheKey = buildShaderCacheKey(loadRequest, normalizedBinaryLoadRequest);
 	const auto foundShader = shaderCache.find(cacheKey);
 	if (foundShader != shaderCache.end())
 	{
 		return foundShader->second;
 	}
 
-	shared_pointer<ShaderAssetHandle> shaderHandle(new ShaderAssetHandle());
+	shared_pointer<ShaderHandle> shaderHandle(new ShaderHandle());
 	shaderHandle->loadRequest = loadRequest;
+	shaderHandle->binaryLoadRequest = normalizedBinaryLoadRequest;
 	shaderHandle->cacheKey = cacheKey;
-	shaderHandle->state = ShaderAssetState::pending;
-	shaderHandle->shaderAsset = shared_pointer<ShaderAsset>(new ShaderAsset());
+	shaderHandle->state = ShaderHandleState::pending;
 
-	string shaderAbsolutePath = {};
-	if (!resolveShaderAbsolutePath(loadRequest.shaderRelativePath, shaderAbsolutePath))
+	const bool targetPlatformMatched = normalizedBinaryLoadRequest.targetPlatform == activeTargetPlatform;
+	assert(targetPlatformMatched && "[ShaderModule][Assert] reason=shader_target_platform_mismatch");
+	if (!targetPlatformMatched)
 	{
-		shaderHandle->state = ShaderAssetState::failed;
+		shaderHandle->state = ShaderHandleState::failed;
 		shaderCache.emplace(cacheKey, shaderHandle);
-		error << "[ShaderModule][Error] stage=" << getShaderStageText(loadRequest.stage)
-			  << " path=" << loadRequest.shaderRelativePath
-			  << " reason=shader_path_resolve_failed" << lineBreak;
 		return shaderHandle;
 	}
 
-	if (shaderHandle->shaderAsset == nullptr
-		|| !readBinaryFileAll(shaderAbsolutePath, shaderHandle->shaderAsset->byteCode))
+	string shaderBinaryAbsolutePath = {};
+	const bool resolvedBinaryAbsolutePath =
+		resolveShaderBinaryAbsolutePath(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
+	assert(resolvedBinaryAbsolutePath && "[ShaderModule][Assert] reason=shader_binary_path_resolve_failed");
+	if (!resolvedBinaryAbsolutePath)
 	{
-		shaderHandle->state = ShaderAssetState::failed;
+		shaderHandle->state = ShaderHandleState::failed;
 		shaderCache.emplace(cacheKey, shaderHandle);
-		error << "[ShaderModule][Error] stage=" << getShaderStageText(loadRequest.stage)
-			  << " path=" << shaderAbsolutePath
-			  << " reason=shader_binary_load_failed" << lineBreak;
 		return shaderHandle;
 	}
 
-	shaderHandle->state = ShaderAssetState::ready;
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
+	if (diskLoaderModule == nullptr)
+	{
+		shaderHandle->state = ShaderHandleState::failed;
+		shaderCache.emplace(cacheKey, shaderHandle);
+		return shaderHandle;
+	}
+
+	vector<char> shaderByteCode = {};
+	const bool loadedShaderByteCode = diskLoaderModule->loadBinaryFile(shaderBinaryAbsolutePath, shaderByteCode);
+	assert(loadedShaderByteCode && "[ShaderModule][Assert] reason=shader_binary_load_failed");
+	if (!loadedShaderByteCode)
+	{
+		shaderHandle->state = ShaderHandleState::failed;
+		shaderCache.emplace(cacheKey, shaderHandle);
+		return shaderHandle;
+	}
+
+	shared_pointer<ShaderAsset> shaderAsset(new ShaderAsset());
+	const bool initializedShaderAsset = shaderAsset != nullptr && shaderAsset->initialize(loadRequest);
+	assert(initializedShaderAsset && "[ShaderModule][Assert] reason=shader_asset_initialize_failed");
+	if (!initializedShaderAsset)
+	{
+		shaderHandle->state = ShaderHandleState::failed;
+		shaderCache.emplace(cacheKey, shaderHandle);
+		return shaderHandle;
+	}
+
+	shaderHandle->shader =
+		createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
+	const bool createdShaderObject = shaderHandle->shader != nullptr;
+	assert(createdShaderObject && "[ShaderModule][Assert] reason=shader_object_create_failed");
+	if (!createdShaderObject)
+	{
+		shaderHandle->state = ShaderHandleState::failed;
+		shaderCache.emplace(cacheKey, shaderHandle);
+		return shaderHandle;
+	}
+
+	shaderHandle->state = ShaderHandleState::ready;
 	shaderCache.emplace(cacheKey, shaderHandle);
 	output << "[ShaderModule][Ready] stage=" << getShaderStageText(loadRequest.stage)
-		   << " path=" << loadRequest.shaderRelativePath
-		   << " byteCodeSize=" << shaderHandle->shaderAsset->byteCode.size() << lineBreak;
+		   << " source=" << loadRequest.sourceRelativePath
+		   << " binary=" << normalizedBinaryLoadRequest.binaryRelativePath
+		   << " target=" << getShaderTargetPlatformText(normalizedBinaryLoadRequest.targetPlatform)
+		   << " dataHash=" << shaderHandle->shader->getShaderDataHash() << lineBreak;
 	return shaderHandle;
 }
 
@@ -111,27 +166,47 @@ uint32 ShaderModule::getCachedShaderCount() const
 	return static_cast<uint32>(shaderCache.size());
 }
 
-string ShaderModule::buildShaderCacheKey(const ShaderLoadRequest& loadRequest) const
+ShaderBinaryLoadRequest ShaderModule::normalizeBinaryLoadRequest(const ShaderBinaryLoadRequest& binaryLoadRequest) const
 {
-	return loadRequest.shaderRelativePath
+	ShaderBinaryLoadRequest normalizedBinaryLoadRequest = binaryLoadRequest;
+	if (normalizedBinaryLoadRequest.targetPlatform == ShaderTargetPlatform::unknown)
+	{
+		normalizedBinaryLoadRequest.targetPlatform = activeTargetPlatform;
+	}
+
+	return normalizedBinaryLoadRequest;
+}
+
+string ShaderModule::buildShaderCacheKey(
+	const ShaderLoadRequest& loadRequest,
+	const ShaderBinaryLoadRequest& binaryLoadRequest) const
+{
+	return loadRequest.sourceRelativePath
 		+ "|stage=" + std::to_string(static_cast<uint32>(loadRequest.stage))
 		+ "|entry=" + loadRequest.entryPoint
-		+ "|profile=" + loadRequest.profile
-		+ "|definesHash=" + std::to_string(loadRequest.definesHash);
+		+ "|definesHash=" + std::to_string(loadRequest.definesHash)
+		+ "|target=" + std::to_string(static_cast<uint32>(binaryLoadRequest.targetPlatform))
+		+ "|binary=" + binaryLoadRequest.binaryRelativePath
+		+ "|profile=" + binaryLoadRequest.profile;
 }
 
 bool ShaderModule::validateLoadRequest(const ShaderLoadRequest& loadRequest) const
 {
 	return getShaderStageIndex(loadRequest.stage) != uint32MaxValue
-		&& !loadRequest.shaderRelativePath.empty()
-		&& !loadRequest.entryPoint.empty()
-		&& !loadRequest.profile.empty();
+		&& !loadRequest.sourceRelativePath.empty()
+		&& !loadRequest.entryPoint.empty();
 }
 
-bool ShaderModule::resolveShaderAbsolutePath(
-	const string& shaderRelativePath,
+bool ShaderModule::validateBinaryLoadRequest(const ShaderBinaryLoadRequest& binaryLoadRequest) const
+{
+	return getShaderTargetPlatformIndex(binaryLoadRequest.targetPlatform) != uint32MaxValue
+		&& !binaryLoadRequest.binaryRelativePath.empty();
+}
+
+bool ShaderModule::resolveShaderBinaryAbsolutePath(
+	const string& binaryRelativePath,
 	string& outAbsolutePath) const
 {
 	outAbsolutePath.clear();
-	return frameworkFileSystemResolvePathFromResources(shaderRelativePath, outAbsolutePath);
+	return frameworkFileSystemResolvePathFromResources(binaryRelativePath, outAbsolutePath);
 }

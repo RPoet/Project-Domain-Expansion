@@ -4,6 +4,7 @@ name=GeometryBaseColor
 [Shader]
 id=VS_Geometry
 stage=vertex
+source=Shaders/Geometry/GeometryBaseColor.hlsl
 file=Shaders/Geometry/GeometryBaseColorVS.bin
 entry=mainVS
 profile=vs_6_6
@@ -12,6 +13,7 @@ definesHash=0
 [Shader]
 id=PS_Geometry
 stage=pixel
+source=Shaders/Geometry/GeometryBaseColor.hlsl
 file=Shaders/Geometry/GeometryBaseColorPS.bin
 entry=mainPS
 profile=ps_6_6

@@ -2,6 +2,7 @@
 
 #include "Engine/Framework/Framework.h"
 #include "Engine/Window/WindowsWindowObject.h"
+#include "Render/Backends/Dx12/Dx12Shader.h"
 
 #include <d3dcompiler.h>
 #include <cstring>
@@ -156,27 +157,93 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	const char* computeShaderSource =
 		"[numthreads(1, 1, 1)] void mainCS(uint3 dispatchThreadId : SV_DispatchThreadID) { }";
 
-	shared_pointer<ShaderAsset> vertexShader(new ShaderAsset());
-	shared_pointer<ShaderAsset> pixelShader(new ShaderAsset());
-	shared_pointer<ShaderAsset> computeShader(new ShaderAsset());
-	runResult = expectCondition(vertexShader != nullptr, "run: create vertex shader asset") && runResult;
-	runResult = expectCondition(pixelShader != nullptr, "run: create pixel shader asset") && runResult;
-	runResult = expectCondition(computeShader != nullptr, "run: create compute shader asset") && runResult;
-	if (!runResult || vertexShader == nullptr || pixelShader == nullptr || computeShader == nullptr)
+	vector<char> vertexShaderByteCode = {};
+	vector<char> pixelShaderByteCode = {};
+	vector<char> computeShaderByteCode = {};
+
+	runResult = expectCondition(
+		compileShaderByteCode(vertexShaderSource, "mainVS", "vs_5_0", vertexShaderByteCode),
+		"run: compile vertex shader") && runResult;
+	runResult = expectCondition(
+		compileShaderByteCode(pixelShaderSource, "mainPS", "ps_5_0", pixelShaderByteCode),
+		"run: compile pixel shader") && runResult;
+	runResult = expectCondition(
+		compileShaderByteCode(computeShaderSource, "mainCS", "cs_5_0", computeShaderByteCode),
+		"run: compile compute shader") && runResult;
+	if (!runResult)
 	{
 		return false;
 	}
 
+	shared_pointer<ShaderAsset> vertexShaderAsset(new ShaderAsset());
+	shared_pointer<ShaderAsset> pixelShaderAsset(new ShaderAsset());
+	shared_pointer<ShaderAsset> computeShaderAsset(new ShaderAsset());
+	runResult = expectCondition(vertexShaderAsset != nullptr, "run: create vertex shader asset") && runResult;
+	runResult = expectCondition(pixelShaderAsset != nullptr, "run: create pixel shader asset") && runResult;
+	runResult = expectCondition(computeShaderAsset != nullptr, "run: create compute shader asset") && runResult;
+	if (!runResult
+		|| vertexShaderAsset == nullptr
+		|| pixelShaderAsset == nullptr
+		|| computeShaderAsset == nullptr)
+	{
+		return false;
+	}
+
+	ShaderLoadRequest vertexShaderLoadRequest = {};
+	vertexShaderLoadRequest.stage = ShaderStage::vertex;
+	vertexShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/Vertex.hlsl";
+	vertexShaderLoadRequest.entryPoint = "mainVS";
+	ShaderLoadRequest pixelShaderLoadRequest = {};
+	pixelShaderLoadRequest.stage = ShaderStage::pixel;
+	pixelShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/Pixel.hlsl";
+	pixelShaderLoadRequest.entryPoint = "mainPS";
+	ShaderLoadRequest computeShaderLoadRequest = {};
+	computeShaderLoadRequest.stage = ShaderStage::compute;
+	computeShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/Compute.hlsl";
+	computeShaderLoadRequest.entryPoint = "mainCS";
+	ShaderBinaryLoadRequest vertexShaderBinaryLoadRequest = {};
+	vertexShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
+	vertexShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/Vertex.dxbc";
+	vertexShaderBinaryLoadRequest.profile = "vs_5_0";
+	ShaderBinaryLoadRequest pixelShaderBinaryLoadRequest = {};
+	pixelShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
+	pixelShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/Pixel.dxbc";
+	pixelShaderBinaryLoadRequest.profile = "ps_5_0";
+	ShaderBinaryLoadRequest computeShaderBinaryLoadRequest = {};
+	computeShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
+	computeShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/Compute.dxbc";
+	computeShaderBinaryLoadRequest.profile = "cs_5_0";
+
 	runResult = expectCondition(
-		compileShaderByteCode(vertexShaderSource, "mainVS", "vs_5_0", vertexShader->byteCode),
-		"run: compile vertex shader") && runResult;
+		vertexShaderAsset->initialize(vertexShaderLoadRequest),
+		"run: initialize vertex shader asset") && runResult;
 	runResult = expectCondition(
-		compileShaderByteCode(pixelShaderSource, "mainPS", "ps_5_0", pixelShader->byteCode),
-		"run: compile pixel shader") && runResult;
+		pixelShaderAsset->initialize(pixelShaderLoadRequest),
+		"run: initialize pixel shader asset") && runResult;
 	runResult = expectCondition(
-		compileShaderByteCode(computeShaderSource, "mainCS", "cs_5_0", computeShader->byteCode),
-		"run: compile compute shader") && runResult;
+		computeShaderAsset->initialize(computeShaderLoadRequest),
+		"run: initialize compute shader asset") && runResult;
 	if (!runResult)
+	{
+		return false;
+	}
+
+	shared_pointer<Dx12ShaderObject> vertexShader(new Dx12ShaderObject());
+	shared_pointer<Dx12ShaderObject> pixelShader(new Dx12ShaderObject());
+	shared_pointer<Dx12ShaderObject> computeShader(new Dx12ShaderObject());
+	runResult = expectCondition(vertexShader != nullptr, "run: create vertex shader object") && runResult;
+	runResult = expectCondition(pixelShader != nullptr, "run: create pixel shader object") && runResult;
+	runResult = expectCondition(computeShader != nullptr, "run: create compute shader object") && runResult;
+	runResult = expectCondition(
+		vertexShader != nullptr && vertexShader->initialize(vertexShaderAsset, vertexShaderBinaryLoadRequest, moveValue(vertexShaderByteCode)),
+		"run: initialize vertex shader object") && runResult;
+	runResult = expectCondition(
+		pixelShader != nullptr && pixelShader->initialize(pixelShaderAsset, pixelShaderBinaryLoadRequest, moveValue(pixelShaderByteCode)),
+		"run: initialize pixel shader object") && runResult;
+	runResult = expectCondition(
+		computeShader != nullptr && computeShader->initialize(computeShaderAsset, computeShaderBinaryLoadRequest, moveValue(computeShaderByteCode)),
+		"run: initialize compute shader object") && runResult;
+	if (!runResult || vertexShader == nullptr || pixelShader == nullptr || computeShader == nullptr)
 	{
 		return false;
 	}

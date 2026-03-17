@@ -8,6 +8,7 @@
 #include "Engine/Tests/FrameworkObjMeshLoaderTestCase.h"
 #include "Engine/Tests/FrameworkPipelineStateLifecycleTestCase.h"
 #include "Engine/Tests/FrameworkRootSignatureLifecycleTestCase.h"
+#include "Engine/Tests/FrameworkShaderAssetSmokeTestCase.h"
 #include "Engine/Tests/FrameworkShaderPackageTestCase.h"
 #include "Engine/Tests/FrameworkWorldSerializationTestCase.h"
 
@@ -59,6 +60,11 @@ unique_pointer<FrameworkTestCase> createFrameworkPipelineStateLifecycleTestCase(
 unique_pointer<FrameworkTestCase> createFrameworkShaderPackageTestCase()
 {
 	return unique_pointer<FrameworkTestCase>(new FrameworkShaderPackageTestCase());
+}
+
+unique_pointer<FrameworkTestCase> createFrameworkShaderAssetSmokeTestCase()
+{
+	return unique_pointer<FrameworkTestCase>(new FrameworkShaderAssetSmokeTestCase());
 }
 
 unique_pointer<FrameworkTestCase> createFrameworkWorldSerializationTestCase()

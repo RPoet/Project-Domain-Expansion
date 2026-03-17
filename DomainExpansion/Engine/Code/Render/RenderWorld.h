@@ -66,6 +66,8 @@ public:
 
 private:
 	WindowsWindowObject* windowObject = nullptr;
+
+	// TO DO : Change as signal
 	uint64 consumedWorldUpdateSerial = 0;
 	Temp_RenderWorldView view = {};
 };

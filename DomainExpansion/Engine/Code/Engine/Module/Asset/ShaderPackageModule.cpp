@@ -17,6 +17,7 @@ struct ShaderPackageShaderRecord
 {
 	string id = {};
 	ShaderLoadRequest loadRequest = {};
+	ShaderBinaryLoadRequest binaryLoadRequest = {};
 };
 
 struct ShaderPackageVariantRecord
@@ -78,8 +79,15 @@ static bool parseShaderStageText(const string& text, ShaderStage& outShaderStage
 	return false;
 }
 
-static string getDefaultShaderProfileText(const ShaderStage shaderStage)
+static string getDefaultShaderBinaryProfileText(
+	const ShaderStage shaderStage,
+	const ShaderTargetPlatform shaderTargetPlatform)
 {
+	if (shaderTargetPlatform != ShaderTargetPlatform::dx12)
+	{
+		return {};
+	}
+
 	switch (shaderStage)
 	{
 	case ShaderStage::vertex:
@@ -129,11 +137,11 @@ static bool flushShaderRecord(
 		return false;
 	}
 
-	if (shaderRecord.loadRequest.shaderRelativePath.empty())
+	if (shaderRecord.binaryLoadRequest.binaryRelativePath.empty())
 	{
 		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
 			  << " line=" << lineNumber
-			  << " reason=shader_file_missing id=" << shaderRecord.id << lineBreak;
+			  << " reason=shader_binary_missing id=" << shaderRecord.id << lineBreak;
 		return false;
 	}
 
@@ -142,9 +150,16 @@ static bool flushShaderRecord(
 		shaderRecord.loadRequest.entryPoint = "main";
 	}
 
-	if (shaderRecord.loadRequest.profile.empty())
+	if (shaderRecord.loadRequest.sourceRelativePath.empty())
 	{
-		shaderRecord.loadRequest.profile = getDefaultShaderProfileText(shaderRecord.loadRequest.stage);
+		shaderRecord.loadRequest.sourceRelativePath = shaderRecord.binaryLoadRequest.binaryRelativePath;
+	}
+
+	if (shaderRecord.binaryLoadRequest.profile.empty())
+	{
+		shaderRecord.binaryLoadRequest.profile = getDefaultShaderBinaryProfileText(
+			shaderRecord.loadRequest.stage,
+			shaderRecord.binaryLoadRequest.targetPlatform);
 	}
 
 	outShaderRecords.push_back(shaderRecord);
@@ -305,7 +320,13 @@ static bool parseShaderPackageManifest(
 
 			if (key == "file")
 			{
-				shaderRecord.loadRequest.shaderRelativePath = value;
+				shaderRecord.binaryLoadRequest.binaryRelativePath = value;
+				continue;
+			}
+
+			if (key == "source")
+			{
+				shaderRecord.loadRequest.sourceRelativePath = value;
 				continue;
 			}
 
@@ -317,7 +338,7 @@ static bool parseShaderPackageManifest(
 
 			if (key == "profile")
 			{
-				shaderRecord.loadRequest.profile = value;
+				shaderRecord.binaryLoadRequest.profile = value;
 				continue;
 			}
 
@@ -386,7 +407,7 @@ static bool parseShaderPackageManifest(
 static bool resolveShaderRecords(
 	const string& packageRelativePath,
 	const vector<ShaderPackageShaderRecord>& shaderRecords,
-	unordered_map<string, shared_pointer<ShaderAssetHandle>>& outShaderById)
+	unordered_map<string, shared_pointer<ShaderHandle>>& outShaderById)
 {
 	outShaderById.clear();
 	shared_pointer<ShaderModule> shaderModule = ShaderModule::get();
@@ -414,8 +435,9 @@ static bool resolveShaderRecords(
 			return false;
 		}
 
-		shared_pointer<ShaderAssetHandle> shaderHandle = shaderModule->getOrLoadShader(shaderRecord.loadRequest);
-		if (shaderHandle == nullptr || shaderHandle->state != ShaderAssetState::ready)
+		shared_pointer<ShaderHandle> shaderHandle =
+			shaderModule->getOrLoadShader(shaderRecord.loadRequest, shaderRecord.binaryLoadRequest);
+		if (shaderHandle == nullptr || shaderHandle->state != ShaderHandleState::ready)
 		{
 			error << "[ShaderPackageModule][Error] package=" << packageRelativePath
 				  << " reason=shader_load_failed id=" << shaderRecord.id << lineBreak;
@@ -431,7 +453,7 @@ static bool resolveShaderRecords(
 static bool buildVariants(
 	const string& packageRelativePath,
 	const vector<ShaderPackageVariantRecord>& variantRecords,
-	const unordered_map<string, shared_pointer<ShaderAssetHandle>>& shaderById,
+	const unordered_map<string, shared_pointer<ShaderHandle>>& shaderById,
 	vector<ShaderPackageVariant>& outVariants)
 {
 	outVariants.clear();
@@ -455,7 +477,7 @@ static bool buildVariants(
 			const auto foundShader = shaderById.find(shaderId);
 			if (foundShader == shaderById.end()
 				|| foundShader->second == nullptr
-				|| foundShader->second->shaderAsset == nullptr)
+				|| foundShader->second->shader == nullptr)
 			{
 				error << "[ShaderPackageModule][Error] package=" << packageRelativePath
 					  << " variant=" << variantRecord.name
@@ -463,7 +485,7 @@ static bool buildVariants(
 				return false;
 			}
 
-			variant.shaders[shaderStageIndex] = foundShader->second->shaderAsset;
+			variant.shaders[shaderStageIndex] = foundShader->second->shader;
 			++linkedShaderCount;
 		}
 
@@ -539,7 +561,7 @@ shared_pointer<ShaderPackageAsset> ShaderPackageModule::getOrLoadPackage(const s
 		return packageAsset;
 	}
 
-	unordered_map<string, shared_pointer<ShaderAssetHandle>> shaderById;
+	unordered_map<string, shared_pointer<ShaderHandle>> shaderById;
 	shaderById.reserve(shaderRecords.size());
 	if (!resolveShaderRecords(packageRelativePath, shaderRecords, shaderById))
 	{

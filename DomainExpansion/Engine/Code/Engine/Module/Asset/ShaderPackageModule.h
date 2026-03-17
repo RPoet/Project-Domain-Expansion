@@ -2,7 +2,7 @@
 
 #include "Engine/Module/Asset/ShaderModule.h"
 #include "Engine/Module/Module.h"
-#include "Render/ShaderAsset.h"
+#include "Render/Shader.h"
 
 class ShaderPackageModule final : public StaticModule<ShaderPackageModule>
 {

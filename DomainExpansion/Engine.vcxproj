@@ -122,12 +122,15 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderAssetSmokeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
@@ -192,6 +195,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkPipelineStateLifecycleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRootSignatureLifecycleTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkShaderAssetSmokeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\UpdateOrderRecordingComponent.h" />
@@ -209,6 +213,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateDesc.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12PipelineStateObject.h" />
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12Shader.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderTargetView.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RootSignatureDesc.h" />
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RootSignatureObject.h" />
@@ -218,9 +223,11 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackendDefinitions.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
@@ -238,7 +245,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\SyncObject.h" />
     <ClInclude Include="Engine\Code\Render\SwapChain.h" />
     <ClInclude Include="Engine\Code\Render\Screen.h" />
-    <ClInclude Include="Engine\Code\Render\ShaderAsset.h" />
+    <ClInclude Include="Engine\Code\Render\Shader.h" />
     <ClInclude Include="Engine\Code\Render\Renderer.h" />
     <ClInclude Include="Engine\Code\Render\RenderTypes.h" />
     <ClInclude Include="Engine\Code\Render\ResourceTypes.h" />

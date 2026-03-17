@@ -14,6 +14,7 @@ void Framework::registerTest()
 	addTestCase(createFrameworkRootSignatureLifecycleTestCase());
 	addTestCase(createFrameworkPipelineStateLifecycleTestCase());
 	addTestCase(createFrameworkShaderPackageTestCase());
+	addTestCase(createFrameworkShaderAssetSmokeTestCase());
 	addTestCase(createFrameworkWorldSerializationTestCase());
 }
 

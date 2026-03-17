@@ -97,8 +97,8 @@ public:
 				continue;
 			}
 
-			shared_pointer<ShaderAsset> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
-			shared_pointer<ShaderAsset> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
+			shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
+			shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
 			if (vertexShader == nullptr || pixelShader == nullptr)
 			{
 				continue;

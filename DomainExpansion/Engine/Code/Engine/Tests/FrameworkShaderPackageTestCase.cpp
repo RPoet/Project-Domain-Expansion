@@ -79,24 +79,24 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 	runResult = expectCondition(graphicsVariant != nullptr, "run: graphics variant exists") && runResult;
 	runResult = expectCondition(computeVariant != nullptr, "run: compute variant exists") && runResult;
 
-	shared_pointer<ShaderAsset> graphicsVertexShader = graphicsVariant != nullptr
+	shared_pointer<ShaderObject> graphicsVertexShader = graphicsVariant != nullptr
 		? graphicsVariant->getShader(ShaderStage::vertex)
 		: nullptr;
-	shared_pointer<ShaderAsset> graphicsPixelShader = graphicsVariant != nullptr
+	shared_pointer<ShaderObject> graphicsPixelShader = graphicsVariant != nullptr
 		? graphicsVariant->getShader(ShaderStage::pixel)
 		: nullptr;
-	shared_pointer<ShaderAsset> computeShader = computeVariant != nullptr
+	shared_pointer<ShaderObject> computeShader = computeVariant != nullptr
 		? computeVariant->getShader(ShaderStage::compute)
 		: nullptr;
 
 	runResult = expectCondition(
-		graphicsVertexShader != nullptr && !graphicsVertexShader->byteCode.empty(),
+		graphicsVertexShader != nullptr && graphicsVertexShader->getShaderDataHash() != 0,
 		"run: graphics vertex shader linked") && runResult;
 	runResult = expectCondition(
-		graphicsPixelShader != nullptr && !graphicsPixelShader->byteCode.empty(),
+		graphicsPixelShader != nullptr && graphicsPixelShader->getShaderDataHash() != 0,
 		"run: graphics pixel shader linked") && runResult;
 	runResult = expectCondition(
-		computeShader != nullptr && !computeShader->byteCode.empty(),
+		computeShader != nullptr && computeShader->getShaderDataHash() != 0,
 		"run: compute shader linked") && runResult;
 	runResult = expectCondition(
 		shaderModule->getCachedShaderCount() == 3 && shaderPackageModule->getCachedPackageCount() == 1,
@@ -135,7 +135,7 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 		reloadedPackageAfterPackageClear != nullptr
 		? Temp_findShaderPackageVariantByName(*reloadedPackageAfterPackageClear, "GraphicsDefault")
 		: nullptr;
-	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterPackageClear =
+	shared_pointer<ShaderObject> reloadedGraphicsVertexShaderAfterPackageClear =
 		reloadedGraphicsVariantAfterPackageClear != nullptr
 		? reloadedGraphicsVariantAfterPackageClear->getShader(ShaderStage::vertex)
 		: nullptr;
@@ -150,7 +150,7 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 		reloadedPackageAfterShaderClear != nullptr
 		? Temp_findShaderPackageVariantByName(*reloadedPackageAfterShaderClear, "GraphicsDefault")
 		: nullptr;
-	shared_pointer<ShaderAsset> reloadedGraphicsVertexShaderAfterShaderClear =
+	shared_pointer<ShaderObject> reloadedGraphicsVertexShaderAfterShaderClear =
 		reloadedGraphicsVariantAfterShaderClear != nullptr
 		? reloadedGraphicsVariantAfterShaderClear->getShader(ShaderStage::vertex)
 		: nullptr;
