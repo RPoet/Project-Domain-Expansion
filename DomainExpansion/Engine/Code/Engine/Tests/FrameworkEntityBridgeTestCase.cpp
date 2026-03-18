@@ -36,6 +36,7 @@ bool FrameworkEntityBridgeTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		dynamicData != nullptr
 			&& dynamicData->entityIndex == 77
+			&& dynamicData->active
 			&& dynamicData->hasTransform
 			&& dynamicData->transform.positionX == 3.0f,
 		"run: initial dynamic data injected on create") && runResult;
@@ -53,6 +54,7 @@ bool FrameworkEntityBridgeTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		dynamicData != nullptr
 			&& dynamicData->entityIndex == 77
+			&& dynamicData->active
 			&& dynamicData->transform.positionX == 3.0f,
 		"run: dynamic data update deferred before processFrame") && runResult;
 	if (!runResult)
@@ -65,6 +67,7 @@ bool FrameworkEntityBridgeTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		dynamicData != nullptr
 			&& dynamicData->entityIndex == 88
+			&& dynamicData->active
 			&& dynamicData->transform.positionX == 6.0f,
 		"run: dynamic data update applied on processFrame") && runResult;
 	if (!runResult)

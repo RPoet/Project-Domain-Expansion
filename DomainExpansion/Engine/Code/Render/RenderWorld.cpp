@@ -1,5 +1,6 @@
 #include "Render/RenderWorld.h"
 
+#include "Bridge/CameraBridge.h"
 #include "Bridge/EntityBridge.h"
 #include "Bridge/MeshBridge.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
@@ -8,6 +9,43 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
 #include "Render/Renderer.h"
+
+class RenderCameraBuilder
+{
+public:
+	vector<BridgeHandle> build()
+	{
+		vector<BridgeHandle> cameraHandles = {};
+
+		for (uint32 cameraSlotIndex = 0; cameraSlotIndex < CameraBridge::maxObjectCount; ++cameraSlotIndex)
+		{
+			const CameraBridge::PackedHandle cameraHandle = CameraBridge::get().getPackedHandleBySlotIndex(cameraSlotIndex);
+			if (cameraHandle == CameraBridge::invalidPackedHandle)
+			{
+				continue;
+			}
+
+			const CameraBridge::StaticData* cameraStaticData = CameraBridge::get().getStaticData(cameraHandle);
+			if (cameraStaticData == nullptr
+				|| cameraStaticData->entityHandle == invalidBridgeHandle)
+			{
+				continue;
+			}
+
+			assert(CameraBridge::get().getDynamicData(cameraHandle) != nullptr && "[RenderWorld][Assert] reason=camera_dynamic_data_missing");
+
+			const EntityBridge::DynamicData* entityDynamicData = EntityBridge::get().getDynamicData(cameraStaticData->entityHandle);
+			if (entityDynamicData == nullptr || !entityDynamicData->active)
+			{
+				continue;
+			}
+
+			cameraHandles.push_back(cameraHandle);
+		}
+
+		return cameraHandles;
+	}
+};
 
 class MeshCommandBuilder
 {
@@ -42,7 +80,7 @@ public:
 			}
 
 			const EntityBridge::DynamicData* entityDynamicData = EntityBridge::get().getDynamicData(meshStaticData->entityHandle);
-			if (entityDynamicData == nullptr || !entityDynamicData->hasTransform)
+			if (entityDynamicData == nullptr || !entityDynamicData->active || !entityDynamicData->hasTransform)
 			{
 				continue;
 			}
@@ -264,8 +302,10 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 	}
 
 	consumedWorldUpdateSerial = updateInput.worldUpdateSerial;
-	MeshCommandBuilder builder = {};
-	RenderWorldBuildResult buildResult = builder.build();
+	MeshCommandBuilder meshBuilder = {};
+	RenderWorldBuildResult buildResult = meshBuilder.build();
+	RenderCameraBuilder cameraBuilder = {};
+	buildResult.cameraHandles = cameraBuilder.build();
 	MeshDrawCommandBuilder drawCommandBuilder = {};
 	RenderWorldDrawPrepareResult drawPrepareResult = drawCommandBuilder.build(buildResult);
 
@@ -353,13 +393,17 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 	RenderCommand& renderCommand = RenderCommand::get();
 	shared_pointer<RenderWorldDrawPrepareResult> drawPrepareResultHandle(new RenderWorldDrawPrepareResult(moveValue(drawPrepareResult)));
+	const BridgeHandle cameraHandle =
+		!buildResult.cameraHandles.empty()
+		? buildResult.cameraHandles[0]
+		: invalidBridgeHandle;
 	renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);
 		MeshStreaming::get()->flushGpuRequests(renderBackendReference);
 	});
 
-	renderCommand.enqueue("Render", [this, drawPrepareResultHandle](string&& commandName, RenderBackend& renderBackendReference)
+	renderCommand.enqueue("Render", [this, drawPrepareResultHandle, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);
 
@@ -422,15 +466,21 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			0.17f,
 			1.0f);
 		commandList->clearDepthStencil(view.depthStencilView, 1.0f, 0);
-		if (drawPrepareResultHandle != nullptr)
+		if (drawPrepareResultHandle != nullptr && cameraHandle != invalidBridgeHandle)
 		{
 			Renderer renderer = {};
 			renderer.setBackend(&renderBackendReference);
-			float3 cameraPosition = {};
-			cameraPosition.z = 4.0f;
+			const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+			assert(cameraDynamicData != nullptr && "[RenderWorld][Assert] reason=camera_dynamic_data_missing");
+
 			const float4x4 viewProjectionMatrix = multiplyMatrix4x4(
-				buildViewMatrix4x4(cameraPosition),
-				buildProjectionMatrix4x4(swapChain->getWidth(), swapChain->getHeight()));
+				cameraDynamicData->viewMatrix,
+				buildProjectionMatrix4x4(
+					swapChain->getWidth(),
+					swapChain->getHeight(),
+					cameraDynamicData->fieldOfViewYDegrees,
+					cameraDynamicData->nearPlane,
+					cameraDynamicData->farPlane));
 			renderer.drawGeometry(
 				commandList,
 				*drawPrepareResultHandle,
@@ -538,6 +588,9 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 RenderWorldBuildResult RenderWorld::build()
 {
-	MeshCommandBuilder builder = {};
-	return builder.build();
+	MeshCommandBuilder meshBuilder = {};
+	RenderWorldBuildResult buildResult = meshBuilder.build();
+	RenderCameraBuilder cameraBuilder = {};
+	buildResult.cameraHandles = cameraBuilder.build();
+	return buildResult;
 }

@@ -123,21 +123,38 @@ inline float4x4 buildWorldMatrix4x4(const float3& position, const float3& rotati
 		translationMatrix);
 }
 
-inline float4x4 buildViewMatrix4x4(const float3& position)
+inline float4x4 buildViewMatrix4x4(const float3& position, const float3& rotation)
 {
-	return buildTranslationMatrix4x4(position);
+	const float4x4 rotationXMatrix = buildRotationXMatrix4x4(-rotation.x);
+	const float4x4 rotationYMatrix = buildRotationYMatrix4x4(-rotation.y);
+	const float4x4 rotationZMatrix = buildRotationZMatrix4x4(-rotation.z);
+	const float4x4 translationMatrix = buildTranslationMatrix4x4(position);
+	return multiplyMatrix4x4(
+		multiplyMatrix4x4(
+			multiplyMatrix4x4(rotationXMatrix, rotationYMatrix),
+			rotationZMatrix),
+		translationMatrix);
 }
 
-inline float4x4 buildProjectionMatrix4x4(const unsigned int viewportWidth, const unsigned int viewportHeight)
+inline float4x4 buildViewMatrix4x4(const float3& position)
+{
+	const float3 rotation = {};
+	return buildViewMatrix4x4(position, rotation);
+}
+
+inline float4x4 buildProjectionMatrix4x4(
+	const unsigned int viewportWidth,
+	const unsigned int viewportHeight,
+	const float fieldOfViewYDegrees,
+	const float nearPlane,
+	const float farPlane)
 {
 	float4x4 matrix = {};
 	const float aspectRatio = viewportHeight > 0
 		? static_cast<float>(viewportWidth) / static_cast<float>(viewportHeight)
 		: 1.0f;
-	const float fieldOfViewY = 60.0f * 3.1415926535f / 180.0f;
+	const float fieldOfViewY = fieldOfViewYDegrees * 3.1415926535f / 180.0f;
 	const float tangentValue = tanf(fieldOfViewY * 0.5f);
-	const float nearPlane = 0.1f;
-	const float farPlane = 100.0f;
 	const float yScale = tangentValue > 0.0f ? 1.0f / tangentValue : 1.0f;
 	const float xScale = aspectRatio > 0.0f ? yScale / aspectRatio : yScale;
 	matrix.value[0] = xScale;
@@ -146,4 +163,9 @@ inline float4x4 buildProjectionMatrix4x4(const unsigned int viewportWidth, const
 	matrix.value[11] = 1.0f;
 	matrix.value[14] = (-nearPlane * farPlane) / (farPlane - nearPlane);
 	return matrix;
+}
+
+inline float4x4 buildProjectionMatrix4x4(const unsigned int viewportWidth, const unsigned int viewportHeight)
+{
+	return buildProjectionMatrix4x4(viewportWidth, viewportHeight, 60.0f, 0.1f, 100.0f);
 }

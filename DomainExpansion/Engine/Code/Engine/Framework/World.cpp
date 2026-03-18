@@ -396,7 +396,7 @@ void World::tick(const float deltaTimeSeconds)
 			continue;
 		}
 
-		if (entity->activeState)
+		if (entity->active)
 		{
 			entity->tick(deltaTimeSeconds);
 		}

@@ -1,5 +1,6 @@
 #include "Engine/Framework/FrameworkSerialization.h"
 
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
@@ -16,7 +17,7 @@ enum class ParseSection : uint32
 	entity = 2,
 };
 
-struct EntityRecord
+struct Temp_EntityRecord
 {
 	int32 sourceId = -1;
 	string type = "entity";
@@ -26,6 +27,11 @@ struct EntityRecord
 	string meshPath = {};
 	uint32 lodLevel = 0;
 	bool visible = true;
+	bool hasCameraComponent = false;
+	bool cameraPrimary = false;
+	float cameraFieldOfViewYDegrees = 60.0f;
+	float cameraNearPlane = 0.1f;
+	float cameraFarPlane = 100.0f;
 };
 
 static string trimText(const string& text)
@@ -146,6 +152,48 @@ static bool failParse(
 	return false;
 }
 
+static MeshComponent* getFirstMeshComponent(Entity* entity, World* world)
+{
+	if (entity == nullptr || world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != ComponentType::meshComponent)
+		{
+			continue;
+		}
+
+		return static_cast<MeshComponent*>(component);
+	}
+
+	return nullptr;
+}
+
+static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
+{
+	if (entity == nullptr || world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		{
+			continue;
+		}
+
+		return static_cast<CameraComponent*>(component);
+	}
+
+	return nullptr;
+}
+
 bool frameworkSerializationLoadWorldFromFile(
 	const string& worldFilePath,
 	unique_pointer<World>& outWorld,
@@ -163,8 +211,8 @@ bool frameworkSerializationLoadWorldFromFile(
 		return false;
 	}
 
-	vector<EntityRecord> entityRecords;
-	EntityRecord currentRecord = {};
+	vector<Temp_EntityRecord> entityRecords;
+	Temp_EntityRecord currentRecord = {};
 	bool currentEntityValid = false;
 	string worldName = {};
 	ParseSection currentSection = ParseSection::none;
@@ -332,6 +380,57 @@ bool frameworkSerializationLoadWorldFromFile(
 			{
 				return failParse(worldFilePath, lineNumber, "invalid_mesh_visibility", outErrorText);
 			}
+
+			continue;
+		}
+
+		if (key == "cameraPrimary")
+		{
+			currentRecord.hasCameraComponent = true;
+			if (!parseBoolText(value, currentRecord.cameraPrimary))
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_camera_primary", outErrorText);
+			}
+
+			continue;
+		}
+
+		if (key == "cameraFieldOfViewYDegrees")
+		{
+			currentRecord.hasCameraComponent = true;
+			string_input_stream parser(value);
+			parser >> currentRecord.cameraFieldOfViewYDegrees;
+			if (!parser || !parser.eof())
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_camera_field_of_view", outErrorText);
+			}
+
+			continue;
+		}
+
+		if (key == "cameraNearPlane")
+		{
+			currentRecord.hasCameraComponent = true;
+			string_input_stream parser(value);
+			parser >> currentRecord.cameraNearPlane;
+			if (!parser || !parser.eof())
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_camera_near_plane", outErrorText);
+			}
+
+			continue;
+		}
+
+		if (key == "cameraFarPlane")
+		{
+			currentRecord.hasCameraComponent = true;
+			string_input_stream parser(value);
+			parser >> currentRecord.cameraFarPlane;
+			if (!parser || !parser.eof())
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_camera_far_plane", outErrorText);
+			}
+
 			continue;
 		}
 	}
@@ -352,8 +451,15 @@ bool frameworkSerializationLoadWorldFromFile(
 
 	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
 	{
-		const EntityRecord& record = entityRecords[recordIndex];
+		const Temp_EntityRecord& record = entityRecords[recordIndex];
 		const bool createPlaceableEntity = record.type == "placeable" || record.type == "Placeable";
+		if (record.hasCameraComponent && !createPlaceableEntity)
+		{
+			assert(false && "[FrameworkSerialization][Assert] reason=camera_requires_placeable_entity");
+			outErrorText = "camera_requires_placeable_entity";
+			return false;
+		}
+
 		const uint32 entityIndex = createPlaceableEntity
 			? loadedWorld->createPlaceableEntity()
 			: loadedWorld->createEntity();
@@ -365,7 +471,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			return false;
 		}
 
-		entity->activeState = record.active;
+		entity->setActive(record.active);
 		if (createPlaceableEntity)
 		{
 			PlaceableEntity* placeableEntity = dynamic_cast<PlaceableEntity*>(entity);
@@ -383,7 +489,7 @@ bool frameworkSerializationLoadWorldFromFile(
 
 	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
 	{
-		const EntityRecord& record = entityRecords[recordIndex];
+		const Temp_EntityRecord& record = entityRecords[recordIndex];
 		const int32 sourceId = record.sourceId >= 0
 			? record.sourceId
 			: static_cast<int32>(recordIndex);
@@ -409,7 +515,7 @@ bool frameworkSerializationLoadWorldFromFile(
 
 	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
 	{
-		const EntityRecord& record = entityRecords[recordIndex];
+		const Temp_EntityRecord& record = entityRecords[recordIndex];
 		if (record.meshPath.empty())
 		{
 			continue;
@@ -430,6 +536,31 @@ bool frameworkSerializationLoadWorldFromFile(
 		meshComponent->visible = record.visible;
 		loadedWorld->attachComponent(entityIt->second, moveValue(meshComponent));
 		MeshStreaming::get()->requestMesh(record.meshPath, record.lodLevel);
+	}
+
+	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
+	{
+		const Temp_EntityRecord& record = entityRecords[recordIndex];
+		if (!record.hasCameraComponent)
+		{
+			continue;
+		}
+
+		const int32 sourceId = record.sourceId >= 0
+			? record.sourceId
+			: static_cast<int32>(recordIndex);
+		const auto entityIt = sourceIdToEntityIndex.find(sourceId);
+		if (entityIt == sourceIdToEntityIndex.end())
+		{
+			continue;
+		}
+
+		unique_pointer<CameraComponent> cameraComponent(new CameraComponent());
+		cameraComponent->primary = record.cameraPrimary;
+		cameraComponent->fieldOfViewYDegrees = record.cameraFieldOfViewYDegrees;
+		cameraComponent->nearPlane = record.cameraNearPlane;
+		cameraComponent->farPlane = record.cameraFarPlane;
+		loadedWorld->attachComponent(entityIt->second, moveValue(cameraComponent));
 	}
 
 	outWorld = moveValue(loadedWorld);
@@ -474,6 +605,12 @@ bool frameworkSerializationSaveWorldToFile(
 			continue;
 		}
 
+		CameraComponent* cameraComponent = getFirstCameraComponent(const_cast<Entity*>(entity), const_cast<World*>(&world));
+		if (cameraComponent != nullptr && cameraComponent->editorCamera)
+		{
+			continue;
+		}
+
 		fileStream << "[Entity]" << '\n';
 		fileStream << "id=" << entityIndex << '\n';
 
@@ -487,7 +624,7 @@ bool frameworkSerializationSaveWorldToFile(
 			fileStream << "type=entity" << '\n';
 		}
 
-		fileStream << "active=" << (entity->activeState ? 1 : 0) << '\n';
+		fileStream << "active=" << (entity->active ? 1 : 0) << '\n';
 		if (entity->parentEntityIndex == invalidEntityIndex)
 		{
 			fileStream << "parent=-1" << '\n';
@@ -514,23 +651,21 @@ bool frameworkSerializationSaveWorldToFile(
 					   << transform.scaleZ << '\n';
 		}
 
-		const MeshComponent* meshComponent = nullptr;
-		for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
-		{
-			const uint32 componentIndex = entity->getComponentIndex(componentArrayIndex);
-			const Component* component = world.getComponentByIndex(componentIndex);
-			meshComponent = dynamic_cast<const MeshComponent*>(component);
-			if (meshComponent != nullptr)
-			{
-				break;
-			}
-		}
+		MeshComponent* meshComponent = getFirstMeshComponent(const_cast<Entity*>(entity), const_cast<World*>(&world));
 
 		if (meshComponent != nullptr)
 		{
 			fileStream << "mesh=" << meshComponent->meshRelativePath << '\n';
 			fileStream << "lod=" << meshComponent->lodLevel << '\n';
 			fileStream << "visible=" << (meshComponent->visible ? 1 : 0) << '\n';
+		}
+
+		if (cameraComponent != nullptr)
+		{
+			fileStream << "cameraPrimary=" << (cameraComponent->primary ? 1 : 0) << '\n';
+			fileStream << "cameraFieldOfViewYDegrees=" << cameraComponent->fieldOfViewYDegrees << '\n';
+			fileStream << "cameraNearPlane=" << cameraComponent->nearPlane << '\n';
+			fileStream << "cameraFarPlane=" << cameraComponent->farPlane << '\n';
 		}
 
 		fileStream << '\n';

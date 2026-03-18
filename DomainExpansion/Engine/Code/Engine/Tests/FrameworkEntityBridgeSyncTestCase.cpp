@@ -1,7 +1,9 @@
 #include "Engine/Tests/FrameworkEntityBridgeSyncTestCase.h"
 
+#include "Bridge/CameraBridge.h"
 #include "Bridge/EntityBridge.h"
 #include "Bridge/MeshBridge.h"
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
@@ -44,6 +46,15 @@ bool FrameworkEntityBridgeSyncTestCase::beginTest(Framework& framework)
 		placeableEntity->addComponent(moveValue(meshComponent)),
 		"begin: add mesh component to placeable entity") && beginResult;
 
+	unique_pointer<CameraComponent> cameraComponent(new CameraComponent());
+	cameraComponent->primary = true;
+	cameraComponent->fieldOfViewYDegrees = 75.0f;
+	cameraComponent->nearPlane = 0.5f;
+	cameraComponent->farPlane = 250.0f;
+	beginResult = expectCondition(
+		placeableEntity->addComponent(moveValue(cameraComponent)),
+		"begin: add camera component to placeable entity") && beginResult;
+
 	entityHandle = placeableEntity->getEntityHandle();
 	beginResult = expectCondition(entityHandle != invalidBridgeHandle, "begin: entity bridge handle exists") && beginResult;
 	MeshComponent* createdMeshComponent = nullptr;
@@ -63,6 +74,24 @@ bool FrameworkEntityBridgeSyncTestCase::beginTest(Framework& framework)
 		? createdMeshComponent->getMeshHandle()
 		: invalidBridgeHandle;
 	beginResult = expectCondition(meshHandle != invalidBridgeHandle, "begin: mesh bridge handle exists") && beginResult;
+
+	CameraComponent* createdCameraComponent = nullptr;
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		{
+			continue;
+		}
+
+		createdCameraComponent = static_cast<CameraComponent*>(component);
+		break;
+	}
+
+	cameraHandle = createdCameraComponent != nullptr
+		? createdCameraComponent->getCameraHandle()
+		: invalidBridgeHandle;
+	beginResult = expectCondition(cameraHandle != invalidBridgeHandle, "begin: camera bridge handle exists") && beginResult;
 	activeWorld->tick(0.016f);
 	return beginResult;
 }
@@ -76,12 +105,32 @@ bool FrameworkEntityBridgeSyncTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		entityDynamicData != nullptr
 			&& entityDynamicData->entityIndex == entityIndex
+			&& entityDynamicData->active
 			&& entityDynamicData->hasTransform
 			&& entityDynamicData->transform.positionX == 1.0f
 			&& entityDynamicData->transform.positionY == 2.0f
 			&& entityDynamicData->transform.scaleZ == 3.0f,
 		"run: entity tick synced transform") && runResult;
 	if (!runResult || entityDynamicData == nullptr)
+	{
+		return false;
+	}
+
+	const CameraBridge::StaticData* cameraStaticData = CameraBridge::get().getStaticData(cameraHandle);
+	const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+	runResult = expectCondition(
+		cameraStaticData != nullptr
+			&& cameraStaticData->entityHandle == entityHandle
+			&& !cameraStaticData->editorCamera
+			&& cameraDynamicData != nullptr
+			&& cameraDynamicData->primary
+			&& cameraDynamicData->fieldOfViewYDegrees == 75.0f
+			&& cameraDynamicData->nearPlane == 0.5f
+			&& cameraDynamicData->farPlane == 250.0f
+			&& cameraDynamicData->viewMatrix.value[12] == 1.0f
+			&& cameraDynamicData->viewMatrix.value[13] == 2.0f,
+		"run: camera bridge synced owner link and projection data") && runResult;
+	if (!runResult)
 	{
 		return false;
 	}
@@ -133,6 +182,30 @@ bool FrameworkEntityBridgeSyncTestCase::runTest(Framework& framework)
 		meshComponent->visible = false;
 	}
 
+	CameraComponent* cameraComponent = nullptr;
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		{
+			continue;
+		}
+
+		cameraComponent = static_cast<CameraComponent*>(component);
+		break;
+	}
+
+	runResult = expectCondition(cameraComponent != nullptr, "run: camera component exists before mutation") && runResult;
+	if (cameraComponent != nullptr)
+	{
+		cameraComponent->primary = false;
+		cameraComponent->fieldOfViewYDegrees = 90.0f;
+		cameraComponent->nearPlane = 1.0f;
+		cameraComponent->farPlane = 400.0f;
+	}
+
+	activeWorld->tick(0.016f);
+	placeableEntity->setActive(false);
 	activeWorld->tick(0.016f);
 
 	return runResult;
@@ -144,9 +217,10 @@ bool FrameworkEntityBridgeSyncTestCase::endTest(Framework& framework)
 	const EntityBridge::DynamicData* entityDynamicData = EntityBridge::get().getDynamicData(entityHandle);
 	endResult = expectCondition(
 		entityDynamicData != nullptr
+			&& !entityDynamicData->active
 			&& entityDynamicData->transform.positionX == 11.0f
 			&& entityDynamicData->transform.scaleZ == 13.0f,
-		"end: entity tick applied transform mutation on postUpdate") && endResult;
+		"end: entity bridge kept last transform and updated inactive state") && endResult;
 
 	if (entityDynamicData != nullptr)
 	{
@@ -154,6 +228,15 @@ bool FrameworkEntityBridgeSyncTestCase::endTest(Framework& framework)
 		endResult = expectCondition(
 			meshDynamicData != nullptr && !meshDynamicData->visible,
 			"end: mesh bridge applied visibility mutation on postUpdate") && endResult;
+
+		const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+		endResult = expectCondition(
+			cameraDynamicData != nullptr
+				&& !cameraDynamicData->primary
+				&& cameraDynamicData->fieldOfViewYDegrees == 90.0f
+				&& cameraDynamicData->nearPlane == 1.0f
+				&& cameraDynamicData->farPlane == 400.0f,
+			"end: camera bridge applied projection mutation before deactivation") && endResult;
 	}
 
 	framework.unloadWorld(worldIndex);
@@ -161,5 +244,6 @@ bool FrameworkEntityBridgeSyncTestCase::endTest(Framework& framework)
 	entityIndex = invalidEntityIndex;
 	entityHandle = invalidBridgeHandle;
 	meshHandle = invalidBridgeHandle;
+	cameraHandle = invalidBridgeHandle;
 	return endResult;
 }

@@ -12,6 +12,7 @@ struct EntityBridgeObject
 	struct DynamicProperty
 	{
 		uint32 entityIndex = invalidEntityIndex;
+		bool active = true;
 		bool hasTransform = false;
 		Transform transform = {};
 	};

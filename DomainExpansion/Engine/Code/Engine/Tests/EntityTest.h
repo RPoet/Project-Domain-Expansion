@@ -6,6 +6,7 @@ unique_pointer<FrameworkTestCase> createFrameworkEntityAddRemoveTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkEntityUpdateTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeSyncTestCase();
+unique_pointer<FrameworkTestCase> createFrameworkCameraBridgeTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkRenderWorldTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkBridgeLifecycleTestCase();
 unique_pointer<FrameworkTestCase> createFrameworkObjMeshLoaderTestCase();

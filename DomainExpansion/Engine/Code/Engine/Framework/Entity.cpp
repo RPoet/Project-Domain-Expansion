@@ -8,6 +8,7 @@ static bool isSameEntityBridgeDynamicData(
 	const EntityBridge::DynamicData& right)
 {
 	return left.entityIndex == right.entityIndex
+		&& left.active == right.active
 		&& left.hasTransform == right.hasTransform
 		&& left.transform == right.transform;
 }
@@ -43,6 +44,7 @@ void Entity::buildEntityBridgeDynamicData(EntityBridge::DynamicData& dynamicData
 {
 	dynamicData = {};
 	dynamicData.entityIndex = ownerEntityIndex;
+	dynamicData.active = active;
 
 	if (ownerWorld == nullptr)
 	{
@@ -148,4 +150,15 @@ uint32 Entity::getComponentIndex(const uint32 componentArrayIndex) const
 	}
 
 	return componentIndices[componentArrayIndex];
+}
+
+void Entity::setActive(const bool active)
+{
+	if (this->active == active)
+	{
+		return;
+	}
+
+	this->active = active;
+	requestEntityBridgeUpdate();
 }

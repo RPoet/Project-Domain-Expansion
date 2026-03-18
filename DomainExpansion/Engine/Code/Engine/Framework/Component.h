@@ -10,6 +10,7 @@ enum class ComponentType : uint32
 {
 	component = 0,
 	meshComponent = 1,
+	cameraComponent = 2,
 };
 
 class Component

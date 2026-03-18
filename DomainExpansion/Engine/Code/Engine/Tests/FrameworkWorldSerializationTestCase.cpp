@@ -1,8 +1,10 @@
 #include "Engine/Tests/FrameworkWorldSerializationTestCase.h"
 
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/FrameworkSerialization.h"
+#include "Engine/Framework/Framework.h"
 #include "Engine/Framework/World.h"
 
 const char* FrameworkWorldSerializationTestCase::getTestCaseName() const
@@ -26,8 +28,6 @@ bool FrameworkWorldSerializationTestCase::beginTest(Framework& framework)
 
 bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 {
-	unused(framework);
-
 	World sourceWorld(L"SerializationRoundTrip");
 	const uint32 entityIndex = sourceWorld.createPlaceableEntity();
 	Entity* sourceEntity = sourceWorld.getEntityByIndex(entityIndex);
@@ -53,6 +53,15 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 		runResult = expectCondition(
 			sourceEntity->addComponent(moveValue(meshComponent)),
 			"run: add mesh component to source entity") && runResult;
+
+		unique_pointer<CameraComponent> cameraComponent(new CameraComponent());
+		cameraComponent->primary = true;
+		cameraComponent->fieldOfViewYDegrees = 75.0f;
+		cameraComponent->nearPlane = 0.5f;
+		cameraComponent->farPlane = 250.0f;
+		runResult = expectCondition(
+			sourceEntity->addComponent(moveValue(cameraComponent)),
+			"run: add camera component to source entity") && runResult;
 	}
 
 	string saveErrorText = {};
@@ -77,6 +86,7 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 			"run: loaded entity lookup succeeds") && runResult;
 
 		MeshComponent* loadedMeshComponent = nullptr;
+		CameraComponent* loadedCameraComponent = nullptr;
 		if (loadedEntity != nullptr)
 		{
 			for (uint32 componentArrayIndex = 0;
@@ -85,10 +95,18 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 			{
 				const uint32 componentIndex = loadedEntity->getComponentIndex(componentArrayIndex);
 				Component* component = loadedWorld->getComponentByIndex(componentIndex);
-				loadedMeshComponent = dynamic_cast<MeshComponent*>(component);
-				if (loadedMeshComponent != nullptr)
+				if (component == nullptr)
 				{
-					break;
+					continue;
+				}
+
+				if (component->getComponentType() == ComponentType::meshComponent)
+				{
+					loadedMeshComponent = static_cast<MeshComponent*>(component);
+				}
+				else if (component->getComponentType() == ComponentType::cameraComponent)
+				{
+					loadedCameraComponent = static_cast<CameraComponent*>(component);
 				}
 			}
 		}
@@ -104,6 +122,60 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 				&& loadedMeshComponent->visible,
 				"run: loaded mesh component fields preserved") && runResult;
 		}
+
+		runResult = expectCondition(
+			loadedCameraComponent != nullptr && !loadedCameraComponent->editorCamera,
+			"run: loaded camera component exists and is not editor camera") && runResult;
+		if (loadedCameraComponent != nullptr)
+		{
+			runResult = expectCondition(
+				loadedCameraComponent->primary
+					&& loadedCameraComponent->fieldOfViewYDegrees == 75.0f
+					&& loadedCameraComponent->nearPlane == 0.5f
+					&& loadedCameraComponent->farPlane == 250.0f,
+				"run: loaded camera component fields preserved") && runResult;
+		}
+	}
+
+	runResult = expectCondition(
+		framework.loadWorldFromFile(generatedWorldFilePath),
+		"run: framework can load serialized world file") && runResult;
+	if (framework.getActiveWorld() != nullptr)
+	{
+		loadedWorldIndex = framework.getActiveWorldIndex();
+		uint32 sceneCameraCount = 0;
+		uint32 editorCameraCount = 0;
+		for (uint32 entityIndex = 0; entityIndex < framework.getActiveWorld()->getEntityCount(); ++entityIndex)
+		{
+			Entity* entity = framework.getActiveWorld()->getEntityByIndex(entityIndex);
+			if (entity == nullptr)
+			{
+				continue;
+			}
+
+			for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+			{
+				Component* component = framework.getActiveWorld()->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+				if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+				{
+					continue;
+				}
+
+				CameraComponent* cameraComponent = static_cast<CameraComponent*>(component);
+				if (cameraComponent->editorCamera)
+				{
+					++editorCameraCount;
+				}
+				else
+				{
+					++sceneCameraCount;
+				}
+			}
+		}
+
+		runResult = expectCondition(
+			sceneCameraCount == 1 && editorCameraCount == 1,
+			"run: framework load rehydrates scene camera and injects one editor camera") && runResult;
 	}
 
 	return runResult;
@@ -111,12 +183,16 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 
 bool FrameworkWorldSerializationTestCase::endTest(Framework& framework)
 {
-	unused(framework);
-
 	std::error_code removeError;
 	if (!generatedWorldFilePath.empty())
 	{
 		std::filesystem::remove(generatedWorldFilePath, removeError);
+	}
+
+	if (loadedWorldIndex != invalidWorldIndex)
+	{
+		framework.unloadWorld(loadedWorldIndex);
+		loadedWorldIndex = invalidWorldIndex;
 	}
 
 	generatedWorldFilePath.clear();

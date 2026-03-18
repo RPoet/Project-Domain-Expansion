@@ -8,6 +8,7 @@ void Framework::registerTest()
 	addTestCase(createFrameworkEntityUpdateTestCase());
 	addTestCase(createFrameworkEntityBridgeTestCase());
 	addTestCase(createFrameworkEntityBridgeSyncTestCase());
+	addTestCase(createFrameworkCameraBridgeTestCase());
 	addTestCase(createFrameworkRenderWorldTestCase());
 	addTestCase(createFrameworkBridgeLifecycleTestCase());
 	addTestCase(createFrameworkObjMeshLoaderTestCase());

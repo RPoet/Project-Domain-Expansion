@@ -13,4 +13,5 @@ public:
 private:
 	uint32 worldIndex = invalidWorldIndex;
 	uint32 entityIndex = invalidEntityIndex;
+	uint32 editorCameraEntityIndex = invalidEntityIndex;
 };

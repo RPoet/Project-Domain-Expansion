@@ -62,7 +62,7 @@ bool WindowsWindowObject::create(const WindowCreateOptions& options)
 	borderlessFullscreenState = false;
 	cursorCapturedState = false;
 	cursorVisibleState = true;
-	activeState = true;
+	active = true;
 	minimizedState = false;
 	maximizedState = false;
 	resizingState = false;
@@ -159,7 +159,7 @@ void WindowsWindowObject::destroy()
 
 	windowInstanceHandle = nullptr;
 	closeRequested = true;
-	activeState = false;
+	active = false;
 	minimizedState = false;
 	maximizedState = false;
 	resizingState = false;
@@ -235,7 +235,7 @@ float WindowsWindowObject::getDpiScale() const
 
 bool WindowsWindowObject::isActive() const
 {
-	return activeState;
+	return active;
 }
 
 bool WindowsWindowObject::isWindowMinimized() const
@@ -305,7 +305,7 @@ void WindowsWindowObject::setCursorCaptured(const bool captured)
 		return;
 	}
 
-	if (!activeState)
+	if (!active)
 	{
 		cursorCapturedState = false;
 		return;
@@ -412,14 +412,14 @@ MessageResult WindowsWindowObject::handleWindowMessage(
 		return 0;
 
 	case WM_ACTIVATEAPP:
-		activeState = (firstParameter != 0);
-		if (!activeState && cursorCapturedState)
+		active = (firstParameter != 0);
+		if (!active && cursorCapturedState)
 		{
 			setCursorCaptured(false);
 		}
 		if (windowEventCallbacks.onActivationChanged)
 		{
-			windowEventCallbacks.onActivationChanged(activeState);
+			windowEventCallbacks.onActivationChanged(active);
 		}
 		return 0;
 

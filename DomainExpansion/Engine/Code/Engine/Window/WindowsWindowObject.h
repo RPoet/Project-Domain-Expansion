@@ -95,7 +95,7 @@ private:
 	uint32 clientHeight = 0;
 	DotsPerInch windowDotsPerInch = 96;
 	bool closeRequested = false;
-	bool activeState = true;
+	bool active = true;
 	bool minimizedState = false;
 	bool maximizedState = false;
 	bool resizingState = false;

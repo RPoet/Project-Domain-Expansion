@@ -12,4 +12,5 @@ public:
 
 private:
 	string generatedWorldFilePath = {};
+	uint32 loadedWorldIndex = invalidWorldIndex;
 };

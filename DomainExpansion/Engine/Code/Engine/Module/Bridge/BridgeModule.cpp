@@ -1,13 +1,15 @@
 #include "Engine/Module/Bridge/BridgeModule.h"
 
+#include "Bridge/CameraBridge.h"
 #include "Bridge/EntityBridge.h"
 #include "Bridge/MeshBridge.h"
 
 bool BridgeModule::init(Framework& framework)
 {
 	unused(framework);
-	unused(EntityBridge::get());
-	unused(MeshBridge::get());
+	registerBridge(&CameraBridge::get());
+	registerBridge(&EntityBridge::get());
+	registerBridge(&MeshBridge::get());
 	return true;
 }
 

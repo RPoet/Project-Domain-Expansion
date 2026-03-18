@@ -1,9 +1,8 @@
 #pragma once
 
-#include "Bridge/BridgeHandle.h"
 #include "Engine/Framework/FrameworkTestCase.h"
 
-class FrameworkEntityBridgeSyncTestCase : public FrameworkTestCase
+class FrameworkCameraBridgeTestCase final : public FrameworkTestCase
 {
 public:
 	const char* getTestCaseName() const override;
@@ -13,8 +12,4 @@ public:
 
 private:
 	uint32 worldIndex = invalidWorldIndex;
-	uint32 entityIndex = invalidEntityIndex;
-	BridgeHandle entityHandle = invalidBridgeHandle;
-	BridgeHandle meshHandle = invalidBridgeHandle;
-	BridgeHandle cameraHandle = invalidBridgeHandle;
 };

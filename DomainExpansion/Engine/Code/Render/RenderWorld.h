@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Bridge/BridgeHandle.h"
+#include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Framework/Transform.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Engine/Window/WindowsWindowObject.h"
@@ -28,6 +30,7 @@ struct RenderWorldMeshDrawData
 struct RenderWorldBuildResult
 {
 	vector<RenderWorldMeshDrawData> meshDrawData = {};
+	vector<BridgeHandle> cameraHandles = {};
 };
 
 struct RenderWorldMeshDrawCommand

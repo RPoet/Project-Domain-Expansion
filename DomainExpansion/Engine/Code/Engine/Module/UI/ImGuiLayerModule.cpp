@@ -583,7 +583,7 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 	}
 
 	ImGui::Text("Entity [%u]", selectedEntityIndex);
-	ImGui::Text("Active: %s", selectedEntity->activeState ? "true" : "false");
+	ImGui::Text("Active: %s", selectedEntity->active ? "true" : "false");
 	if (selectedEntity->parentEntityIndex == invalidEntityIndex)
 	{
 		ImGui::TextUnformatted("Parent: invalid");

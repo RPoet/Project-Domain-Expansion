@@ -1,6 +1,8 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
+#include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
@@ -33,6 +35,27 @@ static const char* getFrameworkExecutionFlowText(const FrameworkExecutionFlow ex
 	default:
 		return "unknown";
 	}
+}
+
+static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
+{
+	if (entity == nullptr || world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		{
+			continue;
+		}
+
+		return static_cast<CameraComponent*>(component);
+	}
+
+	return nullptr;
 }
 
 Framework::Framework(const FrameworkExecutionFlow executionFlow)
@@ -187,6 +210,11 @@ bool Framework::loadWorld(const uint32 worldIndex)
 		return false;
 	}
 
+	if (!ensureEditorCameraEntity(*worldStorage[worldIndex]))
+	{
+		return false;
+	}
+
 	activeWorldIndex = worldIndex;
 	activeWorldFilePath.clear();
 	return true;
@@ -325,6 +353,84 @@ bool Framework::update()
 	postUpdateModules();
 	++worldUpdateSerial;
 
+	return true;
+}
+
+bool Framework::ensureEditorCameraEntity(World& world)
+{
+	PlaceableEntity* existingEditorCameraEntity = nullptr;
+	CameraComponent* existingEditorCameraComponent = nullptr;
+	uint32 editorCameraCount = 0;
+
+	for (uint32 entityIndex = 0; entityIndex < world.getEntityCount(); ++entityIndex)
+	{
+		Entity* entity = world.getEntityByIndex(entityIndex);
+		if (entity == nullptr)
+		{
+			continue;
+		}
+
+		CameraComponent* cameraComponent = getFirstCameraComponent(entity, &world);
+		if (cameraComponent == nullptr || !cameraComponent->editorCamera)
+		{
+			continue;
+		}
+
+		++editorCameraCount;
+		if (existingEditorCameraComponent != nullptr)
+		{
+			continue;
+		}
+
+		existingEditorCameraEntity = dynamic_cast<PlaceableEntity*>(entity);
+		existingEditorCameraComponent = cameraComponent;
+	}
+
+	const bool hasDuplicateEditorCamera = editorCameraCount > 1;
+	assert(!hasDuplicateEditorCamera && "[Framework][Assert] reason=duplicate_editor_camera");
+	if (hasDuplicateEditorCamera)
+	{
+		return false;
+	}
+
+	if (existingEditorCameraComponent != nullptr)
+	{
+		assert(existingEditorCameraEntity != nullptr && "[Framework][Assert] reason=editor_camera_requires_placeable_entity");
+		if (existingEditorCameraEntity == nullptr)
+		{
+			return false;
+		}
+
+		existingEditorCameraEntity->setActive(true);
+		existingEditorCameraComponent->primary = true;
+		existingEditorCameraEntity->tick(0.0f);
+		return true;
+	}
+
+	const uint32 editorCameraEntityIndex = world.createPlaceableEntity();
+	PlaceableEntity* editorCameraEntity = static_cast<PlaceableEntity*>(world.getEntityByIndex(editorCameraEntityIndex));
+	assert(editorCameraEntity != nullptr);
+	if (editorCameraEntity == nullptr)
+	{
+		return false;
+	}
+
+	editorCameraEntity->transform.positionZ = 4.0f;
+
+	unique_pointer<CameraComponent> editorCameraComponent(new CameraComponent());
+	editorCameraComponent->editorCamera = true;
+	editorCameraComponent->primary = true;
+	editorCameraComponent->fieldOfViewYDegrees = 60.0f;
+	editorCameraComponent->nearPlane = 0.1f;
+	editorCameraComponent->farPlane = 100.0f;
+	const bool addCameraResult = editorCameraEntity->addComponent(moveValue(editorCameraComponent));
+	assert(addCameraResult && "[Framework][Assert] reason=editor_camera_component_add_failed");
+	if (!addCameraResult)
+	{
+		return false;
+	}
+
+	editorCameraEntity->tick(0.0f);
 	return true;
 }
 

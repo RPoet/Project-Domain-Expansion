@@ -31,12 +31,13 @@ public:
 	BridgeHandle getEntityHandle() const;
 	uint32 getComponentCount() const;
 	uint32 getComponentIndex(uint32 componentArrayIndex) const;
+	void setActive(bool active);
 
 	pooled_vector<uint32> componentIndices;
 	uint32 parentEntityIndex = invalidEntityIndex;
 	uint32 firstChildEntityIndex = invalidEntityIndex;
 	uint32 nextSiblingEntityIndex = invalidEntityIndex;
-	bool activeState = true;
+	bool active = true;
 
 protected:
 	friend class World;

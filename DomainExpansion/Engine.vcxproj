@@ -103,9 +103,11 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkSerialization.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
+    <ClCompile Include="Engine\Code\Bridge\CameraBridge.cpp" />
     <ClCompile Include="Engine\Code\Bridge\EntityBridge.cpp" />
     <ClCompile Include="Engine\Code\Bridge\MeshBridge.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
@@ -117,6 +119,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
@@ -161,9 +164,11 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Bridge\BridgeHandle.h" />
     <ClInclude Include="Engine\Code\Bridge\Brdige.h" />
     <ClInclude Include="Engine\Code\Bridge\DefaultBridge.h" />
+    <ClInclude Include="Engine\Code\Bridge\CameraBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\EntityBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\MeshBridge.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\CameraComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\EntityObject.h" />
@@ -190,6 +195,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkBridgeLifecycleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkObjMeshLoaderTestCase.h" />

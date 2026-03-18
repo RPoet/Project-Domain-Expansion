@@ -1,5 +1,7 @@
 #include "Engine/Tests/FrameworkRenderWorldTestCase.h"
 
+#include "Bridge/CameraBridge.h"
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
@@ -10,6 +12,59 @@
 class TestBufferResourceObject final : public BufferResourceObject
 {
 };
+
+static bool containsCameraHandle(const vector<BridgeHandle>& cameraHandles, const BridgeHandle cameraHandle)
+{
+	for (uint32 cameraIndex = 0; cameraIndex < static_cast<uint32>(cameraHandles.size()); ++cameraIndex)
+	{
+		if (cameraHandles[cameraIndex] == cameraHandle)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static CameraComponent* getEditorCameraComponent(World* world, uint32& outEntityIndex, PlaceableEntity*& outEntity)
+{
+	outEntityIndex = invalidEntityIndex;
+	outEntity = nullptr;
+	if (world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 entityIndex = 0; entityIndex < world->getEntityCount(); ++entityIndex)
+	{
+		Entity* entity = world->getEntityByIndex(entityIndex);
+		if (entity == nullptr)
+		{
+			continue;
+		}
+
+		for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+		{
+			Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+			if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+			{
+				continue;
+			}
+
+			CameraComponent* cameraComponent = static_cast<CameraComponent*>(component);
+			if (!cameraComponent->editorCamera)
+			{
+				continue;
+			}
+
+			outEntityIndex = entityIndex;
+			outEntity = dynamic_cast<PlaceableEntity*>(entity);
+			return cameraComponent;
+		}
+	}
+
+	return nullptr;
+}
 
 const char* FrameworkRenderWorldTestCase::getTestCaseName() const
 {
@@ -28,6 +83,14 @@ bool FrameworkRenderWorldTestCase::beginTest(Framework& framework)
 	{
 		return false;
 	}
+
+	PlaceableEntity* editorCameraEntity = nullptr;
+	CameraComponent* editorCameraComponent = getEditorCameraComponent(activeWorld, editorCameraEntityIndex, editorCameraEntity);
+	beginResult = expectCondition(
+		editorCameraComponent != nullptr
+			&& editorCameraEntity != nullptr
+			&& editorCameraEntityIndex != invalidEntityIndex,
+		"begin: editor camera exists on loaded world") && beginResult;
 
 	entityIndex = activeWorld->createPlaceableEntity();
 	PlaceableEntity* placeableEntity = static_cast<PlaceableEntity*>(activeWorld->getEntityByIndex(entityIndex));
@@ -122,6 +185,21 @@ bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 	RenderWorld renderWorld = {};
 	RenderWorldBuildResult buildResult = renderWorld.build();
 	runResult = expectCondition(buildResult.meshDrawData.size() == 1, "run: render world builds one visible gpu-ready mesh draw") && runResult;
+	PlaceableEntity* editorCameraEntity = nullptr;
+	uint32 resolvedEditorCameraEntityIndex = invalidEntityIndex;
+	CameraComponent* editorCameraComponent = getEditorCameraComponent(activeWorld, resolvedEditorCameraEntityIndex, editorCameraEntity);
+	const BridgeHandle editorCameraHandle = editorCameraComponent != nullptr ? editorCameraComponent->getCameraHandle() : invalidBridgeHandle;
+	const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(editorCameraHandle);
+	const CameraBridge::StaticData* cameraStaticData = CameraBridge::get().getStaticData(editorCameraHandle);
+	runResult = expectCondition(
+		!buildResult.cameraHandles.empty()
+			&& editorCameraHandle != invalidBridgeHandle
+			&& containsCameraHandle(buildResult.cameraHandles, editorCameraHandle)
+			&& cameraStaticData != nullptr
+			&& cameraStaticData->editorCamera
+			&& cameraDynamicData != nullptr
+			&& cameraDynamicData->viewMatrix.value[14] == 4.0f,
+		"run: render world resolves active camera handles including editor camera") && runResult;
 
 	const RenderWorldMeshDrawData* meshDrawData = buildResult.meshDrawData.empty() ? nullptr : &buildResult.meshDrawData[0];
 	runResult = expectCondition(
@@ -135,6 +213,15 @@ bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 
 	meshComponent->visible = false;
 	placeableEntity->transform.positionX = 30.0f;
+	editorCameraEntity = activeWorld != nullptr
+		? static_cast<PlaceableEntity*>(activeWorld->getEntityByIndex(editorCameraEntityIndex))
+		: nullptr;
+	runResult = expectCondition(editorCameraEntity != nullptr, "run: editor camera entity exists before mutation") && runResult;
+	if (editorCameraEntity != nullptr)
+	{
+		editorCameraEntity->transform.positionX = 2.0f;
+		editorCameraEntity->transform.rotationYaw = 1.0f;
+	}
 	activeWorld->tick(0.016f);
 	return runResult;
 }
@@ -143,12 +230,24 @@ bool FrameworkRenderWorldTestCase::endTest(Framework& framework)
 {
 	RenderWorld renderWorld = {};
 	RenderWorldBuildResult buildResult = renderWorld.build();
+	World* activeWorld = framework.getActiveWorld();
+	PlaceableEntity* editorCameraEntity = nullptr;
+	uint32 resolvedEditorCameraEntityIndex = invalidEntityIndex;
+	CameraComponent* editorCameraComponent = getEditorCameraComponent(activeWorld, resolvedEditorCameraEntityIndex, editorCameraEntity);
+	const BridgeHandle editorCameraHandle = editorCameraComponent != nullptr ? editorCameraComponent->getCameraHandle() : invalidBridgeHandle;
+	const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(editorCameraHandle);
 
 	bool endResult = true;
 	endResult = expectCondition(buildResult.meshDrawData.empty(), "end: invisible mesh is removed from render world") && endResult;
+	endResult = expectCondition(
+		editorCameraHandle != invalidBridgeHandle
+			&& containsCameraHandle(buildResult.cameraHandles, editorCameraHandle)
+			&& cameraDynamicData != nullptr,
+		"end: editor camera handle remains available in render world camera list") && endResult;
 
 	framework.unloadWorld(worldIndex);
 	worldIndex = invalidWorldIndex;
 	entityIndex = invalidEntityIndex;
+	editorCameraEntityIndex = invalidEntityIndex;
 	return endResult;
 }

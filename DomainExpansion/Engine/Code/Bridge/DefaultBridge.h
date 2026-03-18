@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Bridge/BaseBridge.h"
-#include "Engine/Module/Bridge/BridgeModule.h"
 
 template <typename object_type, uint32 default_size = 4096>
 class DefaultBridge : public BaseBridge
@@ -127,17 +126,13 @@ public:
 		static_assert(default_size > 0, "DefaultBridge default_size must be greater than zero.");
 		static_assert(handleIndexBits + handleGenerationBits == 32, "DefaultBridge handle bits must sum to 32.");
 		static_assert(default_size <= (1u << handleIndexBits), "DefaultBridge default_size exceeds handle index capacity.");
-		BridgeModule::get()->registerBridge(this);
 		for (uint32 slotIndex = 0; slotIndex < default_size; ++slotIndex)
 		{
 			slotGeneration[slotIndex] = 1;
 		}
 	}
 
-	~DefaultBridge() override
-	{
-		BridgeModule::get()->unregisterBridge(this);
-	}
+	~DefaultBridge() override = default;
 
 	HandleReference createObject(const ObjectDesc& objectDesc)
 	{
