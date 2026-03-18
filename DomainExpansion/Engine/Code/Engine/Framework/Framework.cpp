@@ -3,6 +3,7 @@
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
 #include "Engine/Framework/PlaceableEntity.h"
+#include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
@@ -100,12 +101,24 @@ bool Framework::initialize(
 	{
 		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
 	};
+
+	// TO DO : refactor this hook, very ugly.
 	windowEventCallbacks.onNativeMessage = [](
 		const HandleWindow windowHandle,
 		const MessageIdentifier messageIdentifier,
 		const MessageFirstParameter firstParameter,
 		const MessageSecondParameter secondParameter) -> bool
 	{
+		shared_pointer<InputModule> inputModule = InputModule::get();
+		if (inputModule != nullptr)
+		{
+			inputModule->handleNativeMessage(
+				windowHandle,
+				messageIdentifier,
+				firstParameter,
+				secondParameter);
+		}
+
 		shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
 		if (imGuiLayerModule == nullptr)
 		{

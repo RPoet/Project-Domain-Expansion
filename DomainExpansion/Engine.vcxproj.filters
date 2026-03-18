@@ -38,7 +38,7 @@
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTest.cpp">
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkTest.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp">
@@ -63,6 +63,9 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\Input\InputModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp">
@@ -93,6 +96,9 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.cpp">
@@ -280,6 +286,9 @@
     <ClInclude Include="Engine\Code\Engine\Module\Bridge\BridgeModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Module\Singleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -311,6 +320,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.h">
