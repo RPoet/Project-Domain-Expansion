@@ -349,7 +349,6 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	{
 		const bool missingVertexShader = pipelineStateDesc.vertexShader == nullptr;
 		const bool missingPixelShader = pipelineStateDesc.pixelShader == nullptr;
-		const bool missingInputLayout = pipelineStateDesc.inputElements.empty();
 		const bool missingRenderTargets = pipelineStateDesc.renderTargets.empty();
 		const bool tooManyRenderTargets = pipelineStateDesc.renderTargets.size() > D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
 		bool invalidRenderTargetFormat = false;
@@ -369,7 +368,6 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 				|| pipelineStateDesc.depthStencilDesc.stencilEnabled);
 		if (missingVertexShader
 			|| missingPixelShader
-			|| missingInputLayout
 			|| missingRenderTargets
 			|| tooManyRenderTargets
 			|| invalidRenderTargetFormat
@@ -378,7 +376,6 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 			error << "[Dx12PipelineState][Error] reason=graphics_pipeline_invalid"
 				  << " missingVertexShader=" << static_cast<uint32>(missingVertexShader)
 				  << " missingPixelShader=" << static_cast<uint32>(missingPixelShader)
-				  << " missingInputLayout=" << static_cast<uint32>(missingInputLayout)
 				  << " missingRenderTargets=" << static_cast<uint32>(missingRenderTargets)
 				  << " tooManyRenderTargets=" << static_cast<uint32>(tooManyRenderTargets)
 				  << " invalidRenderTargetFormat=" << static_cast<uint32>(invalidRenderTargetFormat)

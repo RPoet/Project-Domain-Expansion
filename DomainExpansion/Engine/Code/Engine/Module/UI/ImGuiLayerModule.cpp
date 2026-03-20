@@ -9,6 +9,7 @@
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/Asset/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
@@ -140,6 +141,18 @@ static string toNarrowText(const wstring& text)
 
 	return result;
 }
+
+struct EditorGridPushConstantData
+{
+	float4x4 viewProjection = {};
+	float minorLineColor[4] = {};
+	float majorLineColor[4] = {};
+	float axisXColor[4] = {};
+	float axisZColor[4] = {};
+	float gridParameters[4] = {};
+};
+
+static_assert((sizeof(EditorGridPushConstantData) & 3u) == 0, "[ImGuiLayerModule][Assert] reason=grid_push_constant_alignment_invalid");
 
 struct ImGuiLayerModule::Dx12BackendBridge final : ImGuiLayerModule::BackendBridge
 {
@@ -401,7 +414,9 @@ bool ImGuiLayerModule::wantsMouseCapture() const
 	return ImGui::GetIO().WantCaptureMouse;
 }
 
-void ImGuiLayerModule::buildAndRender(CommandList* commandList)
+void ImGuiLayerModule::buildAndRender(
+	CommandList* commandList,
+	const float4x4* editorViewProjectionMatrix)
 {
 	if (commandList == nullptr
 		|| !contextCreated
@@ -410,6 +425,11 @@ void ImGuiLayerModule::buildAndRender(CommandList* commandList)
 		|| frameworkReference == nullptr)
 	{
 		return;
+	}
+
+	if (editorViewProjectionMatrix != nullptr)
+	{
+		renderEditorGrid(commandList, *editorViewProjectionMatrix);
 	}
 
 	if (!backendBridge->beginFrame())
@@ -427,6 +447,152 @@ void ImGuiLayerModule::buildAndRender(CommandList* commandList)
 
 	ImGui::Render();
 	backendBridge->renderDrawData(commandList);
+}
+
+void ImGuiLayerModule::renderEditorGrid(
+	CommandList* commandList,
+	const float4x4& editorViewProjectionMatrix)
+{
+	if (commandList == nullptr)
+	{
+		return;
+	}
+
+	EditorGridRenderResources renderResources = {};
+	if (!resolveEditorGridRenderResources(renderResources))
+	{
+		return;
+	}
+
+	EditorGridPushConstantData pushConstantData = {};
+	pushConstantData.viewProjection = editorViewProjectionMatrix;
+
+	pushConstantData.minorLineColor[0] = 0.33f;
+	pushConstantData.minorLineColor[1] = 0.37f;
+	pushConstantData.minorLineColor[2] = 0.42f;
+	pushConstantData.minorLineColor[3] = 0.16f;
+
+	pushConstantData.majorLineColor[0] = 0.48f;
+	pushConstantData.majorLineColor[1] = 0.53f;
+	pushConstantData.majorLineColor[2] = 0.59f;
+	pushConstantData.majorLineColor[3] = 0.28f;
+
+	pushConstantData.axisXColor[0] = 0.88f;
+	pushConstantData.axisXColor[1] = 0.30f;
+	pushConstantData.axisXColor[2] = 0.24f;
+	pushConstantData.axisXColor[3] = 0.72f;
+
+	pushConstantData.axisZColor[0] = 0.24f;
+	pushConstantData.axisZColor[1] = 0.54f;
+	pushConstantData.axisZColor[2] = 0.90f;
+	pushConstantData.axisZColor[3] = 0.72f;
+
+	pushConstantData.gridParameters[0] = 1.0f;
+	pushConstantData.gridParameters[1] = 10.0f;
+	pushConstantData.gridParameters[2] = 256.0f;
+	pushConstantData.gridParameters[3] = 48.0f;
+
+	commandList->setPipeline(renderResources.pipelineStateObject, renderResources.rootSignatureObject);
+	commandList->setGraphicsPushConstants(0, &pushConstantData, static_cast<uint32>(sizeof(pushConstantData)));
+	commandList->setPrimitiveTopology(PrimitiveTopology::triangleList);
+	commandList->draw(6, 1, 0, 0);
+}
+
+bool ImGuiLayerModule::resolveEditorGridRenderResources(EditorGridRenderResources& outRenderResources) const
+{
+	outRenderResources = {};
+
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
+	const bool validModules = renderBackendModule != nullptr
+		&& shaderPackageModule != nullptr
+		&& renderBackendModule->isBackendCreated();
+	assert(validModules && "[ImGuiLayerModule][Assert] reason=editor_grid_module_missing");
+	if (!validModules)
+	{
+		return false;
+	}
+
+	RenderBackend* renderBackend = renderBackendModule->getBackend();
+	assert(renderBackend != nullptr && "[ImGuiLayerModule][Assert] reason=editor_grid_render_backend_missing");
+	if (renderBackend == nullptr)
+	{
+		return false;
+	}
+
+	shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage("Shaders/Packages/EditorGrid.shaderpkg");
+	const bool shaderPackageReady = shaderPackage != nullptr && shaderPackage->state == ShaderPackageState::ready;
+	assert(shaderPackageReady && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_package_not_ready");
+	if (!shaderPackageReady)
+	{
+		return false;
+	}
+
+	const auto findShaderPackageVariantByName = [](const ShaderPackageAsset& shaderPackageAsset, const string& variantName) -> const ShaderPackageVariant*
+	{
+		for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackageAsset.variants.size()); ++variantIndex)
+		{
+			const ShaderPackageVariant& variant = shaderPackageAsset.variants[variantIndex];
+			if (variant.name == variantName)
+			{
+				return &variant;
+			}
+		}
+
+		return nullptr;
+	};
+
+	const ShaderPackageVariant* shaderVariant = findShaderPackageVariantByName(*shaderPackage, "EditorGridDefault");
+	assert(shaderVariant != nullptr && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_variant_missing");
+	if (shaderVariant == nullptr)
+	{
+		return false;
+	}
+
+	shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
+	shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
+	const bool validShaders = vertexShader != nullptr && pixelShader != nullptr;
+	assert(validShaders && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_stage_missing");
+	if (!validShaders)
+	{
+		return false;
+	}
+
+	PipelineStateDesc pipelineStateDesc = {};
+	pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
+	pipelineStateDesc.vertexShader = vertexShader;
+	pipelineStateDesc.pixelShader = pixelShader;
+	pipelineStateDesc.sampleCount = 1;
+
+	PushConstantRange pushConstantRange = {};
+	pushConstantRange.offsetInBytes = 0;
+	pushConstantRange.sizeInBytes = static_cast<uint32>(sizeof(EditorGridPushConstantData));
+	pushConstantRange.shaderVisibility = ShaderVisibility::allGraphics;
+	pipelineStateDesc.rootSignatureDesc.pushConstantRanges.push_back(pushConstantRange);
+
+	PipelineRenderTargetDesc renderTargetDesc = {};
+	renderTargetDesc.colorFormat = TextureFormat::rgba8Unorm;
+	renderTargetDesc.blendDesc.blendEnabled = true;
+	renderTargetDesc.blendDesc.sourceColorBlendFactor = PipelineBlendFactor::sourceAlpha;
+	renderTargetDesc.blendDesc.destinationColorBlendFactor = PipelineBlendFactor::inverseSourceAlpha;
+	renderTargetDesc.blendDesc.colorBlendOperation = PipelineBlendOperation::add;
+	renderTargetDesc.blendDesc.sourceAlphaBlendFactor = PipelineBlendFactor::one;
+	renderTargetDesc.blendDesc.destinationAlphaBlendFactor = PipelineBlendFactor::inverseSourceAlpha;
+	renderTargetDesc.blendDesc.alphaBlendOperation = PipelineBlendOperation::add;
+	pipelineStateDesc.renderTargets.push_back(renderTargetDesc);
+
+	pipelineStateDesc.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
+	pipelineStateDesc.depthStencilDesc.depthTestEnabled = true;
+	pipelineStateDesc.depthStencilDesc.depthWriteEnabled = false;
+	pipelineStateDesc.depthStencilDesc.depthCompareOperation = PipelineCompareOperation::lessEqual;
+	pipelineStateDesc.cullMode = PipelineCullMode::none;
+
+	outRenderResources.rootSignatureObject = renderBackend->getOrCreateRootSignatureObject(pipelineStateDesc.rootSignatureDesc);
+	outRenderResources.pipelineStateObject = renderBackend->getOrCreatePipelineStateObject(pipelineStateDesc);
+	const bool validPipelineObjects = outRenderResources.rootSignatureObject != nullptr
+		&& outRenderResources.pipelineStateObject != nullptr;
+	assert(validPipelineObjects && "[ImGuiLayerModule][Assert] reason=editor_grid_pipeline_create_failed");
+	return validPipelineObjects;
 }
 
 bool ImGuiLayerModule::initializeContext()
@@ -853,6 +1019,7 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 			meshComponent->meshRelativePath = meshPath;
 			meshComponentChanged = true;
 		}
+		ImGui::TextDisabled("Example: Meshes/Plane.obj");
 
 		if (ImGui::InputInt("LOD", &lodLevel))
 		{

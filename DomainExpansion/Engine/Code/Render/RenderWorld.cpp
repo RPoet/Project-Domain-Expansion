@@ -492,7 +492,7 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		renderBackendReference.queueCommandList(commandList);
 	});
 
-	renderCommand.enqueue("UI", [](string&& commandName, RenderBackend& renderBackendReference)
+	renderCommand.enqueue("UI", [this, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
 	{
 		unused(commandName);
 
@@ -531,8 +531,38 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 		commandList->reset();
 		RenderTargetView* renderTargetViews[1] = { renderTargetView };
-		commandList->setRenderTargets(renderTargetViews, 1, nullptr);
-		imGuiLayerModule->buildAndRender(commandList);
+		commandList->setRenderTargets(renderTargetViews, 1, view.depthStencilView);
+
+		ViewportArea viewportArea = {};
+		viewportArea.width = static_cast<float>(swapChain->getWidth());
+		viewportArea.height = static_cast<float>(swapChain->getHeight());
+		commandList->setViewport(viewportArea);
+
+		ScissorRectArea scissorRectArea = {};
+		scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
+		scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
+		commandList->setScissorRect(scissorRectArea);
+
+		float4x4 editorViewProjectionMatrix = {};
+		const float4x4* editorViewProjectionMatrixPointer = nullptr;
+		if (cameraHandle != invalidBridgeHandle)
+		{
+			const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+			if (cameraDynamicData != nullptr)
+			{
+				editorViewProjectionMatrix = multiplyMatrix4x4(
+					cameraDynamicData->viewMatrix,
+					buildProjectionMatrix4x4(
+						swapChain->getWidth(),
+						swapChain->getHeight(),
+						cameraDynamicData->fieldOfViewYDegrees,
+						cameraDynamicData->nearPlane,
+						cameraDynamicData->farPlane));
+				editorViewProjectionMatrixPointer = &editorViewProjectionMatrix;
+			}
+		}
+
+		imGuiLayerModule->buildAndRender(commandList, editorViewProjectionMatrixPointer);
 		commandList->close();
 
 		renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);

@@ -12,6 +12,7 @@ DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
 
 # MSVC generated files
 *.obj
+!/DomainExpansion/Engine/Resources/Meshes/*.obj
 *.pdb
 *.ilk
 *.idb

@@ -118,6 +118,22 @@ bool FrameworkShaderPackageTestCase::runTest(Framework& framework)
 		&& geometryVariant->getShader(ShaderStage::pixel) != nullptr,
 		"run: geometry shaders linked") && runResult;
 
+	const string editorGridPackageRelativePath = "Shaders/Packages/EditorGrid.shaderpkg";
+	shared_pointer<ShaderPackageAsset> editorGridShaderPackage = shaderPackageModule->getOrLoadPackage(editorGridPackageRelativePath);
+	runResult = expectCondition(editorGridShaderPackage != nullptr, "run: editor grid shader package load handle exists") && runResult;
+	runResult = expectCondition(
+		editorGridShaderPackage != nullptr && editorGridShaderPackage->state == ShaderPackageState::ready,
+		"run: editor grid shader package load success") && runResult;
+	const ShaderPackageVariant* editorGridVariant = editorGridShaderPackage != nullptr
+		? Temp_findShaderPackageVariantByName(*editorGridShaderPackage, "EditorGridDefault")
+		: nullptr;
+	runResult = expectCondition(editorGridVariant != nullptr, "run: editor grid variant exists") && runResult;
+	runResult = expectCondition(
+		editorGridVariant != nullptr
+		&& editorGridVariant->getShader(ShaderStage::vertex) != nullptr
+		&& editorGridVariant->getShader(ShaderStage::pixel) != nullptr,
+		"run: editor grid shaders linked") && runResult;
+
 	shared_pointer<ShaderPackageAsset> cachedShaderPackage = shaderPackageModule->getOrLoadPackage(packageRelativePath);
 	runResult = expectCondition(
 		cachedShaderPackage == shaderPackage,

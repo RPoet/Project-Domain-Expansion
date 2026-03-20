@@ -6,7 +6,9 @@
 
 class CommandList;
 class Framework;
+class PipelineStateObject;
 class RenderBackend;
+class RootSignatureObject;
 class World;
 
 class ImGuiLayerModule final : public StaticModule<ImGuiLayerModule>
@@ -31,9 +33,15 @@ public:
 	bool isEditorInputReady() const;
 	bool wantsTextInput() const;
 	bool wantsMouseCapture() const;
-	void buildAndRender(CommandList* commandList);
+	void buildAndRender(CommandList* commandList, const float4x4* editorViewProjectionMatrix = nullptr);
 
 private:
+	struct EditorGridRenderResources
+	{
+		RootSignatureObject* rootSignatureObject = nullptr;
+		PipelineStateObject* pipelineStateObject = nullptr;
+	};
+
 	struct BackendBridge
 	{
 		virtual ~BackendBridge() = default;
@@ -48,6 +56,8 @@ private:
 	void shutdownContext();
 	void updateUiScaleIfNeeded();
 	float calculateUiScale() const;
+	void renderEditorGrid(CommandList* commandList, const float4x4& editorViewProjectionMatrix);
+	bool resolveEditorGridRenderResources(EditorGridRenderResources& outRenderResources) const;
 	void buildOutlinerPanel(World* world);
 	void drawOutlinerEntityNode(const World* world, uint32 entityIndex);
 	void buildDetailPanel(World* world);

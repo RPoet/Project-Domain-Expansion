@@ -156,10 +156,30 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 		"float4 mainPS(PSInput input) : SV_Target0 { return float4(input.uv.x, input.uv.y, 0.0f, 1.0f); }";
 	const char* computeShaderSource =
 		"[numthreads(1, 1, 1)] void mainCS(uint3 dispatchThreadId : SV_DispatchThreadID) { }";
+	const char* proceduralVertexShaderSource =
+		"struct VSOutput { float4 position : SV_Position; };"
+		"VSOutput mainVS(uint vertexId : SV_VertexID)"
+		"{"
+		"	float2 positions[6] = {"
+		"		float2(-1.0f, -1.0f),"
+		"		float2(-1.0f, 1.0f),"
+		"		float2(1.0f, 1.0f),"
+		"		float2(-1.0f, -1.0f),"
+		"		float2(1.0f, 1.0f),"
+		"		float2(1.0f, -1.0f)"
+		"	};"
+		"	VSOutput output;"
+		"	output.position = float4(positions[vertexId], 0.0f, 1.0f);"
+		"	return output;"
+		"}";
+	const char* solidPixelShaderSource =
+		"float4 mainPS() : SV_Target0 { return float4(1.0f, 0.0f, 0.0f, 0.5f); }";
 
 	vector<char> vertexShaderByteCode = {};
 	vector<char> pixelShaderByteCode = {};
 	vector<char> computeShaderByteCode = {};
+	vector<char> proceduralVertexShaderByteCode = {};
+	vector<char> solidPixelShaderByteCode = {};
 
 	runResult = expectCondition(
 		compileShaderByteCode(vertexShaderSource, "mainVS", "vs_5_0", vertexShaderByteCode),
@@ -170,6 +190,12 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		compileShaderByteCode(computeShaderSource, "mainCS", "cs_5_0", computeShaderByteCode),
 		"run: compile compute shader") && runResult;
+	runResult = expectCondition(
+		compileShaderByteCode(proceduralVertexShaderSource, "mainVS", "vs_5_0", proceduralVertexShaderByteCode),
+		"run: compile procedural vertex shader") && runResult;
+	runResult = expectCondition(
+		compileShaderByteCode(solidPixelShaderSource, "mainPS", "ps_5_0", solidPixelShaderByteCode),
+		"run: compile solid pixel shader") && runResult;
 	if (!runResult)
 	{
 		return false;
@@ -178,13 +204,19 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	shared_pointer<ShaderAsset> vertexShaderAsset(new ShaderAsset());
 	shared_pointer<ShaderAsset> pixelShaderAsset(new ShaderAsset());
 	shared_pointer<ShaderAsset> computeShaderAsset(new ShaderAsset());
+	shared_pointer<ShaderAsset> proceduralVertexShaderAsset(new ShaderAsset());
+	shared_pointer<ShaderAsset> solidPixelShaderAsset(new ShaderAsset());
 	runResult = expectCondition(vertexShaderAsset != nullptr, "run: create vertex shader asset") && runResult;
 	runResult = expectCondition(pixelShaderAsset != nullptr, "run: create pixel shader asset") && runResult;
 	runResult = expectCondition(computeShaderAsset != nullptr, "run: create compute shader asset") && runResult;
+	runResult = expectCondition(proceduralVertexShaderAsset != nullptr, "run: create procedural vertex shader asset") && runResult;
+	runResult = expectCondition(solidPixelShaderAsset != nullptr, "run: create solid pixel shader asset") && runResult;
 	if (!runResult
 		|| vertexShaderAsset == nullptr
 		|| pixelShaderAsset == nullptr
-		|| computeShaderAsset == nullptr)
+		|| computeShaderAsset == nullptr
+		|| proceduralVertexShaderAsset == nullptr
+		|| solidPixelShaderAsset == nullptr)
 	{
 		return false;
 	}
@@ -201,6 +233,14 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	computeShaderLoadRequest.stage = ShaderStage::compute;
 	computeShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/Compute.hlsl";
 	computeShaderLoadRequest.entryPoint = "mainCS";
+	ShaderLoadRequest proceduralVertexShaderLoadRequest = {};
+	proceduralVertexShaderLoadRequest.stage = ShaderStage::vertex;
+	proceduralVertexShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/ProceduralVertex.hlsl";
+	proceduralVertexShaderLoadRequest.entryPoint = "mainVS";
+	ShaderLoadRequest solidPixelShaderLoadRequest = {};
+	solidPixelShaderLoadRequest.stage = ShaderStage::pixel;
+	solidPixelShaderLoadRequest.sourceRelativePath = "FrameworkPipelineStateLifecycleTestCase/SolidPixel.hlsl";
+	solidPixelShaderLoadRequest.entryPoint = "mainPS";
 	ShaderBinaryLoadRequest vertexShaderBinaryLoadRequest = {};
 	vertexShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
 	vertexShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/Vertex.dxbc";
@@ -213,6 +253,14 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	computeShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
 	computeShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/Compute.dxbc";
 	computeShaderBinaryLoadRequest.profile = "cs_5_0";
+	ShaderBinaryLoadRequest proceduralVertexShaderBinaryLoadRequest = {};
+	proceduralVertexShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
+	proceduralVertexShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/ProceduralVertex.dxbc";
+	proceduralVertexShaderBinaryLoadRequest.profile = "vs_5_0";
+	ShaderBinaryLoadRequest solidPixelShaderBinaryLoadRequest = {};
+	solidPixelShaderBinaryLoadRequest.targetPlatform = ShaderTargetPlatform::dx12;
+	solidPixelShaderBinaryLoadRequest.binaryRelativePath = "FrameworkPipelineStateLifecycleTestCase/SolidPixel.dxbc";
+	solidPixelShaderBinaryLoadRequest.profile = "ps_5_0";
 
 	runResult = expectCondition(
 		vertexShaderAsset->initialize(vertexShaderLoadRequest),
@@ -223,6 +271,12 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		computeShaderAsset->initialize(computeShaderLoadRequest),
 		"run: initialize compute shader asset") && runResult;
+	runResult = expectCondition(
+		proceduralVertexShaderAsset->initialize(proceduralVertexShaderLoadRequest),
+		"run: initialize procedural vertex shader asset") && runResult;
+	runResult = expectCondition(
+		solidPixelShaderAsset->initialize(solidPixelShaderLoadRequest),
+		"run: initialize solid pixel shader asset") && runResult;
 	if (!runResult)
 	{
 		return false;
@@ -231,9 +285,13 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	shared_pointer<Dx12ShaderObject> vertexShader(new Dx12ShaderObject());
 	shared_pointer<Dx12ShaderObject> pixelShader(new Dx12ShaderObject());
 	shared_pointer<Dx12ShaderObject> computeShader(new Dx12ShaderObject());
+	shared_pointer<Dx12ShaderObject> proceduralVertexShader(new Dx12ShaderObject());
+	shared_pointer<Dx12ShaderObject> solidPixelShader(new Dx12ShaderObject());
 	runResult = expectCondition(vertexShader != nullptr, "run: create vertex shader object") && runResult;
 	runResult = expectCondition(pixelShader != nullptr, "run: create pixel shader object") && runResult;
 	runResult = expectCondition(computeShader != nullptr, "run: create compute shader object") && runResult;
+	runResult = expectCondition(proceduralVertexShader != nullptr, "run: create procedural vertex shader object") && runResult;
+	runResult = expectCondition(solidPixelShader != nullptr, "run: create solid pixel shader object") && runResult;
 	runResult = expectCondition(
 		vertexShader != nullptr && vertexShader->initialize(vertexShaderAsset, vertexShaderBinaryLoadRequest, moveValue(vertexShaderByteCode)),
 		"run: initialize vertex shader object") && runResult;
@@ -243,7 +301,26 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		computeShader != nullptr && computeShader->initialize(computeShaderAsset, computeShaderBinaryLoadRequest, moveValue(computeShaderByteCode)),
 		"run: initialize compute shader object") && runResult;
-	if (!runResult || vertexShader == nullptr || pixelShader == nullptr || computeShader == nullptr)
+	runResult = expectCondition(
+		proceduralVertexShader != nullptr
+			&& proceduralVertexShader->initialize(
+				proceduralVertexShaderAsset,
+				proceduralVertexShaderBinaryLoadRequest,
+				moveValue(proceduralVertexShaderByteCode)),
+		"run: initialize procedural vertex shader object") && runResult;
+	runResult = expectCondition(
+		solidPixelShader != nullptr
+			&& solidPixelShader->initialize(
+				solidPixelShaderAsset,
+				solidPixelShaderBinaryLoadRequest,
+				moveValue(solidPixelShaderByteCode)),
+		"run: initialize solid pixel shader object") && runResult;
+	if (!runResult
+		|| vertexShader == nullptr
+		|| pixelShader == nullptr
+		|| computeShader == nullptr
+		|| proceduralVertexShader == nullptr
+		|| solidPixelShader == nullptr)
 	{
 		return false;
 	}
@@ -313,6 +390,27 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 		graphicsPipelineB0 != nullptr && graphicsPipelineB0 != graphicsPipelineA0,
 		"run: create distinct graphics pipeline B") && runResult;
 
+	PipelineStateDesc graphicsPipelineDescC = {};
+	graphicsPipelineDescC.pipelineStateType = PipelineStateType::graphics;
+	graphicsPipelineDescC.rootSignatureDesc = rootSignatureDesc;
+	graphicsPipelineDescC.vertexShader = proceduralVertexShader;
+	graphicsPipelineDescC.pixelShader = solidPixelShader;
+	graphicsPipelineDescC.sampleCount = 1;
+	graphicsPipelineDescC.renderTargets.push_back(renderTargetDesc);
+	graphicsPipelineDescC.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
+	graphicsPipelineDescC.depthStencilDesc.depthTestEnabled = true;
+	graphicsPipelineDescC.depthStencilDesc.depthWriteEnabled = false;
+	graphicsPipelineDescC.depthStencilDesc.depthCompareOperation = PipelineCompareOperation::lessEqual;
+	graphicsPipelineDescC.cullMode = PipelineCullMode::none;
+	PipelineStateObject* graphicsPipelineC0 = testRenderBackend->getOrCreatePipelineStateObject(graphicsPipelineDescC);
+	runResult = expectCondition(
+		graphicsPipelineC0 != nullptr,
+		"run: create graphics pipeline C without input layout") && runResult;
+	PipelineStateObject* graphicsPipelineC1 = testRenderBackend->getOrCreatePipelineStateObject(graphicsPipelineDescC);
+	runResult = expectCondition(
+		graphicsPipelineC1 != nullptr && graphicsPipelineC1 == graphicsPipelineC0,
+		"run: cache hit for graphics pipeline C without input layout") && runResult;
+
 	PipelineStateDesc computePipelineDesc = {};
 	computePipelineDesc.pipelineStateType = PipelineStateType::compute;
 	computePipelineDesc.rootSignatureDesc = rootSignatureDesc;
@@ -367,6 +465,9 @@ bool FrameworkPipelineStateLifecycleTestCase::runTest(Framework& framework)
 		pipelineBindCommandList->setPipeline(graphicsPipelineA0, pipelineRootSignatureObject);
 		const uint32 pushConstantData[4] = { 1, 2, 3, 4 };
 		pipelineBindCommandList->setGraphicsPushConstants(0, pushConstantData, static_cast<uint32>(sizeof(pushConstantData)));
+		pipelineBindCommandList->setPipeline(graphicsPipelineC0, pipelineRootSignatureObject);
+		pipelineBindCommandList->setPrimitiveTopology(PrimitiveTopology::triangleList);
+		pipelineBindCommandList->draw(6, 1, 0, 0);
 		pipelineBindCommandList->setPipeline(computePipeline0, pipelineRootSignatureObject);
 		pipelineBindCommandList->close();
 		testRenderBackend->releaseCommandList(pipelineBindCommandList);
