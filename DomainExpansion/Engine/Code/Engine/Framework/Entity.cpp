@@ -152,6 +152,36 @@ uint32 Entity::getComponentIndex(const uint32 componentArrayIndex) const
 	return componentIndices[componentArrayIndex];
 }
 
+const string& Entity::getName() const
+{
+	return name;
+}
+
+void Entity::setName(const string& name)
+{
+	this->name = name;
+}
+
+uint32 Entity::getParentEntityIndex() const
+{
+	return parentEntityIndex;
+}
+
+uint32 Entity::getFirstChildEntityIndex() const
+{
+	return firstChildEntityIndex;
+}
+
+uint32 Entity::getNextSiblingEntityIndex() const
+{
+	return nextSiblingEntityIndex;
+}
+
+bool Entity::isActive() const
+{
+	return active;
+}
+
 void Entity::setActive(const bool active)
 {
 	if (this->active == active)

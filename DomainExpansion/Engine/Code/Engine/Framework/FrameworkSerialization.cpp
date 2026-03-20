@@ -1,6 +1,7 @@
 #include "Engine/Framework/FrameworkSerialization.h"
 
 #include "Engine/Framework/CameraComponent.h"
+#include "Engine/Framework/EditorCameraMovementComponent.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
@@ -21,6 +22,7 @@ struct Temp_EntityRecord
 {
 	int32 sourceId = -1;
 	string type = "entity";
+	string name = {};
 	bool active = true;
 	int32 parentId = -1;
 	Transform transform = {};
@@ -28,10 +30,13 @@ struct Temp_EntityRecord
 	uint32 lodLevel = 0;
 	bool visible = true;
 	bool hasCameraComponent = false;
+	bool cameraEditor = false;
 	bool cameraPrimary = false;
 	float cameraFieldOfViewYDegrees = 60.0f;
 	float cameraNearPlane = 0.1f;
 	float cameraFarPlane = 100.0f;
+	bool hasEditorCameraMovementComponent = false;
+	float editorCameraMovementSpeed = 4.0f;
 };
 
 static string trimText(const string& text)
@@ -162,7 +167,7 @@ static MeshComponent* getFirstMeshComponent(Entity* entity, World* world)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::meshComponent)
+		if (component == nullptr || component->getComponentType() != MeshComponent::staticComponentType)
 		{
 			continue;
 		}
@@ -183,12 +188,33 @@ static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 		{
 			continue;
 		}
 
 		return static_cast<CameraComponent*>(component);
+	}
+
+	return nullptr;
+}
+
+static EditorCameraMovementComponent* getFirstEditorCameraMovementComponent(Entity* entity, World* world)
+{
+	if (entity == nullptr || world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != EditorCameraMovementComponent::staticComponentType)
+		{
+			continue;
+		}
+
+		return static_cast<EditorCameraMovementComponent*>(component);
 	}
 
 	return nullptr;
@@ -299,6 +325,12 @@ bool frameworkSerializationLoadWorldFromFile(
 			continue;
 		}
 
+		if (key == "name")
+		{
+			currentRecord.name = value;
+			continue;
+		}
+
 		if (key == "active")
 		{
 			if (!parseBoolText(value, currentRecord.active))
@@ -395,6 +427,17 @@ bool frameworkSerializationLoadWorldFromFile(
 			continue;
 		}
 
+		if (key == "cameraEditor")
+		{
+			currentRecord.hasCameraComponent = true;
+			if (!parseBoolText(value, currentRecord.cameraEditor))
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_camera_editor", outErrorText);
+			}
+
+			continue;
+		}
+
 		if (key == "cameraFieldOfViewYDegrees")
 		{
 			currentRecord.hasCameraComponent = true;
@@ -433,6 +476,19 @@ bool frameworkSerializationLoadWorldFromFile(
 
 			continue;
 		}
+
+		if (key == "editorCameraMovementSpeed")
+		{
+			currentRecord.hasEditorCameraMovementComponent = true;
+			string_input_stream parser(value);
+			parser >> currentRecord.editorCameraMovementSpeed;
+			if (!parser || !parser.eof())
+			{
+				return failParse(worldFilePath, lineNumber, "invalid_editor_camera_movement_speed", outErrorText);
+			}
+
+			continue;
+		}
 	}
 
 	if (currentSection == ParseSection::entity && currentEntityValid)
@@ -460,6 +516,14 @@ bool frameworkSerializationLoadWorldFromFile(
 			return false;
 		}
 
+		if (record.hasEditorCameraMovementComponent
+			&& (!createPlaceableEntity || !record.hasCameraComponent || !record.cameraEditor))
+		{
+			assert(false && "[FrameworkSerialization][Assert] reason=editor_camera_movement_requires_editor_camera");
+			outErrorText = "editor_camera_movement_requires_editor_camera";
+			return false;
+		}
+
 		const uint32 entityIndex = createPlaceableEntity
 			? loadedWorld->createPlaceableEntity()
 			: loadedWorld->createEntity();
@@ -471,6 +535,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			return false;
 		}
 
+		entity->setName(record.name);
 		entity->setActive(record.active);
 		if (createPlaceableEntity)
 		{
@@ -556,11 +621,34 @@ bool frameworkSerializationLoadWorldFromFile(
 		}
 
 		unique_pointer<CameraComponent> cameraComponent(new CameraComponent());
+		cameraComponent->editorCamera = record.cameraEditor;
 		cameraComponent->primary = record.cameraPrimary;
 		cameraComponent->fieldOfViewYDegrees = record.cameraFieldOfViewYDegrees;
 		cameraComponent->nearPlane = record.cameraNearPlane;
 		cameraComponent->farPlane = record.cameraFarPlane;
 		loadedWorld->attachComponent(entityIt->second, moveValue(cameraComponent));
+	}
+
+	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
+	{
+		const Temp_EntityRecord& record = entityRecords[recordIndex];
+		if (!record.hasEditorCameraMovementComponent)
+		{
+			continue;
+		}
+
+		const int32 sourceId = record.sourceId >= 0
+			? record.sourceId
+			: static_cast<int32>(recordIndex);
+		const auto entityIt = sourceIdToEntityIndex.find(sourceId);
+		if (entityIt == sourceIdToEntityIndex.end())
+		{
+			continue;
+		}
+
+		unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
+		editorCameraMovementComponent->setMovementSpeed(record.editorCameraMovementSpeed);
+		loadedWorld->attachComponent(entityIt->second, moveValue(editorCameraMovementComponent));
 	}
 
 	outWorld = moveValue(loadedWorld);
@@ -606,10 +694,8 @@ bool frameworkSerializationSaveWorldToFile(
 		}
 
 		CameraComponent* cameraComponent = getFirstCameraComponent(const_cast<Entity*>(entity), const_cast<World*>(&world));
-		if (cameraComponent != nullptr && cameraComponent->editorCamera)
-		{
-			continue;
-		}
+		EditorCameraMovementComponent* editorCameraMovementComponent =
+			getFirstEditorCameraMovementComponent(const_cast<Entity*>(entity), const_cast<World*>(&world));
 
 		fileStream << "[Entity]" << '\n';
 		fileStream << "id=" << entityIndex << '\n';
@@ -624,14 +710,19 @@ bool frameworkSerializationSaveWorldToFile(
 			fileStream << "type=entity" << '\n';
 		}
 
-		fileStream << "active=" << (entity->active ? 1 : 0) << '\n';
-		if (entity->parentEntityIndex == invalidEntityIndex)
+		if (!entity->getName().empty())
+		{
+			fileStream << "name=" << entity->getName() << '\n';
+		}
+
+		fileStream << "active=" << (entity->isActive() ? 1 : 0) << '\n';
+		if (entity->getParentEntityIndex() == invalidEntityIndex)
 		{
 			fileStream << "parent=-1" << '\n';
 		}
 		else
 		{
-			fileStream << "parent=" << entity->parentEntityIndex << '\n';
+			fileStream << "parent=" << entity->getParentEntityIndex() << '\n';
 		}
 
 		if (placeableEntity != nullptr)
@@ -662,10 +753,16 @@ bool frameworkSerializationSaveWorldToFile(
 
 		if (cameraComponent != nullptr)
 		{
+			fileStream << "cameraEditor=" << (cameraComponent->editorCamera ? 1 : 0) << '\n';
 			fileStream << "cameraPrimary=" << (cameraComponent->primary ? 1 : 0) << '\n';
 			fileStream << "cameraFieldOfViewYDegrees=" << cameraComponent->fieldOfViewYDegrees << '\n';
 			fileStream << "cameraNearPlane=" << cameraComponent->nearPlane << '\n';
 			fileStream << "cameraFarPlane=" << cameraComponent->farPlane << '\n';
+		}
+
+		if (editorCameraMovementComponent != nullptr)
+		{
+			fileStream << "editorCameraMovementSpeed=" << editorCameraMovementComponent->getMovementSpeed() << '\n';
 		}
 
 		fileStream << '\n';

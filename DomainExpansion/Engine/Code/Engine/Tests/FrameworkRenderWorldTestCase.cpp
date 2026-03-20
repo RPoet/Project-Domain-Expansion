@@ -46,7 +46,7 @@ static CameraComponent* getEditorCameraComponent(World* world, uint32& outEntity
 		for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
 		{
 			Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-			if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+			if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 			{
 				continue;
 			}
@@ -132,7 +132,7 @@ bool FrameworkRenderWorldTestCase::runTest(Framework& framework)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::meshComponent)
+		if (component == nullptr || component->getComponentType() != MeshComponent::staticComponentType)
 		{
 			continue;
 		}

@@ -5,21 +5,63 @@
 #include "Engine/Platform/PlatformDefine.h"
 
 class World;
+class Component;
 
-enum class ComponentType : uint32
+struct ComponentType
 {
-	component = 0,
-	meshComponent = 1,
-	cameraComponent = 2,
+	const void* key = nullptr;
+
+	constexpr bool isValid() const
+	{
+		return key != nullptr;
+	}
+
+	constexpr bool operator==(const ComponentType& other) const = default;
 };
+
+struct ComponentTypeMetadata
+{
+	ComponentType type = {};
+	const char* classNameText = "Component";
+};
+
+#define DECLARE_COMPONENT(componentClassName) \
+public: \
+	inline static const int componentTypeTagValue = 0; \
+	static constexpr ComponentType staticComponentType = {&componentTypeTagValue}; \
+	static const ComponentTypeMetadata& getStaticComponentTypeMetadata() \
+	{ \
+		static const ComponentTypeMetadata componentTypeMetadata = {staticComponentType, #componentClassName}; \
+		return componentTypeMetadata; \
+	} \
+	ComponentType getComponentType() const override \
+	{ \
+		return staticComponentType; \
+	} \
+	const ComponentTypeMetadata& getComponentTypeMetadata() const override \
+	{ \
+		return getStaticComponentTypeMetadata(); \
+	}
 
 class Component
 {
 public:
 	virtual ~Component() = default;
+	static constexpr ComponentType staticComponentType = {};
+	static const ComponentTypeMetadata& getStaticComponentTypeMetadata()
+	{
+		static const ComponentTypeMetadata componentTypeMetadata = {};
+		return componentTypeMetadata;
+	}
+
 	virtual ComponentType getComponentType() const
 	{
-		return ComponentType::component;
+		return staticComponentType;
+	}
+
+	virtual const ComponentTypeMetadata& getComponentTypeMetadata() const
+	{
+		return getStaticComponentTypeMetadata();
 	}
 
 	World* getOwnerWorld()
@@ -75,3 +117,25 @@ protected:
 	uint32 ownerComponentIndex = invalidComponentIndex;
 	BridgeHandle ownerEntityHandle = invalidBridgeHandle;
 };
+
+template<typename ComponentClass>
+bool isComponentType(const Component* component)
+{
+	return component != nullptr && component->getComponentType() == ComponentClass::staticComponentType;
+}
+
+template<typename ComponentClass>
+ComponentClass* componentCast(Component* component)
+{
+	return isComponentType<ComponentClass>(component)
+		? static_cast<ComponentClass*>(component)
+		: nullptr;
+}
+
+template<typename ComponentClass>
+const ComponentClass* componentCast(const Component* component)
+{
+	return isComponentType<ComponentClass>(component)
+		? static_cast<const ComponentClass*>(component)
+		: nullptr;
+}

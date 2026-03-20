@@ -47,6 +47,9 @@
     <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -239,6 +242,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\CameraComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h">

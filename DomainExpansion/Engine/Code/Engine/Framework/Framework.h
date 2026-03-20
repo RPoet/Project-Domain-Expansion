@@ -82,7 +82,7 @@ private:
 	bool initializeBackendFlow();
 	bool enqueueBackendRenderFrameCommand();
 	bool tickBackendFlow(float deltaTimeSeconds);
-	bool ensureEditorCameraEntity(World& world);
+	bool ensureEditorCameraFromTemplate(World& world);
 	void resetBackendTestState();
 	void finalizeTestFlow();
 	void finalizeBackendFlow(bool passState);

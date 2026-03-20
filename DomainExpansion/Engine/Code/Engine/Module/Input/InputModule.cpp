@@ -3,6 +3,9 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Window/WindowsWindowObject.h"
 
+
+// TO DO : Change this as platform agnostic currently it is too tied with WIN.
+
 static InputKeyState advanceInputKeyState(const InputKeyState currentState, const bool isCurrentlyDown)
 {
 	if (isCurrentlyDown)
@@ -122,6 +125,11 @@ int2 InputModule::getMousePosition() const
 	return mousePosition;
 }
 
+int2 InputModule::getMousePositionDelta() const
+{
+	return mousePositionDelta;
+}
+
 int2 InputModule::getMouseScrollDelta() const
 {
 	return mouseScrollDelta;
@@ -169,8 +177,11 @@ void InputModule::clearMouseStates()
 	}
 
 	mousePosition = {};
+	previousMousePosition = {};
+	mousePositionDelta = {};
 	mouseScrollDelta = {};
 	pendingMouseScrollDelta = {};
+	hasMousePosition = false;
 }
 
 void InputModule::updateMousePosition()
@@ -178,6 +189,9 @@ void InputModule::updateMousePosition()
 	if (windowObject == nullptr)
 	{
 		mousePosition = {};
+		mousePositionDelta = {};
+		previousMousePosition = {};
+		hasMousePosition = false;
 		return;
 	}
 
@@ -185,9 +199,24 @@ void InputModule::updateMousePosition()
 	if (!GetCursorPos(&cursorPoint) || !ScreenToClient(windowObject->getWindowHandle(), &cursorPoint))
 	{
 		mousePosition = {};
+		mousePositionDelta = {};
+		previousMousePosition = {};
+		hasMousePosition = false;
 		return;
 	}
 
-	mousePosition.x = cursorPoint.x;
-	mousePosition.y = cursorPoint.y;
+	const int2 nextMousePosition = {cursorPoint.x, cursorPoint.y};
+	if (!hasMousePosition)
+	{
+		mousePosition = nextMousePosition;
+		previousMousePosition = nextMousePosition;
+		mousePositionDelta = {};
+		hasMousePosition = true;
+		return;
+	}
+
+	previousMousePosition = mousePosition;
+	mousePosition = nextMousePosition;
+	mousePositionDelta.x = mousePosition.x - previousMousePosition.x;
+	mousePositionDelta.y = mousePosition.y - previousMousePosition.y;
 }

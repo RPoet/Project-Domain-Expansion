@@ -28,6 +28,9 @@ public:
 		MessageIdentifier messageIdentifier,
 		MessageFirstParameter firstParameter,
 		MessageSecondParameter secondParameter);
+	bool isEditorInputReady() const;
+	bool wantsTextInput() const;
+	bool wantsMouseCapture() const;
 	void buildAndRender(CommandList* commandList);
 
 private:
@@ -50,6 +53,7 @@ private:
 	void buildDetailPanel(World* world);
 	void buildFileSystemPanel();
 	void drawDirectoryEntriesRecursive(const filesystem_path& directoryPath);
+	bool tryDeleteSelectedEntity(World* world);
 	bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
 	bool saveActiveWorldImmediate();
 	bool resolveResourcesRootPath();

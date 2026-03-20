@@ -104,6 +104,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkTest.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
@@ -172,6 +173,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\CameraComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h" />
+    <ClInclude Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Entity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\EntityObject.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkConstants.h" />

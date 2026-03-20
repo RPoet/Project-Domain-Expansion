@@ -6,10 +6,7 @@
 class MeshComponent final : public Component
 {
 public:
-	ComponentType getComponentType() const override
-	{
-		return ComponentType::meshComponent;
-	}
+	DECLARE_COMPONENT(MeshComponent);
 
 	string meshRelativePath = {};
 	uint32 lodLevel = 0;

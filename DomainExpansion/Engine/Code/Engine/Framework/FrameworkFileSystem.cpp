@@ -50,6 +50,22 @@ bool frameworkFileSystemResolveDefaultWorldFilePath(string& outWorldPath)
 	return true;
 }
 
+bool frameworkFileSystemResolveEditorWorldTemplateFilePath(string& outWorldPath)
+{
+	outWorldPath.clear();
+
+	string resourcesRootPath = {};
+	if (!frameworkFileSystemResolveResourcesRootPath(resourcesRootPath))
+	{
+		return false;
+	}
+
+	outWorldPath = (filesystem_path(resourcesRootPath) / "Scenes" / "EditorWorldTemplate.world")
+		.lexically_normal()
+		.string();
+	return true;
+}
+
 bool frameworkFileSystemResolvePathFromResources(const string& pathText, string& outAbsolutePath)
 {
 	outAbsolutePath.clear();

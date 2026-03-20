@@ -1,11 +1,79 @@
 #include "Engine/Tests/FrameworkWorldSerializationTestCase.h"
 
 #include "Engine/Framework/CameraComponent.h"
+#include "Engine/Framework/EditorCameraMovementComponent.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/FrameworkSerialization.h"
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/World.h"
+
+static CameraComponent* getFirstEditorCameraComponent(World* world, uint32& outEntityIndex, PlaceableEntity*& outEntity)
+{
+	outEntityIndex = invalidEntityIndex;
+	outEntity = nullptr;
+	if (world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 entityIndex = 0; entityIndex < world->getEntityCount(); ++entityIndex)
+	{
+		Entity* entity = world->getEntityByIndex(entityIndex);
+		if (entity == nullptr)
+		{
+			continue;
+		}
+
+		for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+		{
+			Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+			if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
+			{
+				continue;
+			}
+
+			CameraComponent* cameraComponent = static_cast<CameraComponent*>(component);
+			if (!cameraComponent->editorCamera)
+			{
+				continue;
+			}
+
+			outEntityIndex = entityIndex;
+			outEntity = dynamic_cast<PlaceableEntity*>(entity);
+			return cameraComponent;
+		}
+	}
+
+	return nullptr;
+}
+
+static EditorCameraMovementComponent* getEditorCameraMovementComponent(World* world, const uint32 entityIndex)
+{
+	if (world == nullptr || entityIndex == invalidEntityIndex)
+	{
+		return nullptr;
+	}
+
+	Entity* entity = world->getEntityByIndex(entityIndex);
+	if (entity == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != EditorCameraMovementComponent::staticComponentType)
+		{
+			continue;
+		}
+
+		return static_cast<EditorCameraMovementComponent*>(component);
+	}
+
+	return nullptr;
+}
 
 const char* FrameworkWorldSerializationTestCase::getTestCaseName() const
 {
@@ -23,6 +91,7 @@ bool FrameworkWorldSerializationTestCase::beginTest(Framework& framework)
 	}
 
 	generatedWorldFilePath = (currentPath / "FrameworkWorldSerializationTest.world").string();
+	generatedEditorWorldFilePath = (currentPath / "FrameworkEditorWorldSerializationTest.world").string();
 	return expectCondition(true, "begin: setup generated world path");
 }
 
@@ -35,6 +104,10 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 	runResult = expectCondition(
 		sourceEntity != nullptr,
 		"run: create source placeable entity") && runResult;
+	if (sourceEntity != nullptr)
+	{
+		sourceEntity->setName("SerializationEntity");
+	}
 
 	PlaceableEntity* sourcePlaceableEntity = dynamic_cast<PlaceableEntity*>(sourceEntity);
 	if (sourcePlaceableEntity != nullptr)
@@ -84,6 +157,12 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 		runResult = expectCondition(
 			loadedEntity != nullptr,
 			"run: loaded entity lookup succeeds") && runResult;
+		if (loadedEntity != nullptr)
+		{
+			runResult = expectCondition(
+				loadedEntity->getName() == "SerializationEntity",
+				"run: loaded entity name preserved") && runResult;
+		}
 
 		MeshComponent* loadedMeshComponent = nullptr;
 		CameraComponent* loadedCameraComponent = nullptr;
@@ -100,11 +179,11 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 					continue;
 				}
 
-				if (component->getComponentType() == ComponentType::meshComponent)
+				if (component->getComponentType() == MeshComponent::staticComponentType)
 				{
 					loadedMeshComponent = static_cast<MeshComponent*>(component);
 				}
-				else if (component->getComponentType() == ComponentType::cameraComponent)
+				else if (component->getComponentType() == CameraComponent::staticComponentType)
 				{
 					loadedCameraComponent = static_cast<CameraComponent*>(component);
 				}
@@ -137,6 +216,114 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 		}
 	}
 
+	World editorSourceWorld(L"EditorSerializationRoundTrip");
+	const uint32 editorEntityIndex = editorSourceWorld.createPlaceableEntity();
+	PlaceableEntity* editorPlaceableEntity =
+		static_cast<PlaceableEntity*>(editorSourceWorld.getEntityByIndex(editorEntityIndex));
+	runResult = expectCondition(editorPlaceableEntity != nullptr, "run: create editor camera entity") && runResult;
+	if (editorPlaceableEntity != nullptr)
+	{
+		editorPlaceableEntity->setName("EditorCamera");
+		editorPlaceableEntity->transform.positionZ = -4.0f;
+
+		unique_pointer<CameraComponent> editorCameraComponent(new CameraComponent());
+		editorCameraComponent->editorCamera = true;
+		editorCameraComponent->primary = true;
+		runResult = expectCondition(
+			editorPlaceableEntity->addComponent(moveValue(editorCameraComponent)),
+			"run: add editor camera component to editor world") && runResult;
+
+		unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
+		editorCameraMovementComponent->setMovementSpeed(8.0f);
+		runResult = expectCondition(
+			editorPlaceableEntity->addComponent(moveValue(editorCameraMovementComponent)),
+			"run: add editor camera movement component to editor world") && runResult;
+	}
+
+	string editorSaveErrorText = {};
+	runResult = expectCondition(
+		frameworkSerializationSaveWorldToFile(editorSourceWorld, generatedEditorWorldFilePath, editorSaveErrorText),
+		"run: save editor world to file") && runResult;
+
+	unique_pointer<World> editorLoadedWorld = nullptr;
+	string editorLoadErrorText = {};
+	runResult = expectCondition(
+		frameworkSerializationLoadWorldFromFile(generatedEditorWorldFilePath, editorLoadedWorld, editorLoadErrorText),
+		"run: load editor world from saved file") && runResult;
+	if (editorLoadedWorld != nullptr)
+	{
+		uint32 loadedEditorEntityIndex = invalidEntityIndex;
+		PlaceableEntity* loadedEditorEntity = nullptr;
+		CameraComponent* loadedEditorCameraComponent =
+			getFirstEditorCameraComponent(editorLoadedWorld.get(), loadedEditorEntityIndex, loadedEditorEntity);
+		EditorCameraMovementComponent* loadedEditorCameraMovementComponent =
+			getEditorCameraMovementComponent(editorLoadedWorld.get(), loadedEditorEntityIndex);
+		runResult = expectCondition(
+			loadedEditorCameraComponent != nullptr
+				&& loadedEditorEntity != nullptr
+				&& loadedEditorCameraMovementComponent != nullptr
+				&& loadedEditorCameraComponent->primary
+				&& loadedEditorCameraMovementComponent->getMovementSpeed() == 8.0f
+				&& loadedEditorEntity->transform.positionZ == -4.0f,
+			"run: direct serialization preserves editor camera and movement component") && runResult;
+	}
+
+	runResult = expectCondition(
+		framework.loadWorldFromFile(generatedEditorWorldFilePath),
+		"run: framework can load serialized editor world file without injecting duplicates") && runResult;
+	if (framework.getActiveWorld() != nullptr)
+	{
+		loadedWorldIndex = framework.getActiveWorldIndex();
+		uint32 sceneCameraCount = 0;
+		uint32 editorCameraCount = 0;
+		uint32 activeEditorCameraEntityIndex = invalidEntityIndex;
+		PlaceableEntity* activeEditorCameraEntity = nullptr;
+		CameraComponent* activeEditorCameraComponent =
+			getFirstEditorCameraComponent(framework.getActiveWorld(), activeEditorCameraEntityIndex, activeEditorCameraEntity);
+		EditorCameraMovementComponent* activeEditorCameraMovementComponent =
+			getEditorCameraMovementComponent(framework.getActiveWorld(), activeEditorCameraEntityIndex);
+		for (uint32 entityIndex = 0; entityIndex < framework.getActiveWorld()->getEntityCount(); ++entityIndex)
+		{
+			Entity* entity = framework.getActiveWorld()->getEntityByIndex(entityIndex);
+			if (entity == nullptr)
+			{
+				continue;
+			}
+
+			for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+			{
+				Component* component = framework.getActiveWorld()->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+				if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
+				{
+					continue;
+				}
+
+				CameraComponent* cameraComponent = static_cast<CameraComponent*>(component);
+				if (cameraComponent->editorCamera)
+				{
+					++editorCameraCount;
+				}
+				else
+				{
+					++sceneCameraCount;
+				}
+			}
+		}
+
+		runResult = expectCondition(
+			sceneCameraCount == 0
+				&& editorCameraCount == 1
+				&& activeEditorCameraComponent != nullptr
+				&& activeEditorCameraMovementComponent != nullptr,
+			"run: framework loads editor world file with one editor camera and no duplicate injection") && runResult;
+	}
+
+	if (loadedWorldIndex != invalidWorldIndex)
+	{
+		framework.unloadWorld(loadedWorldIndex);
+		loadedWorldIndex = invalidWorldIndex;
+	}
+
 	runResult = expectCondition(
 		framework.loadWorldFromFile(generatedWorldFilePath),
 		"run: framework can load serialized world file") && runResult;
@@ -156,7 +343,7 @@ bool FrameworkWorldSerializationTestCase::runTest(Framework& framework)
 			for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
 			{
 				Component* component = framework.getActiveWorld()->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-				if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+				if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 				{
 					continue;
 				}
@@ -188,6 +375,10 @@ bool FrameworkWorldSerializationTestCase::endTest(Framework& framework)
 	{
 		std::filesystem::remove(generatedWorldFilePath, removeError);
 	}
+	if (!generatedEditorWorldFilePath.empty())
+	{
+		std::filesystem::remove(generatedEditorWorldFilePath, removeError);
+	}
 
 	if (loadedWorldIndex != invalidWorldIndex)
 	{
@@ -196,5 +387,6 @@ bool FrameworkWorldSerializationTestCase::endTest(Framework& framework)
 	}
 
 	generatedWorldFilePath.clear();
+	generatedEditorWorldFilePath.clear();
 	return expectCondition(true, "end: world serialization test cleanup");
 }

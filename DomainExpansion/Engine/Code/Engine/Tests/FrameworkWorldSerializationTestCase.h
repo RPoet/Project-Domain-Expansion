@@ -12,5 +12,6 @@ public:
 
 private:
 	string generatedWorldFilePath = {};
+	string generatedEditorWorldFilePath = {};
 	uint32 loadedWorldIndex = invalidWorldIndex;
 };

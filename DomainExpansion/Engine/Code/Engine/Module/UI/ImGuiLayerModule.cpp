@@ -1,6 +1,7 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
 #include "Engine/Framework/Entity.h"
+#include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
@@ -50,6 +51,64 @@ static void sortDirectoryEntries(vector<filesystem_directory_entry>& directoryEn
 
 			return leftEntry.path().filename().string() < rightEntry.path().filename().string();
 		});
+}
+
+static float clampCameraFieldOfViewYDegrees(const float fieldOfViewYDegrees)
+{
+	return std::clamp(fieldOfViewYDegrees, 1.0f, 179.0f);
+}
+
+static void clampCameraPlanes(float& nearPlane, float& farPlane)
+{
+	nearPlane = std::max(nearPlane, 0.001f);
+	farPlane = std::max(farPlane, nearPlane + 0.001f);
+}
+
+static const CameraComponent* getFirstCameraComponent(const World* world, const Entity* entity)
+{
+	if (world == nullptr || entity == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		const uint32 componentIndex = entity->getComponentIndex(componentArrayIndex);
+		const Component* component = world->getComponentByIndex(componentIndex);
+		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
+		{
+			continue;
+		}
+
+		return static_cast<const CameraComponent*>(component);
+	}
+
+	return nullptr;
+}
+
+static bool isEditorCameraEntity(const World* world, const Entity* entity)
+{
+	const CameraComponent* cameraComponent = getFirstCameraComponent(world, entity);
+	return cameraComponent != nullptr && cameraComponent->editorCamera;
+}
+
+static string buildEntityDisplayText(
+	const World* world,
+	const Entity* entity,
+	const uint32 entityIndex)
+{
+	string displayText = entity != nullptr && !entity->getName().empty()
+		? entity->getName()
+		: "Entity";
+	displayText += " [";
+	displayText += std::to_string(entityIndex);
+	displayText += "]";
+	if (isEditorCameraEntity(world, entity))
+	{
+		displayText += " [EditorCamera]";
+	}
+
+	return displayText;
 }
 
 static float clampFloat(const float value, const float minValue, const float maxValue)
@@ -315,6 +374,33 @@ bool ImGuiLayerModule::processNativeMessage(
 		secondParameter) != 0;
 }
 
+bool ImGuiLayerModule::isEditorInputReady() const
+{
+	return contextCreated
+		&& frameworkReference != nullptr
+		&& frameworkReference->getExecutionFlow() == FrameworkExecutionFlow::worldFlow;
+}
+
+bool ImGuiLayerModule::wantsTextInput() const
+{
+	if (!isEditorInputReady())
+	{
+		return false;
+	}
+
+	return ImGui::GetIO().WantTextInput;
+}
+
+bool ImGuiLayerModule::wantsMouseCapture() const
+{
+	if (!isEditorInputReady())
+	{
+		return false;
+	}
+
+	return ImGui::GetIO().WantCaptureMouse;
+}
+
 void ImGuiLayerModule::buildAndRender(CommandList* commandList)
 {
 	if (commandList == nullptr
@@ -433,6 +519,15 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		return;
 	}
 
+	if (selectedEntityIndex != invalidEntityIndex)
+	{
+		const Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
+		if (selectedEntity == nullptr || isEditorCameraEntity(world, selectedEntity))
+		{
+			selectedEntityIndex = invalidEntityIndex;
+		}
+	}
+
 	string worldNameText = toNarrowText(world->getWorldName());
 	if (worldNameText.empty())
 	{
@@ -465,6 +560,17 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		}
 	}
 
+	const bool deleteShortcutPressed = selectedEntityIndex != invalidEntityIndex
+		&& ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+		&& !ImGui::GetIO().WantTextInput
+		&& !ImGui::IsAnyItemActive()
+		&& !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)
+		&& ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+	if (deleteShortcutPressed)
+	{
+		tryDeleteSelectedEntity(world);
+	}
+
 	const uint32 entityCount = world->getEntityCount();
 	ImGui::Text("Entity Count: %u", entityCount);
 
@@ -473,7 +579,7 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 	{
 		const Entity* entity = world->getEntityByIndex(entityIndex);
 		if (entity == nullptr
-			|| entity->parentEntityIndex != invalidEntityIndex)
+			|| entity->getParentEntityIndex() != invalidEntityIndex)
 		{
 			continue;
 		}
@@ -509,14 +615,16 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 		return;
 	}
 
+	const bool editorCameraEntity = isEditorCameraEntity(world, entity);
+
 	ImGui::PushID(static_cast<int32>(entityIndex));
 
 	ImGuiTreeNodeFlags treeNodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-	if (selectedEntityIndex == entityIndex)
+	if (selectedEntityIndex == entityIndex && !editorCameraEntity)
 	{
 		treeNodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
-	if (entity->firstChildEntityIndex == invalidEntityIndex)
+	if (entity->getFirstChildEntityIndex() == invalidEntityIndex)
 	{
 		treeNodeFlags |= ImGuiTreeNodeFlags_Leaf;
 	}
@@ -524,16 +632,16 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 	const bool isNodeOpened = ImGui::TreeNodeEx(
 		"Entity",
 		treeNodeFlags,
-		"Entity [%u]",
-		entityIndex);
-	if (ImGui::IsItemClicked())
+		"%s",
+		buildEntityDisplayText(world, entity, entityIndex).c_str());
+	if (ImGui::IsItemClicked() && !editorCameraEntity)
 	{
 		selectedEntityIndex = entityIndex;
 	}
 
 	if (isNodeOpened)
 	{
-		uint32 childEntityIndex = entity->firstChildEntityIndex;
+		uint32 childEntityIndex = entity->getFirstChildEntityIndex();
 		uint32 childGuardCount = 0;
 		const uint32 maxChildGuardCount = world->getEntityCount();
 		while (childEntityIndex != invalidEntityIndex && childGuardCount < maxChildGuardCount)
@@ -545,7 +653,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 				break;
 			}
 
-			childEntityIndex = childEntity->nextSiblingEntityIndex;
+			childEntityIndex = childEntity->getNextSiblingEntityIndex();
 			++childGuardCount;
 		}
 
@@ -581,73 +689,158 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 		ImGui::End();
 		return;
 	}
+	if (isEditorCameraEntity(world, selectedEntity))
+	{
+		selectedEntityIndex = invalidEntityIndex;
+		ImGui::TextUnformatted("Select an entity from Outliner.");
+		ImGui::End();
+		return;
+	}
 
-	ImGui::Text("Entity [%u]", selectedEntityIndex);
-	ImGui::Text("Active: %s", selectedEntity->active ? "true" : "false");
-	if (selectedEntity->parentEntityIndex == invalidEntityIndex)
+	const string selectedEntityDisplayText = buildEntityDisplayText(world, selectedEntity, selectedEntityIndex);
+	ImGui::Text("%s", selectedEntityDisplayText.c_str());
+	string entityName = selectedEntity->getName();
+	if (ImGui::InputText("Name", &entityName))
+	{
+		selectedEntity->setName(entityName);
+		lastEditorActionStatus = saveActiveWorldImmediate()
+			? "entity_name_updated_and_saved"
+			: "entity_name_updated_save_skipped";
+	}
+	ImGui::Text("Active: %s", selectedEntity->isActive() ? "true" : "false");
+	if (selectedEntity->getParentEntityIndex() == invalidEntityIndex)
 	{
 		ImGui::TextUnformatted("Parent: invalid");
 	}
 	else
 	{
-		ImGui::Text("Parent: %u", selectedEntity->parentEntityIndex);
+		ImGui::Text("Parent: %u", selectedEntity->getParentEntityIndex());
 	}
-	if (selectedEntity->firstChildEntityIndex == invalidEntityIndex)
+	if (selectedEntity->getFirstChildEntityIndex() == invalidEntityIndex)
 	{
 		ImGui::TextUnformatted("First Child: invalid");
 	}
 	else
 	{
-		ImGui::Text("First Child: %u", selectedEntity->firstChildEntityIndex);
+		ImGui::Text("First Child: %u", selectedEntity->getFirstChildEntityIndex());
 	}
-	if (selectedEntity->nextSiblingEntityIndex == invalidEntityIndex)
+	if (selectedEntity->getNextSiblingEntityIndex() == invalidEntityIndex)
 	{
 		ImGui::TextUnformatted("Next Sibling: invalid");
 	}
 	else
 	{
-		ImGui::Text("Next Sibling: %u", selectedEntity->nextSiblingEntityIndex);
+		ImGui::Text("Next Sibling: %u", selectedEntity->getNextSiblingEntityIndex());
 	}
 
 	ImGui::Separator();
 	const uint32 componentCount = selectedEntity->getComponentCount();
 	ImGui::Text("Components: %u", componentCount);
 
+	PlaceableEntity* placeableEntity = dynamic_cast<PlaceableEntity*>(selectedEntity);
 	MeshComponent* meshComponent = nullptr;
+	CameraComponent* cameraComponent = nullptr;
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < componentCount; ++componentArrayIndex)
 	{
 		const uint32 componentIndex = selectedEntity->getComponentIndex(componentArrayIndex);
 		ImGui::BulletText("Component Index: %u", componentIndex);
 
 		Component* component = world->getComponentByIndex(componentIndex);
-		MeshComponent* currentMeshComponent = dynamic_cast<MeshComponent*>(component);
-		if (currentMeshComponent != nullptr && meshComponent == nullptr)
+		if (component == nullptr)
 		{
-			meshComponent = currentMeshComponent;
+			continue;
 		}
+
+		if (component->getComponentType() == MeshComponent::staticComponentType && meshComponent == nullptr)
+		{
+			meshComponent = static_cast<MeshComponent*>(component);
+		}
+		else if (component->getComponentType() == CameraComponent::staticComponentType && cameraComponent == nullptr)
+		{
+			cameraComponent = static_cast<CameraComponent*>(component);
+		}
+	}
+
+	const bool deleteShortcutPressed = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+		&& !ImGui::GetIO().WantTextInput
+		&& !ImGui::IsAnyItemActive()
+		&& !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)
+		&& ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+	const bool canDeleteSelectedEntity = cameraComponent == nullptr || !cameraComponent->editorCamera;
+	ImGui::BeginDisabled(!canDeleteSelectedEntity);
+	const bool deleteButtonPressed = ImGui::Button("Delete Entity");
+	ImGui::EndDisabled();
+	if (!canDeleteSelectedEntity)
+	{
+		ImGui::TextDisabled("Editor camera entity cannot be deleted.");
+		if (deleteShortcutPressed)
+		{
+			lastEditorActionStatus = "editor_camera_entity_delete_blocked";
+		}
+	}
+
+	if ((deleteButtonPressed || (canDeleteSelectedEntity && deleteShortcutPressed))
+		&& tryDeleteSelectedEntity(world))
+	{
+		ImGui::End();
+		return;
 	}
 
 	ImGui::Separator();
 	const bool hasMeshComponent = meshComponent != nullptr;
-	ImGui::BeginDisabled(hasMeshComponent);
-	if (ImGui::Button("+ AddComponent: MeshComponent"))
+	const bool hasCameraComponent = cameraComponent != nullptr;
+	if (ImGui::Button("Add Component"))
 	{
-		unique_pointer<MeshComponent> newMeshComponent(new MeshComponent());
-		if (selectedEntity->addComponent(moveValue(newMeshComponent)))
-		{
-			lastEditorActionStatus = saveActiveWorldImmediate()
-				? "mesh_component_added_and_saved"
-				: "mesh_component_added_save_skipped";
-		}
-		else
-		{
-			lastEditorActionStatus = "mesh_component_add_failed";
-		}
+		ImGui::OpenPopup("AddComponentPopup");
 	}
-	ImGui::EndDisabled();
+	if (ImGui::BeginPopup("AddComponentPopup"))
+	{
+		ImGui::BeginDisabled(hasMeshComponent);
+		if (ImGui::MenuItem("Mesh"))
+		{
+			unique_pointer<MeshComponent> newMeshComponent(new MeshComponent());
+			if (selectedEntity->addComponent(moveValue(newMeshComponent)))
+			{
+				lastEditorActionStatus = saveActiveWorldImmediate()
+					? "mesh_component_added_and_saved"
+					: "mesh_component_added_save_skipped";
+			}
+			else
+			{
+				lastEditorActionStatus = "mesh_component_add_failed";
+			}
+		}
+		ImGui::EndDisabled();
+
+		ImGui::BeginDisabled(placeableEntity == nullptr || hasCameraComponent);
+		if (ImGui::MenuItem("Camera"))
+		{
+			unique_pointer<CameraComponent> newCameraComponent(new CameraComponent());
+			if (selectedEntity->addComponent(moveValue(newCameraComponent)))
+			{
+				lastEditorActionStatus = saveActiveWorldImmediate()
+					? "camera_component_added_and_saved"
+					: "camera_component_added_save_skipped";
+			}
+			else
+			{
+				lastEditorActionStatus = "camera_component_add_failed";
+			}
+		}
+		ImGui::EndDisabled();
+
+		if (placeableEntity == nullptr)
+		{
+			ImGui::Separator();
+			ImGui::TextDisabled("Camera requires PlaceableEntity.");
+		}
+
+		ImGui::EndPopup();
+	}
 
 	if (hasMeshComponent)
 	{
+		ImGui::Separator();
 		ImGui::TextUnformatted("MeshComponent");
 
 		string meshPath = meshComponent->meshRelativePath;
@@ -693,18 +886,143 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 		}
 	}
 
-	const PlaceableEntity* placeableEntity = dynamic_cast<const PlaceableEntity*>(selectedEntity);
+	if (hasCameraComponent)
+	{
+		ImGui::Separator();
+		ImGui::TextUnformatted("CameraComponent");
+
+		bool primary = cameraComponent->primary;
+		float fieldOfViewYDegrees = cameraComponent->fieldOfViewYDegrees;
+		float nearPlane = cameraComponent->nearPlane;
+		float farPlane = cameraComponent->farPlane;
+		bool cameraComponentChanged = false;
+
+		if (ImGui::Checkbox("Primary", &primary))
+		{
+			cameraComponentChanged = true;
+		}
+
+		if (ImGui::InputFloat("Field Of View Y", &fieldOfViewYDegrees, 1.0f, 10.0f, "%.3f"))
+		{
+			cameraComponentChanged = true;
+		}
+
+		if (ImGui::InputFloat("Near Plane", &nearPlane, 0.01f, 0.1f, "%.3f"))
+		{
+			cameraComponentChanged = true;
+		}
+
+		if (ImGui::InputFloat("Far Plane", &farPlane, 1.0f, 10.0f, "%.3f"))
+		{
+			cameraComponentChanged = true;
+		}
+
+		ImGui::Text("Editor Camera: %s", cameraComponent->editorCamera ? "true" : "false");
+
+		if (cameraComponentChanged)
+		{
+			fieldOfViewYDegrees = clampCameraFieldOfViewYDegrees(fieldOfViewYDegrees);
+			clampCameraPlanes(nearPlane, farPlane);
+			cameraComponent->primary = primary;
+			cameraComponent->fieldOfViewYDegrees = fieldOfViewYDegrees;
+			cameraComponent->nearPlane = nearPlane;
+			cameraComponent->farPlane = farPlane;
+
+			lastEditorActionStatus = saveActiveWorldImmediate()
+				? "camera_component_updated_and_saved"
+				: "camera_component_updated_save_skipped";
+		}
+	}
+
 	if (placeableEntity != nullptr)
 	{
-		const Transform& transform = placeableEntity->transform;
+		Transform updatedTransform = placeableEntity->transform;
+		bool transformChanged = false;
+		float position[3] = {
+			updatedTransform.positionX,
+			updatedTransform.positionY,
+			updatedTransform.positionZ};
+		float rotation[3] = {
+			updatedTransform.rotationPitch,
+			updatedTransform.rotationYaw,
+			updatedTransform.rotationRoll};
+		float scale[3] = {
+			updatedTransform.scaleX,
+			updatedTransform.scaleY,
+			updatedTransform.scaleZ};
 		ImGui::Separator();
 		ImGui::TextUnformatted("Transform");
-		ImGui::Text("Position: %.3f, %.3f, %.3f", transform.positionX, transform.positionY, transform.positionZ);
-		ImGui::Text("Rotation: %.3f, %.3f, %.3f", transform.rotationPitch, transform.rotationYaw, transform.rotationRoll);
-		ImGui::Text("Scale: %.3f, %.3f, %.3f", transform.scaleX, transform.scaleY, transform.scaleZ);
+
+		if (ImGui::InputFloat3("Position", position, "%.3f"))
+		{
+			updatedTransform.positionX = position[0];
+			updatedTransform.positionY = position[1];
+			updatedTransform.positionZ = position[2];
+			transformChanged = true;
+		}
+
+		if (ImGui::InputFloat3("Rotation", rotation, "%.3f"))
+		{
+			updatedTransform.rotationPitch = rotation[0];
+			updatedTransform.rotationYaw = rotation[1];
+			updatedTransform.rotationRoll = rotation[2];
+			transformChanged = true;
+		}
+
+		if (ImGui::InputFloat3("Scale", scale, "%.3f"))
+		{
+			updatedTransform.scaleX = scale[0];
+			updatedTransform.scaleY = scale[1];
+			updatedTransform.scaleZ = scale[2];
+			transformChanged = true;
+		}
+
+		if (transformChanged)
+		{
+			placeableEntity->transform = updatedTransform;
+			lastEditorActionStatus = saveActiveWorldImmediate()
+				? "entity_transform_updated_and_saved"
+				: "entity_transform_updated_save_skipped";
+		}
 	}
 
 	ImGui::End();
+}
+
+bool ImGuiLayerModule::tryDeleteSelectedEntity(World* world)
+{
+	if (world == nullptr || selectedEntityIndex == invalidEntityIndex)
+	{
+		return false;
+	}
+
+	const Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
+	if (selectedEntity == nullptr)
+	{
+		selectedEntityIndex = invalidEntityIndex;
+		lastEditorActionStatus = "entity_delete_invalid_selection";
+		return false;
+	}
+
+	const CameraComponent* cameraComponent = getFirstCameraComponent(world, selectedEntity);
+	if (cameraComponent != nullptr && cameraComponent->editorCamera)
+	{
+		lastEditorActionStatus = "editor_camera_entity_delete_blocked";
+		return false;
+	}
+
+	const uint32 entityIndexToDelete = selectedEntityIndex;
+	if (!world->removeEntity(entityIndexToDelete))
+	{
+		lastEditorActionStatus = "entity_delete_failed";
+		return false;
+	}
+
+	selectedEntityIndex = invalidEntityIndex;
+	lastEditorActionStatus = saveActiveWorldImmediate()
+		? "entity_deleted_and_saved"
+		: "entity_deleted_save_skipped";
+	return true;
 }
 
 void ImGuiLayerModule::buildFileSystemPanel()
@@ -907,9 +1225,24 @@ bool ImGuiLayerModule::createWorldFile(const string& requestedWorldName, string&
 		worldNameWide.push_back(static_cast<wide_character>(static_cast<unsigned char>(worldName[characterIndex])));
 	}
 
-	World newWorld(worldNameWide);
+	string editorWorldTemplatePath = {};
+	if (!frameworkFileSystemResolveEditorWorldTemplateFilePath(editorWorldTemplatePath))
+	{
+		return false;
+	}
+
+	unique_pointer<World> newWorld = nullptr;
+	string loadErrorText = {};
+	if (!frameworkSerializationLoadWorldFromFile(editorWorldTemplatePath, newWorld, loadErrorText)
+		|| newWorld == nullptr)
+	{
+		unused(loadErrorText);
+		return false;
+	}
+
+	newWorld->setWorldName(worldNameWide);
 	string saveErrorText = {};
-	if (!frameworkSerializationSaveWorldToFile(newWorld, targetWorldPath, saveErrorText))
+	if (!frameworkSerializationSaveWorldToFile(*newWorld, targetWorldPath, saveErrorText))
 	{
 		unused(saveErrorText);
 		return false;

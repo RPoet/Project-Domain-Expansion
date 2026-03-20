@@ -1,5 +1,6 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/CameraComponent.h"
+#include "Engine/Framework/EditorCameraMovementComponent.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
 #include "Engine/Framework/PlaceableEntity.h"
@@ -48,7 +49,7 @@ static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 		{
 			continue;
 		}
@@ -57,6 +58,131 @@ static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
 	}
 
 	return nullptr;
+}
+
+static EditorCameraMovementComponent* getFirstEditorCameraMovementComponent(Entity* entity, World* world)
+{
+	if (entity == nullptr || world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
+		if (component == nullptr || component->getComponentType() != EditorCameraMovementComponent::staticComponentType)
+		{
+			continue;
+		}
+
+		return static_cast<EditorCameraMovementComponent*>(component);
+	}
+
+	return nullptr;
+}
+
+static CameraComponent* getEditorCameraComponent(World* world, uint32& outEntityIndex, PlaceableEntity*& outEntity)
+{
+	outEntityIndex = invalidEntityIndex;
+	outEntity = nullptr;
+	if (world == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (uint32 entityIndex = 0; entityIndex < world->getEntityCount(); ++entityIndex)
+	{
+		Entity* entity = world->getEntityByIndex(entityIndex);
+		if (entity == nullptr)
+		{
+			continue;
+		}
+
+		CameraComponent* cameraComponent = getFirstCameraComponent(entity, world);
+		if (cameraComponent == nullptr || !cameraComponent->editorCamera)
+		{
+			continue;
+		}
+
+		outEntityIndex = entityIndex;
+		outEntity = dynamic_cast<PlaceableEntity*>(entity);
+		return cameraComponent;
+	}
+
+	return nullptr;
+}
+
+static bool loadEditorWorldTemplate(unique_pointer<World>& outWorld, string& outErrorText)
+{
+	outWorld.reset();
+	outErrorText.clear();
+
+	string editorWorldTemplatePath = {};
+	if (!frameworkFileSystemResolveEditorWorldTemplateFilePath(editorWorldTemplatePath))
+	{
+		outErrorText = "editor_world_template_path_resolve_failed";
+		return false;
+	}
+
+	return frameworkSerializationLoadWorldFromFile(editorWorldTemplatePath, outWorld, outErrorText)
+		&& outWorld != nullptr;
+}
+
+static bool cloneEditorCameraFromTemplateWorld(const World& templateWorld, World& targetWorld, string& outErrorText)
+{
+	outErrorText.clear();
+
+	World* mutableTemplateWorld = const_cast<World*>(&templateWorld);
+	uint32 templateEditorCameraEntityIndex = invalidEntityIndex;
+	PlaceableEntity* templateEditorCameraEntity = nullptr;
+	CameraComponent* templateEditorCameraComponent =
+		getEditorCameraComponent(mutableTemplateWorld, templateEditorCameraEntityIndex, templateEditorCameraEntity);
+	if (templateEditorCameraComponent == nullptr || templateEditorCameraEntity == nullptr)
+	{
+		outErrorText = "editor_world_template_missing_editor_camera";
+		return false;
+	}
+
+	const uint32 newEditorCameraEntityIndex = targetWorld.createPlaceableEntity();
+	PlaceableEntity* newEditorCameraEntity =
+		static_cast<PlaceableEntity*>(targetWorld.getEntityByIndex(newEditorCameraEntityIndex));
+	if (newEditorCameraEntity == nullptr)
+	{
+		outErrorText = "editor_camera_entity_create_failed";
+		return false;
+	}
+
+	newEditorCameraEntity->setName(templateEditorCameraEntity->getName());
+	newEditorCameraEntity->setActive(templateEditorCameraEntity->isActive());
+	newEditorCameraEntity->transform = templateEditorCameraEntity->transform;
+
+	unique_pointer<CameraComponent> editorCameraComponent(new CameraComponent());
+	editorCameraComponent->editorCamera = templateEditorCameraComponent->editorCamera;
+	editorCameraComponent->primary = templateEditorCameraComponent->primary;
+	editorCameraComponent->fieldOfViewYDegrees = templateEditorCameraComponent->fieldOfViewYDegrees;
+	editorCameraComponent->nearPlane = templateEditorCameraComponent->nearPlane;
+	editorCameraComponent->farPlane = templateEditorCameraComponent->farPlane;
+	if (!newEditorCameraEntity->addComponent(moveValue(editorCameraComponent)))
+	{
+		outErrorText = "editor_camera_component_add_failed";
+		return false;
+	}
+
+	EditorCameraMovementComponent* templateEditorCameraMovementComponent =
+		getFirstEditorCameraMovementComponent(templateEditorCameraEntity, mutableTemplateWorld);
+	if (templateEditorCameraMovementComponent != nullptr)
+	{
+		unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
+		editorCameraMovementComponent->setMovementSpeed(templateEditorCameraMovementComponent->getMovementSpeed());
+		if (!newEditorCameraEntity->addComponent(moveValue(editorCameraMovementComponent)))
+		{
+			outErrorText = "editor_camera_movement_component_add_failed";
+			return false;
+		}
+	}
+
+	newEditorCameraEntity->tick(0.0f);
+	return true;
 }
 
 Framework::Framework(const FrameworkExecutionFlow executionFlow)
@@ -206,7 +332,16 @@ FrameworkExecutionFlow Framework::getExecutionFlow() const
 
 uint32 Framework::createWorld(const wstring& worldName)
 {
-	unique_pointer<World> worldInstance(new World(worldName));
+	unique_pointer<World> worldInstance = nullptr;
+	string errorText = {};
+	if (!loadEditorWorldTemplate(worldInstance, errorText) || worldInstance == nullptr)
+	{
+		error << "[Framework][Error] createWorld_failed reason="
+			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
+		return invalidWorldIndex;
+	}
+
+	worldInstance->setWorldName(worldName);
 	worldStorage.push_back(moveValue(worldInstance));
 	return static_cast<uint32>(worldStorage.size() - 1);
 }
@@ -223,7 +358,7 @@ bool Framework::loadWorld(const uint32 worldIndex)
 		return false;
 	}
 
-	if (!ensureEditorCameraEntity(*worldStorage[worldIndex]))
+	if (!ensureEditorCameraFromTemplate(*worldStorage[worldIndex]))
 	{
 		return false;
 	}
@@ -369,7 +504,7 @@ bool Framework::update()
 	return true;
 }
 
-bool Framework::ensureEditorCameraEntity(World& world)
+bool Framework::ensureEditorCameraFromTemplate(World& world)
 {
 	PlaceableEntity* existingEditorCameraEntity = nullptr;
 	CameraComponent* existingEditorCameraComponent = nullptr;
@@ -414,36 +549,61 @@ bool Framework::ensureEditorCameraEntity(World& world)
 			return false;
 		}
 
-		existingEditorCameraEntity->setActive(true);
-		existingEditorCameraComponent->primary = true;
+		EditorCameraMovementComponent* existingEditorCameraMovementComponent =
+			getFirstEditorCameraMovementComponent(existingEditorCameraEntity, &world);
+		if (existingEditorCameraMovementComponent == nullptr)
+		{
+			unique_pointer<World> editorWorldTemplate = nullptr;
+			string errorText = {};
+			if (!loadEditorWorldTemplate(editorWorldTemplate, errorText) || editorWorldTemplate == nullptr)
+			{
+				error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
+					  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
+				return false;
+			}
+
+			uint32 templateEditorCameraEntityIndex = invalidEntityIndex;
+			PlaceableEntity* templateEditorCameraEntity = nullptr;
+			getEditorCameraComponent(editorWorldTemplate.get(), templateEditorCameraEntityIndex, templateEditorCameraEntity);
+			EditorCameraMovementComponent* templateEditorCameraMovementComponent =
+				templateEditorCameraEntity != nullptr
+				? getFirstEditorCameraMovementComponent(templateEditorCameraEntity, editorWorldTemplate.get())
+				: nullptr;
+			if (templateEditorCameraMovementComponent == nullptr)
+			{
+				error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason=editor_world_template_missing_movement" << lineBreak;
+				return false;
+			}
+
+			unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
+			editorCameraMovementComponent->setMovementSpeed(templateEditorCameraMovementComponent->getMovementSpeed());
+			const bool addMovementResult = existingEditorCameraEntity->addComponent(moveValue(editorCameraMovementComponent));
+			assert(addMovementResult && "[Framework][Assert] reason=editor_camera_movement_component_add_failed");
+			if (!addMovementResult)
+			{
+				return false;
+			}
+		}
+
 		existingEditorCameraEntity->tick(0.0f);
 		return true;
 	}
 
-	const uint32 editorCameraEntityIndex = world.createPlaceableEntity();
-	PlaceableEntity* editorCameraEntity = static_cast<PlaceableEntity*>(world.getEntityByIndex(editorCameraEntityIndex));
-	assert(editorCameraEntity != nullptr);
-	if (editorCameraEntity == nullptr)
+	unique_pointer<World> editorWorldTemplate = nullptr;
+	string errorText = {};
+	if (!loadEditorWorldTemplate(editorWorldTemplate, errorText) || editorWorldTemplate == nullptr)
 	{
+		error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
+			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
 		return false;
 	}
 
-	editorCameraEntity->transform.positionZ = 4.0f;
-
-	unique_pointer<CameraComponent> editorCameraComponent(new CameraComponent());
-	editorCameraComponent->editorCamera = true;
-	editorCameraComponent->primary = true;
-	editorCameraComponent->fieldOfViewYDegrees = 60.0f;
-	editorCameraComponent->nearPlane = 0.1f;
-	editorCameraComponent->farPlane = 100.0f;
-	const bool addCameraResult = editorCameraEntity->addComponent(moveValue(editorCameraComponent));
-	assert(addCameraResult && "[Framework][Assert] reason=editor_camera_component_add_failed");
-	if (!addCameraResult)
+	if (!cloneEditorCameraFromTemplateWorld(*editorWorldTemplate, world, errorText))
 	{
+		error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
+			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
 		return false;
 	}
-
-	editorCameraEntity->tick(0.0f);
 	return true;
 }
 

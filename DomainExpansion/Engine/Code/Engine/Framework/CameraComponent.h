@@ -6,10 +6,7 @@
 class CameraComponent final : public Component
 {
 public:
-	ComponentType getComponentType() const override
-	{
-		return ComponentType::cameraComponent;
-	}
+	DECLARE_COMPONENT(CameraComponent);
 
 	bool editorCamera = false;
 	bool primary = false;

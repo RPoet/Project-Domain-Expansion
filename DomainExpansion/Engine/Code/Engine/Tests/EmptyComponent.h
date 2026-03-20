@@ -4,5 +4,5 @@
 
 class EmptyComponent : public Component
 {
+	DECLARE_COMPONENT(EmptyComponent);
 };
-

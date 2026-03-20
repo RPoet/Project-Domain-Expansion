@@ -61,7 +61,7 @@ bool FrameworkEntityBridgeSyncTestCase::beginTest(Framework& framework)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::meshComponent)
+		if (component == nullptr || component->getComponentType() != MeshComponent::staticComponentType)
 		{
 			continue;
 		}
@@ -79,7 +79,7 @@ bool FrameworkEntityBridgeSyncTestCase::beginTest(Framework& framework)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 		{
 			continue;
 		}
@@ -127,8 +127,8 @@ bool FrameworkEntityBridgeSyncTestCase::runTest(Framework& framework)
 			&& cameraDynamicData->fieldOfViewYDegrees == 75.0f
 			&& cameraDynamicData->nearPlane == 0.5f
 			&& cameraDynamicData->farPlane == 250.0f
-			&& cameraDynamicData->viewMatrix.value[12] == 1.0f
-			&& cameraDynamicData->viewMatrix.value[13] == 2.0f,
+			&& cameraDynamicData->viewMatrix.value[12] == -1.0f
+			&& cameraDynamicData->viewMatrix.value[13] == -2.0f,
 		"run: camera bridge synced owner link and projection data") && runResult;
 	if (!runResult)
 	{
@@ -167,7 +167,7 @@ bool FrameworkEntityBridgeSyncTestCase::runTest(Framework& framework)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::meshComponent)
+		if (component == nullptr || component->getComponentType() != MeshComponent::staticComponentType)
 		{
 			continue;
 		}
@@ -186,7 +186,7 @@ bool FrameworkEntityBridgeSyncTestCase::runTest(Framework& framework)
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < placeableEntity->getComponentCount(); ++componentArrayIndex)
 	{
 		Component* component = activeWorld->getComponentByIndex(placeableEntity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != ComponentType::cameraComponent)
+		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
 		{
 			continue;
 		}

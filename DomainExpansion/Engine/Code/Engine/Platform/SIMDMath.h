@@ -131,15 +131,19 @@ inline float4x4 buildWorldMatrix4x4(const float3& position, const float3& rotati
 
 inline float4x4 buildViewMatrix4x4(const float3& position, const float3& rotation)
 {
-	const float4x4 rotationXMatrix = buildRotationXMatrix4x4(-rotation.x);
-	const float4x4 rotationYMatrix = buildRotationYMatrix4x4(-rotation.y);
+	float3 inversePosition = {};
+	inversePosition.x = -position.x;
+	inversePosition.y = -position.y;
+	inversePosition.z = -position.z;
+	const float4x4 translationMatrix = buildTranslationMatrix4x4(inversePosition);
 	const float4x4 rotationZMatrix = buildRotationZMatrix4x4(-rotation.z);
-	const float4x4 translationMatrix = buildTranslationMatrix4x4(position);
+	const float4x4 rotationYMatrix = buildRotationYMatrix4x4(-rotation.y);
+	const float4x4 rotationXMatrix = buildRotationXMatrix4x4(-rotation.x);
 	return multiplyMatrix4x4(
 		multiplyMatrix4x4(
-			multiplyMatrix4x4(rotationXMatrix, rotationYMatrix),
-			rotationZMatrix),
-		translationMatrix);
+			multiplyMatrix4x4(translationMatrix, rotationZMatrix),
+			rotationYMatrix),
+		rotationXMatrix);
 }
 
 inline float4x4 buildViewMatrix4x4(const float3& position)

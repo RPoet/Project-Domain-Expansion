@@ -41,6 +41,7 @@ public:
 	InputKeyState getKeyState(uint32 keyCode) const;
 	InputKeyState getMouseButtonState(InputMouseButton mouseButton) const;
 	int2 getMousePosition() const;
+	int2 getMousePositionDelta() const;
 	int2 getMouseScrollDelta() const;
 	void handleNativeMessage(
 		HandleWindow windowHandle,
@@ -57,6 +58,9 @@ private:
 	InputKeyState keyStateStorage[keyboardKeyCount] = {};
 	InputKeyState mouseButtonStateStorage[mouseButtonCount] = {};
 	int2 mousePosition = {};
+	int2 previousMousePosition = {};
+	int2 mousePositionDelta = {};
 	int2 mouseScrollDelta = {};
 	int2 pendingMouseScrollDelta = {};
+	bool hasMousePosition = false;
 };

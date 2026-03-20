@@ -193,7 +193,7 @@ bool FrameworkEntityAddRemoveTestCase::runTest(Framework& framework)
 	for (uint32 entityIndex = 0; entityIndex < testWorld.getEntityCount(); ++entityIndex)
 	{
 		const Entity* entity = testWorld.getEntityByIndex(entityIndex);
-		if (entity == nullptr || entity->parentEntityIndex != invalidEntityIndex)
+		if (entity == nullptr || entity->getParentEntityIndex() != invalidEntityIndex)
 		{
 			detachedChildrenStateIsValid = false;
 			break;

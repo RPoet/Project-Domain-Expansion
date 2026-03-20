@@ -31,16 +31,15 @@ public:
 	BridgeHandle getEntityHandle() const;
 	uint32 getComponentCount() const;
 	uint32 getComponentIndex(uint32 componentArrayIndex) const;
+	const string& getName() const;
+	void setName(const string& name);
+	uint32 getParentEntityIndex() const;
+	uint32 getFirstChildEntityIndex() const;
+	uint32 getNextSiblingEntityIndex() const;
+	bool isActive() const;
 	void setActive(bool active);
 
-	pooled_vector<uint32> componentIndices;
-	uint32 parentEntityIndex = invalidEntityIndex;
-	uint32 firstChildEntityIndex = invalidEntityIndex;
-	uint32 nextSiblingEntityIndex = invalidEntityIndex;
-	bool active = true;
-
 protected:
-	friend class World;
 	explicit Entity(memory_resource* componentIndexMemoryResource = nullptr);
 	virtual void initEntity();
 	virtual void buildEntityBridgeDynamicData(EntityBridge::DynamicData& dynamicData);
@@ -50,4 +49,14 @@ protected:
 	World* ownerWorld = nullptr;
 	uint32 ownerEntityIndex = invalidEntityIndex;
 	EntityBridge::HandleReference entityBridgeHandle = {};
+
+private:
+	friend class World;
+
+	pooled_vector<uint32> componentIndices;
+	string name = {};
+	uint32 parentEntityIndex = invalidEntityIndex;
+	uint32 firstChildEntityIndex = invalidEntityIndex;
+	uint32 nextSiblingEntityIndex = invalidEntityIndex;
+	bool active = true;
 };
