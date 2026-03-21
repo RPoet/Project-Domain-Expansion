@@ -1,0 +1,8 @@
+# Place this file next to your .sln file.
+# The extension scans the folders below recursively and indexes only the listed extensions.
+# These defines are applied only inside intelligence preprocessor evaluation.
+
+extensions = .hlsl, .hlsli, .fx, .fxh
+folders = Shaders, Engine/Shaders
+folders = Shaders, Engine/Shaders, Engine/Resources/Shaders
+defines = USE_SKINNING, SHADOW_QUALITY=2, TEST=1
