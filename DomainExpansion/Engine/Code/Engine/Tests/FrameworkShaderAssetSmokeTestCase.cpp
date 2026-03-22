@@ -1,7 +1,7 @@
 #include "Engine/Tests/FrameworkShaderAssetSmokeTestCase.h"
 
 #include "Engine/Framework/Framework.h"
-#include "Engine/Module/Asset/DiskLoaderModule.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Render/Backends/Dx12/Dx12Shader.h"
 #include "Render/Shader.h"
 

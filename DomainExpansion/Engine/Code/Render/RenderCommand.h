@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Engine/Module/Singleton.h"
+#include "Engine/Common/Singleton.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/Backends/RenderBackend.h"
 

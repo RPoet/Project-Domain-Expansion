@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Engine/Module/Asset/FbxMeshParserStub.h"
-#include "Engine/Module/Asset/ObjMeshParser.h"
-#include "Engine/Module/Singleton.h"
+#include "Engine/Assets/MeshAsset.h"
+#include "Engine/Common/Singleton.h"
+#include "Engine/Module/MeshParser/FbxMeshParserStub.h"
+#include "Engine/Module/MeshParser/ObjMeshParser.h"
 
 class MeshParser final : public Singleton<MeshParser>
 {

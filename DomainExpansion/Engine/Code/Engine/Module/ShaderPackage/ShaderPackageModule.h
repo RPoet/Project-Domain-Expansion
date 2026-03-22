@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Engine/Module/Asset/ShaderModule.h"
+#include "Engine/Module/Shader/ShaderModule.h"
 #include "Engine/Module/Module.h"
 #include "Render/Shader.h"
 

@@ -1,6 +1,6 @@
-#include "Engine/Module/Asset/ShaderPackageModule.h"
+#include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 
-#include "Engine/Module/Asset/DiskLoaderModule.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
 #include <fstream>
 #include <sstream>

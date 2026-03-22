@@ -1,7 +1,7 @@
-#include "Engine/Module/Asset/ShaderModule.h"
+#include "Engine/Module/Shader/ShaderModule.h"
 
 #include "Engine/Framework/Framework.h"
-#include "Engine/Module/Asset/DiskLoaderModule.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Render/Backends/Dx12/Dx12Shader.h"
 
 static ShaderTargetPlatform getShaderTargetPlatformFromRenderBackendType(const RenderBackendType renderBackendType)

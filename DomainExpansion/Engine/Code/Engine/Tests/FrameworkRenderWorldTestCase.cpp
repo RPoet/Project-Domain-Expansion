@@ -5,7 +5,7 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Bridge/MeshBridge.h"
 #include "Render/RenderWorld.h"
 

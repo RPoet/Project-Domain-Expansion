@@ -1,6 +1,6 @@
-#include "Engine/Module/Asset/MeshParser.h"
+#include "Engine/Module/MeshParser/MeshParser.h"
 
-#include "Engine/Module/Asset/DiskLoaderModule.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/CLI/CLIModule.h"
 
 static MeshParser& forceMeshParserSingleton = MeshParser::get();

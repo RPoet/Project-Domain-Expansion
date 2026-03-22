@@ -11,6 +11,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\Code\Engine\Assets\MeshAsset.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Main.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -137,28 +140,28 @@
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\MeshParser.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderModule.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\Shader\ShaderModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.cpp">
+    <ClCompile Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp">
@@ -223,6 +226,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Assets\MeshAsset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Bridge\BaseBridge.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -304,7 +310,7 @@
     <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Singleton.h">
+    <ClInclude Include="Engine\Code\Engine\Common\Singleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h">
@@ -442,28 +448,28 @@
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h">
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.h">
+    <ClInclude Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h">
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\MeshParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h">
+    <ClInclude Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h">
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.h">
+    <ClInclude Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderModule.h">
+    <ClInclude Include="Engine\Code\Engine\Module\Shader\ShaderModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h">
+    <ClInclude Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\CommandList.h">

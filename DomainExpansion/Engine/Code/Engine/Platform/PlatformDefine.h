@@ -94,10 +94,7 @@ inline memory_resource* getDefaultMemoryResource()
 
 inline void tolower(string& text)
 {
-	transform(
-		text.begin(),
-		text.end(),
-		text.begin(),
+	transform(text.begin(), text.end(), text.begin(),
 		[](const unsigned char character)
 		{
 			return static_cast<char>(tolower(character));

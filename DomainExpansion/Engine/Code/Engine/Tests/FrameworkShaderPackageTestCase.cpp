@@ -1,8 +1,8 @@
 #include "Engine/Tests/FrameworkShaderPackageTestCase.h"
 
 #include "Engine/Framework/Framework.h"
-#include "Engine/Module/Asset/ShaderModule.h"
-#include "Engine/Module/Asset/ShaderPackageModule.h"
+#include "Engine/Module/Shader/ShaderModule.h"
+#include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 
 static const ShaderPackageVariant* Temp_findShaderPackageVariantByName(
 	const ShaderPackageAsset& shaderPackageAsset,

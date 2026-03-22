@@ -1,8 +1,8 @@
 #include "Engine/Tests/FrameworkObjMeshLoaderTestCase.h"
 
-#include "Engine/Module/Asset/DiskLoaderModule.h"
-#include "Engine/Module/Asset/MeshParser.h"
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
+#include "Engine/Module/MeshParser/MeshParser.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 static bool resolveSphereMeshPath(string& outSphereMeshPath)
 {

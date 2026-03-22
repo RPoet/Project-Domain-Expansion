@@ -95,6 +95,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\Code\Engine\Assets\MeshAsset.cpp" />
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
@@ -135,14 +136,14 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderAssetSmokeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkShaderPackageTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkWorldSerializationTestCase.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshParser.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\MeshStreaming.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\MeshParser.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
     <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
@@ -167,6 +168,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Assets\MeshAsset.h" />
     <ClInclude Include="Engine\Code\Bridge\BaseBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\BridgeHandle.h" />
     <ClInclude Include="Engine\Code\Bridge\Brdige.h" />
@@ -194,7 +196,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Module\Bridge\BridgeModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\CLI\CLIModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Singleton.h" />
+    <ClInclude Include="Engine\Code\Engine\Common\Singleton.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.h" />
@@ -240,14 +242,14 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackendDefinitions.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\FbxMeshParserStub.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\DiskLoaderModule.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshParser.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\MeshStreaming.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ObjMeshParser.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderCompiler.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderModule.h" />
-    <ClInclude Include="Engine\Code\Engine\Module\Asset\ShaderPackageModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\MeshParser.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Shader\ShaderModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
     <ClInclude Include="Engine\Code\Render\CommandQueue.h" />
     <ClInclude Include="Engine\Code\Render\DepthStencilView.h" />

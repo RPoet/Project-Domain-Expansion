@@ -1,6 +1,6 @@
 #include "Render/Renderer.h"
 
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Render/RenderWorld.h"
 
 struct Temp_GeometryPushConstantData

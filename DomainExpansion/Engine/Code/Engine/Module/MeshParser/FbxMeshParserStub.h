@@ -1,7 +1,7 @@
 #pragma once
 
+#include "Engine/Assets/MeshAsset.h"
 #include "Engine/Platform/PlatformDefine.h"
-#include "Render/ResourceTypes.h"
 
 class FbxMeshParserStub final
 {

@@ -1,4 +1,4 @@
-#include "Engine/Module/Asset/FbxMeshParserStub.h"
+#include "Engine/Module/MeshParser/FbxMeshParserStub.h"
 
 bool FbxMeshParserStub::parse(
 	const string& meshFilePath,

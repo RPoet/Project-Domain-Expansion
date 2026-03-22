@@ -1,6 +1,6 @@
 #include "Engine/Framework/MeshComponent.h"
 
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 BridgeHandle MeshComponent::getMeshHandle() const
 {

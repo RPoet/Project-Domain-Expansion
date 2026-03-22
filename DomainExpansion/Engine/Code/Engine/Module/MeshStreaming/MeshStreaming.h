@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Engine/Module/Asset/MeshParser.h"
+#include "Engine/Assets/MeshAsset.h"
+#include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Module.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/ResourceObject.h"

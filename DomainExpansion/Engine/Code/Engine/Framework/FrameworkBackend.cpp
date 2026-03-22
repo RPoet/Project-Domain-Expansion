@@ -1,5 +1,5 @@
 #include "Engine/Framework/Framework.h"
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Render/RenderCommand.h"

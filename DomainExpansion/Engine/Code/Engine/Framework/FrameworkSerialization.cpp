@@ -5,8 +5,8 @@
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
-#include "Engine/Module/Asset/DiskLoaderModule.h"
-#include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
+#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 #include <fstream>
 #include <sstream>
