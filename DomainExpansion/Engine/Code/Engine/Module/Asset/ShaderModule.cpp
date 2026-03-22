@@ -1,7 +1,6 @@
 #include "Engine/Module/Asset/ShaderModule.h"
 
 #include "Engine/Framework/Framework.h"
-#include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Render/Backends/Dx12/Dx12Shader.h"
 
@@ -208,5 +207,7 @@ bool ShaderModule::resolveShaderBinaryAbsolutePath(
 	string& outAbsolutePath) const
 {
 	outAbsolutePath.clear();
-	return frameworkFileSystemResolvePathFromResources(binaryRelativePath, outAbsolutePath);
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
+	return diskLoaderModule->resolvePathFromResources(binaryRelativePath, outAbsolutePath);
 }

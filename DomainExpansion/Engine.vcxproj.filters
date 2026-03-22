@@ -68,6 +68,9 @@
     <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Module\CLI\CLIModule.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\Input\InputModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
@@ -99,6 +102,9 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkCLIModuleTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.cpp">
@@ -292,6 +298,9 @@
     <ClInclude Include="Engine\Code\Engine\Module\Bridge\BridgeModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Module\CLI\CLIModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -326,6 +335,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkCLIModuleTestCase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.h">

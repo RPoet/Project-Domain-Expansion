@@ -7,6 +7,16 @@
 class MeshParser final : public Singleton<MeshParser>
 {
 public:
+	enum class ImportCLIExecutionCode : int32
+	{
+		succeeded = 0,
+		missingPath = -100,
+		parseFailed = -101,
+		fbxNotImplemented = -102,
+		unsupportedExtension = -103,
+		fileOpenFailed = -104,
+	};
+
 	bool parseFromFile(
 		const string& meshFilePath,
 		uint32 lodLevel,
@@ -16,8 +26,9 @@ public:
 private:
 	friend class Singleton<MeshParser>;
 
-	MeshParser() = default;
+	MeshParser();
 	~MeshParser() = default;
+	void registerCLICommands();
 
 	ObjMeshParser objMeshParser = {};
 	FbxMeshParserStub fbxMeshParserStub = {};

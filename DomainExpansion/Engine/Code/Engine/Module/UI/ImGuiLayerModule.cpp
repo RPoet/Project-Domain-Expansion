@@ -8,7 +8,9 @@
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Module/Asset/MeshParser.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
+#include "Engine/Module/CLI/CLIModule.h"
 #include "Engine/Module/Asset/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
@@ -32,7 +34,7 @@ extern IMGUI_IMPL_API MessageResult ImGui_ImplWin32_WndProcHandler(
 
 static bool isDirectoryEntry(const filesystem_directory_entry& directoryEntry)
 {
-	std::error_code errorCode;
+	error_code errorCode;
 	return directoryEntry.is_directory(errorCode) && !errorCode;
 }
 
@@ -251,6 +253,141 @@ struct ImGuiLayerModule::Dx12BackendBridge final : ImGuiLayerModule::BackendBrid
 	bool initialized = false;
 };
 
+ImGuiLayerModule::ImportPanel::ImportPanel(const filesystem_path& filePath)
+	: opened(true)
+	, sourceFilePath(filePath.lexically_normal())
+	, sourceFilePathText(sourceFilePath.string())
+	, sourceFileExtension(buildFileExtension(sourceFilePath))
+	, formatText(buildFormatText(sourceFilePath))
+{
+	executeImportCommand();
+}
+
+void ImGuiLayerModule::ImportPanel::build()
+{
+	if (!opened)
+	{
+		return;
+	}
+
+	if (!ImGui::Begin("Import", &opened))
+	{
+		ImGui::End();
+		return;
+	}
+
+	ImGui::Text("Source: %s", sourceFilePathText.c_str());
+	ImGui::Text("Extension: %s", sourceFileExtension.c_str());
+	ImGui::Text("Format: %s", formatText.c_str());
+	ImGui::Text("Command: %s", commandText.empty() ? "(empty)" : commandText.c_str());
+	ImGui::Separator();
+	if (processCodeAvailable)
+	{
+		ImGui::Text("Process: %d", static_cast<int32>(processCode));
+	}
+	else
+	{
+		ImGui::TextUnformatted("Process: idle");
+	}
+	ImGui::TextWrapped("Import execution is routed through CLI command dispatch.");
+
+	ImGui::End();
+}
+
+bool ImGuiLayerModule::ImportPanel::isOpened() const
+{
+	return opened;
+}
+
+string ImGuiLayerModule::ImportPanel::buildFileExtension(const filesystem_path& filePath)
+{
+	string extension = filePath.extension().string();
+	tolower(extension);
+	return extension;
+}
+
+string ImGuiLayerModule::ImportPanel::buildFormatText(const filesystem_path& filePath)
+{
+	const string extension = buildFileExtension(filePath);
+	if (extension == ".obj")
+	{
+		return "OBJ";
+	}
+
+	if (extension == ".fbx")
+	{
+		return "FBX";
+	}
+
+	return "Unsupported";
+}
+
+ImGuiLayerModule::ImportPanel::ProcessCode ImGuiLayerModule::ImportPanel::mapProcessCodeFromCLIExecutionCode(const int32 executionCode)
+{
+	if (executionCode == static_cast<int32>(CLIModule::ExecutionCode::parseFailed))
+	{
+		return ProcessCode::cliParseFailed;
+	}
+
+	if (executionCode == static_cast<int32>(CLIModule::ExecutionCode::commandNotRegistered))
+	{
+		return ProcessCode::cliCommandNotRegistered;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::succeeded))
+	{
+		return ProcessCode::succeeded;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::missingPath))
+	{
+		return ProcessCode::importMissingPath;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::parseFailed))
+	{
+		return ProcessCode::importParseFailed;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::fbxNotImplemented))
+	{
+		return ProcessCode::importFbxNotImplemented;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::unsupportedExtension))
+	{
+		return ProcessCode::importUnsupportedExtension;
+	}
+
+	if (executionCode == static_cast<int32>(MeshParser::ImportCLIExecutionCode::fileOpenFailed))
+	{
+		return ProcessCode::importFileOpenFailed;
+	}
+
+	assert(false && "[ImGuiLayerModule][Assert] reason=import_panel_process_code_unexpected");
+	return ProcessCode::importParseFailed;
+}
+
+void ImGuiLayerModule::ImportPanel::executeImportCommand()
+{
+	if (sourceFileExtension == ".obj" || sourceFileExtension == ".fbx")
+	{
+		commandText = "MeshParser.import \"" + sourceFilePathText + "\"";
+	}
+	else
+	{
+		processCode = ProcessCode::unsupportedSourceExtension;
+		processCodeAvailable = true;
+		return;
+	}
+
+	CLIModule::execute(commandText);
+	shared_pointer<CLIModule> cliModule = CLIModule::get();
+	assert(cliModule != nullptr && "[ImGuiLayerModule][Assert] reason=cli_module_missing");
+	processCode = mapProcessCodeFromCLIExecutionCode(cliModule->getLastExecutionCode());
+	processCodeAvailable = true;
+}
+
 ImGuiLayerModule::~ImGuiLayerModule() = default;
 
 bool ImGuiLayerModule::init(Framework& framework)
@@ -267,6 +404,7 @@ bool ImGuiLayerModule::init(Framework& framework)
 	createWorldNameText = "NewWorld";
 	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
+	importPanel.reset();
 
 	if (framework.getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
 	{
@@ -364,6 +502,7 @@ void ImGuiLayerModule::shutdown()
 	createWorldNameText = "NewWorld";
 	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
+	importPanel.reset();
 }
 
 bool ImGuiLayerModule::processNativeMessage(
@@ -444,6 +583,7 @@ void ImGuiLayerModule::buildAndRender(
 	buildOutlinerPanel(world);
 	buildDetailPanel(world);
 	buildFileSystemPanel();
+	buildImportPanel();
 
 	ImGui::Render();
 	backendBridge->renderDrawData(commandList);
@@ -1206,9 +1346,9 @@ void ImGuiLayerModule::buildFileSystemPanel()
 	ImGui::Text("Root: %s", resourcesRootPathText.c_str());
 
 	const filesystem_path resourcesRootPath(resourcesRootPathText);
-	std::error_code verifyErrorCode;
-	if (!std::filesystem::exists(resourcesRootPath, verifyErrorCode)
-		|| !std::filesystem::is_directory(resourcesRootPath, verifyErrorCode))
+	error_code verifyErrorCode;
+	if (!exists(resourcesRootPath, verifyErrorCode)
+		|| !is_directory(resourcesRootPath, verifyErrorCode))
 	{
 		resourcesRootResolved = false;
 		resourcesRootValid = false;
@@ -1292,10 +1432,24 @@ void ImGuiLayerModule::buildFileSystemPanel()
 	ImGui::End();
 }
 
+void ImGuiLayerModule::buildImportPanel()
+{
+	if (importPanel == nullptr)
+	{
+		return;
+	}
+
+	importPanel->build();
+	if (!importPanel->isOpened())
+	{
+		importPanel.reset();
+	}
+}
+
 void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& directoryPath)
 {
 	vector<filesystem_directory_entry> directoryEntries;
-	std::error_code iterateErrorCode;
+	error_code iterateErrorCode;
 	for (const filesystem_directory_entry& directoryEntry : filesystem_directory_iterator(
 		directoryPath,
 		filesystem_directory_options::skip_permission_denied,
@@ -1340,6 +1494,7 @@ void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& dire
 
 		ImGui::PushID(directoryEntry.path().string().c_str());
 		ImGui::Selectable(displayName.c_str(), false);
+		drawFileEntryContextMenu(directoryEntry.path());
 		const bool worldFileDoubleClicked =
 			ImGui::IsItemHovered()
 			&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
@@ -1361,6 +1516,30 @@ void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& dire
 
 		ImGui::PopID();
 	}
+}
+
+bool ImGuiLayerModule::isImportSupportedFile(const filesystem_path& filePath) const
+{
+	// TO DO:consider import list from file. not using hard coded name.
+	string extension = filePath.extension().string();
+	tolower(extension);
+	return extension == ".obj" || extension == ".fbx";
+}
+
+void ImGuiLayerModule::drawFileEntryContextMenu(const filesystem_path& filePath)
+{
+	if (!ImGui::BeginPopupContextItem("FileContextMenu"))
+	{
+		return;
+	}
+
+	const bool importSupported = isImportSupportedFile(filePath);
+	if (ImGui::MenuItem("Import", nullptr, false, importSupported))
+	{
+		importPanel.reset(new ImportPanel(filePath));
+	}
+
+	ImGui::EndPopup();
 }
 
 bool ImGuiLayerModule::createWorldFile(const string& requestedWorldName, string& outWorldFilePath)

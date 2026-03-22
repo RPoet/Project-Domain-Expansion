@@ -22,6 +22,64 @@ void DiskLoaderModule::shutdown()
 {
 }
 
+bool DiskLoaderModule::ensureParentDirectory(const string& filePath) const
+{
+	const filesystem_path parentPath = filesystem_path(filePath).parent_path();
+	if (parentPath.empty())
+	{
+		return true;
+	}
+
+	error_code createDirectoryError;
+	create_directories(parentPath, createDirectoryError);
+	return !createDirectoryError;
+}
+
+bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& outAbsolutePath) const
+{
+	outAbsolutePath.clear();
+	if (pathText.empty())
+	{
+		return false;
+	}
+
+	const filesystem_path inputPath(pathText);
+	error_code pathErrorCode;
+	if (inputPath.is_absolute())
+	{
+		if (!exists(inputPath, pathErrorCode))
+		{
+			return false;
+		}
+
+		outAbsolutePath = inputPath.lexically_normal().string();
+		return true;
+	}
+
+	string resourcesRootPath = {};
+	if (!frameworkFileSystemResolveResourcesRootPath(resourcesRootPath))
+	{
+		return false;
+	}
+
+	const filesystem_path resourcesRoot(resourcesRootPath);
+	const filesystem_path resourcesRelativePath = resourcesRoot / inputPath;
+	if (exists(resourcesRelativePath, pathErrorCode))
+	{
+		outAbsolutePath = resourcesRelativePath.lexically_normal().string();
+		return true;
+	}
+
+	const filesystem_path engineRelativePath = resourcesRoot.parent_path() / inputPath;
+	if (exists(engineRelativePath, pathErrorCode))
+	{
+		outAbsolutePath = engineRelativePath.lexically_normal().string();
+		return true;
+	}
+
+	return false;
+}
+
 bool DiskLoaderModule::loadBinaryFile(const string& absolutePath, vector<char>& outBinaryData) const
 {
 	outBinaryData.clear();
@@ -50,7 +108,7 @@ bool DiskLoaderModule::loadBinaryFile(const string& absolutePath, vector<char>& 
 
 bool DiskLoaderModule::saveBinaryFile(const string& absolutePath, const vector<char>& binaryData) const
 {
-	if (absolutePath.empty() || !frameworkFileSystemEnsureParentDirectory(absolutePath))
+	if (absolutePath.empty() || !ensureParentDirectory(absolutePath))
 	{
 		return false;
 	}

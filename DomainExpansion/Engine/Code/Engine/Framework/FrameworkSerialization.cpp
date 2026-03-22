@@ -2,10 +2,10 @@
 
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/EditorCameraMovementComponent.h"
-#include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
 
 #include <fstream>
@@ -662,7 +662,9 @@ bool frameworkSerializationSaveWorldToFile(
 {
 	outErrorText.clear();
 
-	if (!frameworkFileSystemEnsureParentDirectory(worldFilePath))
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[FrameworkSerialization][Assert] reason=disk_loader_module_missing");
+	if (!diskLoaderModule->ensureParentDirectory(worldFilePath))
 	{
 		outErrorText = "parent_directory_create_failed";
 		error << "[FrameworkSerialization][Error] path=" << worldFilePath

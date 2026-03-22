@@ -5,6 +5,7 @@
 #include "Engine/Platform/PlatformDefine.h"
 
 class CommandList;
+class CLIModule;
 class Framework;
 class PipelineStateObject;
 class RenderBackend;
@@ -36,6 +37,42 @@ public:
 	void buildAndRender(CommandList* commandList, const float4x4* editorViewProjectionMatrix = nullptr);
 
 private:
+	class ImportPanel
+	{
+	public:
+		enum class ProcessCode : int32
+		{
+			succeeded = 0,
+			cliParseFailed = -1,
+			cliCommandNotRegistered = -2,
+			unsupportedSourceExtension = -3,
+			importMissingPath = -100,
+			importParseFailed = -101,
+			importFbxNotImplemented = -102,
+			importUnsupportedExtension = -103,
+			importFileOpenFailed = -104,
+		};
+
+		explicit ImportPanel(const filesystem_path& filePath);
+		void build();
+		bool isOpened() const;
+
+	private:
+		static string buildFileExtension(const filesystem_path& filePath);
+		static string buildFormatText(const filesystem_path& filePath);
+		static ProcessCode mapProcessCodeFromCLIExecutionCode(int32 executionCode);
+		void executeImportCommand();
+
+		bool opened = false;
+		filesystem_path sourceFilePath;
+		string sourceFilePathText = {};
+		string sourceFileExtension = {};
+		string formatText = {};
+		string commandText = {};
+		ProcessCode processCode = ProcessCode::succeeded;
+		bool processCodeAvailable = false;
+	};
+
 	struct EditorGridRenderResources
 	{
 		RootSignatureObject* rootSignatureObject = nullptr;
@@ -62,7 +99,10 @@ private:
 	void drawOutlinerEntityNode(const World* world, uint32 entityIndex);
 	void buildDetailPanel(World* world);
 	void buildFileSystemPanel();
+	void buildImportPanel();
 	void drawDirectoryEntriesRecursive(const filesystem_path& directoryPath);
+	bool isImportSupportedFile(const filesystem_path& filePath) const;
+	void drawFileEntryContextMenu(const filesystem_path& filePath);
 	bool tryDeleteSelectedEntity(World* world);
 	bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
 	bool saveActiveWorldImmediate();
@@ -81,4 +121,5 @@ private:
 	string createWorldNameText = "NewWorld";
 	string lastOpenedWorldPath = {};
 	string lastEditorActionStatus = {};
+	unique_pointer<ImportPanel> importPanel;
 };

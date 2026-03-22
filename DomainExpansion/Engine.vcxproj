@@ -50,6 +50,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -73,6 +74,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -112,6 +114,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Bridge\EntityBridge.cpp" />
     <ClCompile Include="Engine\Code\Bridge\MeshBridge.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Module\CLI\CLIModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Input\InputModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
@@ -121,6 +124,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Tests\FrameworkCLIModuleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.cpp" />
@@ -188,6 +192,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Framework\World.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Module.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Bridge\BridgeModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\CLI\CLIModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Singleton.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h" />
@@ -200,6 +205,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityUpdateTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkEntityBridgeSyncTestCase.h" />
+    <ClInclude Include="Engine\Code\Engine\Tests\FrameworkCLIModuleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkInputModuleTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkCameraBridgeTestCase.h" />
     <ClInclude Include="Engine\Code\Engine\Tests\FrameworkRenderWorldTestCase.h" />

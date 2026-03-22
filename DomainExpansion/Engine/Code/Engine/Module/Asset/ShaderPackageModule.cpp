@@ -1,6 +1,6 @@
 #include "Engine/Module/Asset/ShaderPackageModule.h"
 
-#include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
 
 #include <fstream>
 #include <sstream>
@@ -599,7 +599,9 @@ bool ShaderPackageModule::resolvePackageAbsolutePath(
 	string& outAbsolutePath) const
 {
 	outAbsolutePath.clear();
-	return frameworkFileSystemResolvePathFromResources(packageRelativePath, outAbsolutePath);
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[ShaderPackageModule][Assert] reason=disk_loader_module_missing");
+	return diskLoaderModule->resolvePathFromResources(packageRelativePath, outAbsolutePath);
 }
 
 string ShaderPackageModule::buildPackageCacheKey(const string& packageRelativePath) const

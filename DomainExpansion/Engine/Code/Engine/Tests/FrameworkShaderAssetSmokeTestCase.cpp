@@ -1,7 +1,6 @@
 #include "Engine/Tests/FrameworkShaderAssetSmokeTestCase.h"
 
 #include "Engine/Framework/Framework.h"
-#include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Render/Backends/Dx12/Dx12Shader.h"
 #include "Render/Shader.h"
@@ -31,7 +30,7 @@ bool FrameworkShaderAssetSmokeTestCase::runTest(Framework& framework)
 
 	string shaderAbsolutePath = {};
 	runResult = expectCondition(
-		frameworkFileSystemResolvePathFromResources("Shaders/Test/TestBasicVS.bin", shaderAbsolutePath),
+		diskLoaderModule->resolvePathFromResources("Shaders/Test/TestBasicVS.bin", shaderAbsolutePath),
 		"run: resolve shader binary path") && runResult;
 	if (!runResult)
 	{

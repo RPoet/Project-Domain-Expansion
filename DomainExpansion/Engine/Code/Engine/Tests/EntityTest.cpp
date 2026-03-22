@@ -1,5 +1,6 @@
 #include "Engine/Tests/EntityTest.h"
 #include "Engine/Tests/FrameworkBridgeLifecycleTestCase.h"
+#include "Engine/Tests/FrameworkCLIModuleTestCase.h"
 #include "Engine/Tests/FrameworkEntityBridgeTestCase.h"
 #include "Engine/Tests/FrameworkEntityBridgeSyncTestCase.h"
 #include "Engine/Tests/FrameworkInputModuleTestCase.h"
@@ -32,6 +33,11 @@ unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeTestCase()
 unique_pointer<FrameworkTestCase> createFrameworkEntityBridgeSyncTestCase()
 {
 	return unique_pointer<FrameworkTestCase>(new FrameworkEntityBridgeSyncTestCase());
+}
+
+unique_pointer<FrameworkTestCase> createFrameworkCLIModuleTestCase()
+{
+	return unique_pointer<FrameworkTestCase>(new FrameworkCLIModuleTestCase());
 }
 
 unique_pointer<FrameworkTestCase> createFrameworkInputModuleTestCase()

@@ -1,6 +1,6 @@
 #include "Engine/Module/Asset/MeshStreaming.h"
 
-#include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Engine/Module/Render/GPUUploader.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -153,7 +153,9 @@ bool MeshStreaming::resolveMeshAbsolutePath(
 	string& outAbsolutePath) const
 {
 	outAbsolutePath.clear();
-	return frameworkFileSystemResolvePathFromResources(meshRelativePath, outAbsolutePath);
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[MeshStreaming][Assert] reason=disk_loader_module_missing");
+	return diskLoaderModule->resolvePathFromResources(meshRelativePath, outAbsolutePath);
 }
 
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)

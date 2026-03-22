@@ -15,6 +15,8 @@ public:
 	void postUpdate() override final;
 	void shutdown() override final;
 
+	bool ensureParentDirectory(const string& filePath) const;
+	bool resolvePathFromResources(const string& pathText, string& outAbsolutePath) const;
 	bool loadBinaryFile(const string& absolutePath, vector<char>& outBinaryData) const;
 	bool saveBinaryFile(const string& absolutePath, const vector<char>& binaryData) const;
 };

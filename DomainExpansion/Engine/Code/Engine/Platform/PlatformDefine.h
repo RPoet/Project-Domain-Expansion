@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -12,6 +14,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -37,6 +40,7 @@ using input_file_stream = std::ifstream;
 using output_file_stream = std::ofstream;
 using string_input_stream = std::istringstream;
 using stream_position = std::streampos;
+using error_code = std::error_code;
 using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
 using steady_clock = std::chrono::steady_clock;
@@ -45,6 +49,12 @@ using filesystem_path = std::filesystem::path;
 using filesystem_directory_entry = std::filesystem::directory_entry;
 using filesystem_directory_iterator = std::filesystem::directory_iterator;
 using filesystem_directory_options = std::filesystem::directory_options;
+using std::filesystem::create_directories;
+using std::filesystem::current_path;
+using std::filesystem::exists;
+using std::filesystem::is_directory;
+using std::tolower;
+using std::transform;
 
 inline output_stream& output = std::cout;
 inline error_stream& error = std::cerr;
@@ -80,6 +90,18 @@ constexpr decltype(auto) moveValue(type_name&& value) noexcept
 inline memory_resource* getDefaultMemoryResource()
 {
 	return std::pmr::get_default_resource();
+}
+
+inline void tolower(string& text)
+{
+	transform(
+		text.begin(),
+		text.end(),
+		text.begin(),
+		[](const unsigned char character)
+		{
+			return static_cast<char>(tolower(character));
+		});
 }
 
 #if defined(_WIN32)

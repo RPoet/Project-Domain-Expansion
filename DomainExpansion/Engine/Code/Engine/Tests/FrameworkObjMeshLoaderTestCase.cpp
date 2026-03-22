@@ -1,17 +1,21 @@
 #include "Engine/Tests/FrameworkObjMeshLoaderTestCase.h"
 
-#include "Engine/Framework/FrameworkFileSystem.h"
+#include "Engine/Module/Asset/DiskLoaderModule.h"
 #include "Engine/Module/Asset/MeshParser.h"
 #include "Engine/Module/Asset/MeshStreaming.h"
 
 static bool resolveSphereMeshPath(string& outSphereMeshPath)
 {
-	return frameworkFileSystemResolvePathFromResources("Meshes/Sphere.obj", outSphereMeshPath);
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[FrameworkObjMeshLoaderTestCase][Assert] reason=disk_loader_module_missing");
+	return diskLoaderModule->resolvePathFromResources("Meshes/Sphere.obj", outSphereMeshPath);
 }
 
 static bool resolvePlaneMeshPath(string& outPlaneMeshPath)
 {
-	return frameworkFileSystemResolvePathFromResources("Meshes/Plane.obj", outPlaneMeshPath);
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[FrameworkObjMeshLoaderTestCase][Assert] reason=disk_loader_module_missing");
+	return diskLoaderModule->resolvePathFromResources("Meshes/Plane.obj", outPlaneMeshPath);
 }
 
 const char* FrameworkObjMeshLoaderTestCase::getTestCaseName() const
