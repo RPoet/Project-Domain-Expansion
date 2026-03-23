@@ -1,6 +1,7 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
@@ -80,6 +81,9 @@ bool Framework::initialize(
 	WindowEventCallbacks windowEventCallbacks = {};
 	windowEventCallbacks.onResize = [this](const uint32 width, const uint32 height)
 	{
+		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+		assert(diskLoaderModule != nullptr && "[Framework][Assert] reason=disk_loader_module_missing");
+		diskLoaderModule->TEMP_saveRuntimeWindowResolution(width, height);
 		onWindowResize(width, height);
 	};
 	windowEventCallbacks.onActivationChanged = [](const bool isActive)

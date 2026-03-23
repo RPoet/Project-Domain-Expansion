@@ -1,4 +1,5 @@
 #include "Engine/Framework/Framework.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Engine/Window/WindowsWindowObject.h"
 #include "Render/RenderWorld.h"
@@ -194,6 +195,15 @@ int WINAPI wWinMain(
 	windowCreateOptions.initialClientHeight = 900;
 	windowCreateOptions.startVisible = true;
 	windowCreateOptions.startBorderlessFullscreen = false;
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[Main][Assert] reason=disk_loader_module_missing");
+	uint32 runtimeWindowWidth = 0;
+	uint32 runtimeWindowHeight = 0;
+	if (diskLoaderModule->TEMP_loadRuntimeWindowResolution(runtimeWindowWidth, runtimeWindowHeight))
+	{
+		windowCreateOptions.initialClientWidth = static_cast<int32>(runtimeWindowWidth);
+		windowCreateOptions.initialClientHeight = static_cast<int32>(runtimeWindowHeight);
+	}
 
 	WindowsWindowObject windowsWindowObject;
 	if (!windowsWindowObject.create(windowCreateOptions))
@@ -201,6 +211,9 @@ int WINAPI wWinMain(
 		error << "Failed to create main window." << lineBreak;
 		return static_cast<int32>(ApplicationExitCode::windowCreateFailed);
 	}
+	diskLoaderModule->TEMP_saveRuntimeWindowResolution(
+		windowsWindowObject.getClientWidth(),
+		windowsWindowObject.getClientHeight());
 
 	FrameworkInitializeOptions frameworkInitializeOptions = {};
 	frameworkInitializeOptions.backendOptions.backendType = applicationRunOptions.backendType;
@@ -253,6 +266,9 @@ int WINAPI wWinMain(
 
 	renderWorld.shutdown();
 	framework.shutdown();
+	diskLoaderModule->TEMP_saveRuntimeWindowResolution(
+		windowsWindowObject.getClientWidth(),
+		windowsWindowObject.getClientHeight());
 	windowsWindowObject.destroy();
 	return static_cast<int32>(framework.getRuntimeExitCode());
 }

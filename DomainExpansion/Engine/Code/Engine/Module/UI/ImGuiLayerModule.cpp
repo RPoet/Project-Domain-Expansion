@@ -11,6 +11,7 @@
 #include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Engine/Module/CLI/CLIModule.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
@@ -746,6 +747,12 @@ bool ImGuiLayerModule::initializeContext()
 	ImGui::CreateContext();
 	ImGuiIO& imguiIo = ImGui::GetIO();
 	imguiIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[ImGuiLayerModule][Assert] reason=disk_loader_module_missing");
+	if (diskLoaderModule->TEMP_resolveImGuiIniFilePath(imguiIniFilePath))
+	{
+		imguiIo.IniFilename = imguiIniFilePath.c_str();
+	}
 	ImGui::StyleColorsDark();
 	contextCreated = true;
 	return true;
@@ -760,6 +767,7 @@ void ImGuiLayerModule::shutdownContext()
 
 	ImGui::DestroyContext();
 	contextCreated = false;
+	imguiIniFilePath.clear();
 }
 
 void ImGuiLayerModule::updateUiScaleIfNeeded()

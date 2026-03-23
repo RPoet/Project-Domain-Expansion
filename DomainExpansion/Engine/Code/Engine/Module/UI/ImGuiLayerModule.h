@@ -118,6 +118,7 @@ private:
 	bool resourcesRootValid = false;
 	float currentUiScale = 1.0f;
 	bool uiScaleInitialized = false;
+	string imguiIniFilePath = {};
 	string createWorldNameText = "NewWorld";
 	string lastOpenedWorldPath = {};
 	string lastEditorActionStatus = {};

@@ -112,7 +112,7 @@ bool frameworkFileSystemResolveUniqueFilePath(
 	filesystem_path candidatePath = filesystem_path(directoryPath) / (sanitizedStem + resolvedExtension);
 	for (uint32 duplicateIndex = 1; exists(candidatePath) && duplicateIndex < 10000; ++duplicateIndex)
 	{
-		candidatePath = filesystem_path(directoryPath) / (sanitizedStem + "_" + std::to_string(duplicateIndex) + resolvedExtension);
+		candidatePath = filesystem_path(directoryPath) / (sanitizedStem + "_" + to_string(duplicateIndex) + resolvedExtension);
 	}
 
 	outFilePath = candidatePath.lexically_normal().string();
