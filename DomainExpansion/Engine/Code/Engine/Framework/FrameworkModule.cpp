@@ -11,12 +11,14 @@
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
-void Framework::registerModule()
+void Framework::registerModule(const FrameworkInitializeOptions& initializeOptions)
 {
 	if (moduleRegistrationCompleted)
 	{
 		return;
 	}
+
+	editorUIEnabled = initializeOptions.editorUIEnabled;
 
 	addModule(Timer::get());
 	addModule(InputModule::get());
@@ -28,7 +30,10 @@ void Framework::registerModule()
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());
 	addModule(RenderBackendModule::get());
-	addModule(ImGuiLayerModule::get());
+	if (editorUIEnabled)
+	{
+		addModule(ImGuiLayerModule::get());
+	}
 	moduleRegistrationCompleted = true;
 }
 

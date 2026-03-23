@@ -9,9 +9,7 @@ inline constexpr uint32 invalidComponentIndex = 0xFFFFFFFFu;
 enum class FrameworkRuntimeExitCode : int32
 {
 	success = 0,
-	testFlowTickFailed = 1,
-	backendFlowRuntimeFailure = 3,
-	backendFlowSummaryFailure = 4,
-	debugValidationFailure = 5,
+	crashCpu = 1,
+	crashGpu = 2,
 	moduleInitializationFailure = 6,
 };

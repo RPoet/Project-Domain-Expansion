@@ -9,6 +9,7 @@
 DomainExpansion/Engine/Artifacts/Bin/
 DomainExpansion/Engine/Artifacts/Intermediate/
 DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
+DomainExpansion/EngineTests/
 
 # MSVC generated files
 *.obj
@@ -25,9 +26,6 @@ DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
 
 # Scripts
 *.ps1
-
-# Temporary test sources
-/DomainExpansion/Engine/Code/Engine/Tests/
 
 /DomainExpansion/vs-chromium-project.txt
 /DomainExpansion/imgui.ini

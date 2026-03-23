@@ -14,7 +14,7 @@
     <ClCompile Include="Engine\Code\Engine\Assets\MeshAsset.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Code\Engine\Main.cpp">
+    <ClCompile Include="Engine\Code\EngineTests\Main.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp">
@@ -41,10 +41,25 @@
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\FrameworkTestRegistration.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkBackendTest.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkTest.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Framework\TestFramework.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp">
@@ -81,6 +96,54 @@
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Window\WindowsWindowObject.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\EntityTest.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkCLIModuleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkInputModuleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkRenderWorldTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkShaderPackageTestCase.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp">
@@ -226,6 +289,21 @@
     <ClInclude Include="Engine\Code\Engine\Framework\Framework.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkBackendTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Framework\TestFramework.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\FrameworkTestRegistration.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -260,6 +338,60 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Module\Timer\Timer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\EntityTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\EmptyComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkCLIModuleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkInputModuleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkRenderWorldTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkShaderPackageTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\EngineTests\Tests\UpdateOrderRecordingComponent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h">

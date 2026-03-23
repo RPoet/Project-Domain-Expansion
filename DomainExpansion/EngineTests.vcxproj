@@ -13,8 +13,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{0502813C-26D4-45B2-A4C5-E2009046D43E}</ProjectGuid>
-    <RootNamespace>Engine</RootNamespace>
+    <ProjectGuid>{5B83279A-4692-4AD4-BEF8-52DEC0F2CCB0}</ProjectGuid>
+    <RootNamespace>EngineTests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -42,9 +42,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)Engine\Artifacts\Bin\$(Configuration)\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)Engine\Artifacts\Intermediate\$(Configuration)\$(Platform)\</IntDir>
-    <TargetName>DomainExpansionEngine</TargetName>
+    <OutDir>$(SolutionDir)EngineTests\Artifacts\Bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)EngineTests\Artifacts\Intermediate\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>DomainExpansionEngineTests</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -96,7 +96,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Code\Engine\Assets\MeshAsset.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Main.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Main.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp" />
@@ -104,9 +104,14 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkFileSystem.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\FrameworkSerialization.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\FrameworkTestRegistration.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkBackendTest.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkTest.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Framework\FrameworkTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Framework\TestFramework.cpp" />
     <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
     <ClCompile Include="Engine\Code\Bridge\CameraBridge.cpp" />
     <ClCompile Include="Engine\Code\Bridge\EntityBridge.cpp" />
@@ -117,6 +122,22 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\EntityTest.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkCLIModuleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkInputModuleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkRenderWorldTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkShaderPackageTestCase.cpp" />
+    <ClCompile Include="Engine\Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp" />
     <ClCompile Include="Engine\Code\Engine\Module\MeshParser\MeshParser.cpp" />
@@ -167,7 +188,12 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Framework\Framework.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkFileSystem.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkSerialization.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkBackendTest.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Framework\FrameworkTest.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Framework\TestFramework.h" />
+    <ClInclude Include="Engine\Code\EngineTests\FrameworkTestRegistration.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\World.h" />
@@ -180,6 +206,24 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Timer\Timer.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\EmptyComponent.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\EntityTest.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkCLIModuleTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkInputModuleTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkRenderWorldTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkShaderPackageTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.h" />
+    <ClInclude Include="Engine\Code\EngineTests\Tests\UpdateOrderRecordingComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefine.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
     <ClInclude Include="Engine\Code\Engine\Platform\PlatformDefineAndroid.h" />

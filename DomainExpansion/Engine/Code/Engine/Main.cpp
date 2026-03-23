@@ -3,25 +3,23 @@
 #include "Engine/Window/WindowsWindowObject.h"
 #include "Render/RenderWorld.h"
 
-enum class ApplicationRunMode : uint32
-{
-	worldMode = 0,
-	testMode = 1,
-	backendMode = 2,
-};
-
 struct ApplicationRunOptions
 {
-	ApplicationRunMode runMode = ApplicationRunMode::worldMode;
 	RenderBackendType backendType = RenderBackendType::dx12;
-	uint32 backendFrameCount = 120;
-	bool forceResize = false;
 #if defined(_DEBUG)
 	bool enableBackendDebugLayer = true;
 #else
 	bool enableBackendDebugLayer = false;
 #endif
 	BackendValidationInjectMode backendValidationInjectMode = BackendValidationInjectMode::none;
+};
+
+enum class ApplicationExitCode : int32
+{
+	success = 0,
+	windowCreateFailed = -1,
+	frameworkInitializeFailed = -2,
+	renderWorldInitializeFailed = -3,
 };
 
 static bool isWhitespaceCharacter(const wide_character character)
@@ -144,26 +142,6 @@ static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer 
 	const wstring commandLineText = commandLine != nullptr ? commandLine : L"";
 	wstring argumentValue;
 
-	if (tryGetArgumentValue(commandLineText, L"-mode=", argumentValue))
-	{
-		if (argumentValue == L"backend")
-		{
-			applicationRunOptions.runMode = ApplicationRunMode::backendMode;
-		}
-		else if (argumentValue == L"test")
-		{
-			applicationRunOptions.runMode = ApplicationRunMode::testMode;
-		}
-		else if (argumentValue == L"world")
-		{
-			applicationRunOptions.runMode = ApplicationRunMode::worldMode;
-		}
-		else
-		{
-			error << "Unknown mode argument. Fallback to world mode." << lineBreak;
-		}
-	}
-
 	if (tryGetArgumentValue(commandLineText, L"-backend_api=", argumentValue))
 	{
 		RenderBackendType parsedBackendType = RenderBackendType::dx12;
@@ -173,30 +151,12 @@ static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer 
 		}
 	}
 
-	if (tryGetArgumentValue(commandLineText, L"-frames=", argumentValue))
-	{
-		uint32 parsedFrameCount = 0;
-		if (parseUnsignedInteger(argumentValue, parsedFrameCount) && parsedFrameCount > 0)
-		{
-			applicationRunOptions.backendFrameCount = parsedFrameCount;
-		}
-	}
-
 	if (tryGetArgumentValue(commandLineText, L"-backend_debug=", argumentValue))
 	{
 		uint32 parsedDebugFlag = 0;
 		if (parseUnsignedInteger(argumentValue, parsedDebugFlag))
 		{
 			applicationRunOptions.enableBackendDebugLayer = parsedDebugFlag != 0;
-		}
-	}
-
-	if (tryGetArgumentValue(commandLineText, L"-force_resize=", argumentValue))
-	{
-		uint32 parsedForceResizeFlag = 0;
-		if (parseUnsignedInteger(argumentValue, parsedForceResizeFlag))
-		{
-			applicationRunOptions.forceResize = parsedForceResizeFlag != 0;
 		}
 	}
 
@@ -239,45 +199,34 @@ int WINAPI wWinMain(
 	if (!windowsWindowObject.create(windowCreateOptions))
 	{
 		error << "Failed to create main window." << lineBreak;
-		return -1;
+		return static_cast<int32>(ApplicationExitCode::windowCreateFailed);
 	}
 
 	FrameworkInitializeOptions frameworkInitializeOptions = {};
-	if (applicationRunOptions.runMode == ApplicationRunMode::backendMode)
-	{
-		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::backendFlow;
-	}
-	else if (applicationRunOptions.runMode == ApplicationRunMode::testMode)
-	{
-		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::testFlow;
-	}
-	else
-	{
-		frameworkInitializeOptions.executionFlow = FrameworkExecutionFlow::worldFlow;
-	}
 	frameworkInitializeOptions.backendOptions.backendType = applicationRunOptions.backendType;
-	frameworkInitializeOptions.backendOptions.frameCount = applicationRunOptions.backendFrameCount;
-	frameworkInitializeOptions.backendOptions.forceResize = applicationRunOptions.forceResize;
 	frameworkInitializeOptions.backendOptions.enableDebugLayer = applicationRunOptions.enableBackendDebugLayer;
 	frameworkInitializeOptions.backendOptions.validationInjectMode = applicationRunOptions.backendValidationInjectMode;
 
-	Framework framework(frameworkInitializeOptions.executionFlow);
+	Framework framework = {};
+	framework.registerModule(frameworkInitializeOptions);
 	if (!framework.initialize(windowsWindowObject, frameworkInitializeOptions))
 	{
-		const int32 initializeExitCode = framework.getRuntimeExitCode();
 		framework.shutdown();
 		windowsWindowObject.destroy();
-		return initializeExitCode != 0 ? initializeExitCode : -2;
+		return resolveFrameworkInitializeExitCode(
+			framework.getRuntimeExitCode(),
+			ApplicationExitCode::frameworkInitializeFailed);
 	}
 
 	RenderWorld renderWorld = {};
 	if (!renderWorld.initialize(windowsWindowObject))
 	{
-		const int32 initializeExitCode = framework.getRuntimeExitCode();
 		renderWorld.shutdown();
 		framework.shutdown();
 		windowsWindowObject.destroy();
-		return initializeExitCode != 0 ? initializeExitCode : -3;
+		return resolveFrameworkInitializeExitCode(
+			framework.getRuntimeExitCode(),
+			ApplicationExitCode::renderWorldInitializeFailed);
 	}
 
 	while (windowsWindowObject.pumpMessages())
@@ -289,20 +238,9 @@ int WINAPI wWinMain(
 		}
 
 		RenderWorldUpdateInput renderWorldUpdateInput = {};
-		renderWorldUpdateInput.worldFlow = framework.getExecutionFlow() == FrameworkExecutionFlow::worldFlow;
+		renderWorldUpdateInput.worldFlow = true;
 		renderWorldUpdateInput.worldUpdateSerial = framework.getWorldUpdateSerial();
-		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = framework.getExecutionFlow() == FrameworkExecutionFlow::testFlow;
-		renderWorldUpdateInput.renderCommandFlushInput.validateAfterFlush =
-			framework.getExecutionFlow() == FrameworkExecutionFlow::worldFlow
-			|| framework.getExecutionFlow() == FrameworkExecutionFlow::backendFlow;
-		renderWorldUpdateInput.renderCommandFlushInput.processBackendValidationFailFast = [&framework]() -> bool
-		{
-			return framework.processBackendValidationFailFast();
-		};
-		renderWorldUpdateInput.renderCommandFlushInput.onFlushed = [&framework]()
-		{
-			framework.notifyRenderCommandQueueFlushed();
-		};
+		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = false;
 
 		if (!renderWorld.update(renderWorldUpdateInput))
 		{
@@ -310,17 +248,11 @@ int WINAPI wWinMain(
 			break;
 		}
 
-		if (framework.isExecutionCompleted())
-		{
-			break;
-		}
-
 		Sleep(1);
 	}
 
-	const int32 runtimeExitCode = framework.getRuntimeExitCode();
 	renderWorld.shutdown();
 	framework.shutdown();
 	windowsWindowObject.destroy();
-	return runtimeExitCode;
+	return static_cast<int32>(framework.getRuntimeExitCode());
 }

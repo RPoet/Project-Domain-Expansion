@@ -406,7 +406,7 @@ bool ImGuiLayerModule::init(Framework& framework)
 	lastEditorActionStatus.clear();
 	importPanel.reset();
 
-	if (framework.getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
+	if (!framework.isEditorUIEnabled())
 	{
 		return true;
 	}
@@ -464,8 +464,7 @@ bool ImGuiLayerModule::init(Framework& framework)
 
 void ImGuiLayerModule::preUpdate()
 {
-	if (frameworkReference == nullptr
-		|| frameworkReference->getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
+	if (frameworkReference == nullptr || !frameworkReference->isEditorUIEnabled())
 	{
 		return;
 	}
@@ -514,7 +513,7 @@ bool ImGuiLayerModule::processNativeMessage(
 	if (!contextCreated
 		|| !win32BackendInitialized
 		|| frameworkReference == nullptr
-		|| frameworkReference->getExecutionFlow() != FrameworkExecutionFlow::worldFlow)
+		|| !frameworkReference->isEditorUIEnabled())
 	{
 		return false;
 	}
@@ -530,7 +529,7 @@ bool ImGuiLayerModule::isEditorInputReady() const
 {
 	return contextCreated
 		&& frameworkReference != nullptr
-		&& frameworkReference->getExecutionFlow() == FrameworkExecutionFlow::worldFlow;
+		&& frameworkReference->isEditorUIEnabled();
 }
 
 bool ImGuiLayerModule::wantsTextInput() const
@@ -561,7 +560,8 @@ void ImGuiLayerModule::buildAndRender(
 		|| !contextCreated
 		|| !win32BackendInitialized
 		|| backendBridge == nullptr
-		|| frameworkReference == nullptr)
+		|| frameworkReference == nullptr
+		|| !frameworkReference->isEditorUIEnabled())
 	{
 		return;
 	}

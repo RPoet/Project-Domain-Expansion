@@ -1,13 +1,9 @@
 #include "Engine/Framework/Framework.h"
-#include "Engine/Framework/CameraComponent.h"
-#include "Engine/Framework/EditorCameraMovementComponent.h"
 #include "Engine/Framework/FrameworkFileSystem.h"
 #include "Engine/Framework/FrameworkSerialization.h"
-#include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
-#include "Render/RenderCommand.h"
 
 static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
 {
@@ -22,94 +18,6 @@ static const char* getFrameworkBackendTypeText(const RenderBackendType backendTy
 	default:
 		return "unknown";
 	}
-}
-
-static const char* getFrameworkExecutionFlowText(const FrameworkExecutionFlow executionFlow)
-{
-	switch (executionFlow)
-	{
-	case FrameworkExecutionFlow::worldFlow:
-		return "world";
-	case FrameworkExecutionFlow::backendFlow:
-		return "backend";
-	case FrameworkExecutionFlow::testFlow:
-		return "test";
-	default:
-		return "unknown";
-	}
-}
-
-static CameraComponent* getFirstCameraComponent(Entity* entity, World* world)
-{
-	if (entity == nullptr || world == nullptr)
-	{
-		return nullptr;
-	}
-
-	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
-	{
-		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != CameraComponent::staticComponentType)
-		{
-			continue;
-		}
-
-		return static_cast<CameraComponent*>(component);
-	}
-
-	return nullptr;
-}
-
-static EditorCameraMovementComponent* getFirstEditorCameraMovementComponent(Entity* entity, World* world)
-{
-	if (entity == nullptr || world == nullptr)
-	{
-		return nullptr;
-	}
-
-	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
-	{
-		Component* component = world->getComponentByIndex(entity->getComponentIndex(componentArrayIndex));
-		if (component == nullptr || component->getComponentType() != EditorCameraMovementComponent::staticComponentType)
-		{
-			continue;
-		}
-
-		return static_cast<EditorCameraMovementComponent*>(component);
-	}
-
-	return nullptr;
-}
-
-static CameraComponent* getEditorCameraComponent(World* world, uint32& outEntityIndex, PlaceableEntity*& outEntity)
-{
-	outEntityIndex = invalidEntityIndex;
-	outEntity = nullptr;
-	if (world == nullptr)
-	{
-		return nullptr;
-	}
-
-	for (uint32 entityIndex = 0; entityIndex < world->getEntityCount(); ++entityIndex)
-	{
-		Entity* entity = world->getEntityByIndex(entityIndex);
-		if (entity == nullptr)
-		{
-			continue;
-		}
-
-		CameraComponent* cameraComponent = getFirstCameraComponent(entity, world);
-		if (cameraComponent == nullptr || !cameraComponent->editorCamera)
-		{
-			continue;
-		}
-
-		outEntityIndex = entityIndex;
-		outEntity = dynamic_cast<PlaceableEntity*>(entity);
-		return cameraComponent;
-	}
-
-	return nullptr;
 }
 
 static bool loadEditorWorldTemplate(unique_pointer<World>& outWorld, string& outErrorText)
@@ -128,93 +36,44 @@ static bool loadEditorWorldTemplate(unique_pointer<World>& outWorld, string& out
 		&& outWorld != nullptr;
 }
 
-static bool cloneEditorCameraFromTemplateWorld(const World& templateWorld, World& targetWorld, string& outErrorText)
-{
-	outErrorText.clear();
-
-	World* mutableTemplateWorld = const_cast<World*>(&templateWorld);
-	uint32 templateEditorCameraEntityIndex = invalidEntityIndex;
-	PlaceableEntity* templateEditorCameraEntity = nullptr;
-	CameraComponent* templateEditorCameraComponent =
-		getEditorCameraComponent(mutableTemplateWorld, templateEditorCameraEntityIndex, templateEditorCameraEntity);
-	if (templateEditorCameraComponent == nullptr || templateEditorCameraEntity == nullptr)
-	{
-		outErrorText = "editor_world_template_missing_editor_camera";
-		return false;
-	}
-
-	const uint32 newEditorCameraEntityIndex = targetWorld.createPlaceableEntity();
-	PlaceableEntity* newEditorCameraEntity =
-		static_cast<PlaceableEntity*>(targetWorld.getEntityByIndex(newEditorCameraEntityIndex));
-	if (newEditorCameraEntity == nullptr)
-	{
-		outErrorText = "editor_camera_entity_create_failed";
-		return false;
-	}
-
-	newEditorCameraEntity->setName(templateEditorCameraEntity->getName());
-	newEditorCameraEntity->setActive(templateEditorCameraEntity->isActive());
-	newEditorCameraEntity->transform = templateEditorCameraEntity->transform;
-
-	unique_pointer<CameraComponent> editorCameraComponent(new CameraComponent());
-	editorCameraComponent->editorCamera = templateEditorCameraComponent->editorCamera;
-	editorCameraComponent->primary = templateEditorCameraComponent->primary;
-	editorCameraComponent->fieldOfViewYDegrees = templateEditorCameraComponent->fieldOfViewYDegrees;
-	editorCameraComponent->nearPlane = templateEditorCameraComponent->nearPlane;
-	editorCameraComponent->farPlane = templateEditorCameraComponent->farPlane;
-	if (!newEditorCameraEntity->addComponent(moveValue(editorCameraComponent)))
-	{
-		outErrorText = "editor_camera_component_add_failed";
-		return false;
-	}
-
-	EditorCameraMovementComponent* templateEditorCameraMovementComponent =
-		getFirstEditorCameraMovementComponent(templateEditorCameraEntity, mutableTemplateWorld);
-	if (templateEditorCameraMovementComponent != nullptr)
-	{
-		unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
-		editorCameraMovementComponent->setMovementSpeed(templateEditorCameraMovementComponent->getMovementSpeed());
-		if (!newEditorCameraEntity->addComponent(moveValue(editorCameraMovementComponent)))
-		{
-			outErrorText = "editor_camera_movement_component_add_failed";
-			return false;
-		}
-	}
-
-	newEditorCameraEntity->tick(0.0f);
-	return true;
-}
-
-Framework::Framework(const FrameworkExecutionFlow executionFlow)
-	: executionFlow(executionFlow)
-{
-}
-
 bool Framework::initialize(
 	WindowsWindowObject& inWindowsWindowObject,
 	const FrameworkInitializeOptions& initializeOptions)
 {
-	shutdown();
+	if (moduleInitializationCompleted)
+	{
+		for (int32 moduleIndex = static_cast<int32>(moduleStorage.size()) - 1; moduleIndex >= 0; --moduleIndex)
+		{
+			shared_pointer<Module>& module = moduleStorage[moduleIndex];
+			if (module == nullptr)
+			{
+				continue;
+			}
 
-	executionFlow = initializeOptions.executionFlow;
+			module->shutdown();
+		}
+
+		moduleInitializationCompleted = false;
+	}
+
+	worldStorage.clear();
+	activeWorldIndex = invalidWorldIndex;
+	editorUIEnabled = initializeOptions.editorUIEnabled;
 	backendOptions = initializeOptions.backendOptions;
 	windowsWindowObject = &inWindowsWindowObject;
-	executionCompleted = false;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	activeWorldFilePath.clear();
 	worldUpdateSerial = 0;
 
-	const bool forceEnableDebugLayer =
-		executionFlow == FrameworkExecutionFlow::worldFlow
-		|| executionFlow == FrameworkExecutionFlow::backendFlow;
-	if (forceEnableDebugLayer && !backendOptions.enableDebugLayer)
+	if (backendOptions.createBackend)
 	{
-		output << "[BackendValidation][Policy] flow=" << getFrameworkExecutionFlowText(executionFlow)
-			   << " backend=" << getFrameworkBackendTypeText(backendOptions.backendType)
-			   << " key=force_debug_layer previous=0 current=1" << lineBreak;
-	}
-	if (forceEnableDebugLayer)
-	{
+		if (!backendOptions.enableDebugLayer)
+		{
+			output << "[BackendValidation][Policy] flow=world"
+				   << " backend=" << getFrameworkBackendTypeText(backendOptions.backendType)
+				   << " key=force_debug_layer previous=0 current=1" << lineBreak;
+		}
+
 		backendOptions.enableDebugLayer = true;
 	}
 
@@ -259,35 +118,17 @@ bool Framework::initialize(
 	};
 	windowsWindowObject->setEventCallbacks(moveValue(windowEventCallbacks));
 
-	registerModule();
+	const bool hasRegisteredModules = !moduleStorage.empty();
+	assert(hasRegisteredModules && "[Framework][Assert] reason=module_not_registered");
+
 	if (!initializeModules())
 	{
 		error << "Framework module initialization failed." << lineBreak;
-		if (executionFlow == FrameworkExecutionFlow::backendFlow)
-		{
-			runtimeExitCode = FrameworkRuntimeExitCode::backendFlowRuntimeFailure;
-		}
-		else
-		{
-			runtimeExitCode = FrameworkRuntimeExitCode::moduleInitializationFailure;
-		}
-		executionCompleted = true;
+		completeExecution(FrameworkRuntimeExitCode::moduleInitializationFailure);
 		return false;
 	}
 
-	if (executionFlow == FrameworkExecutionFlow::testFlow)
-	{
-		initializeTestFlow();
-		registerTest();
-		return true;
-	}
-
-	if (executionFlow == FrameworkExecutionFlow::backendFlow)
-	{
-		return initializeBackendFlow();
-	}
-
-	if (getActiveWorld() == nullptr)
+	if (initializeOptions.bootstrapWorld && getActiveWorld() == nullptr)
 	{
 		string defaultWorldPath = {};
 		if (frameworkFileSystemResolveDefaultWorldFilePath(defaultWorldPath)
@@ -300,8 +141,7 @@ bool Framework::initialize(
 		if (!loadWorld(editorWorldIndex))
 		{
 			error << "World bootstrap failed. reason=editor_world_load_failed" << lineBreak;
-			runtimeExitCode = FrameworkRuntimeExitCode::moduleInitializationFailure;
-			executionCompleted = true;
+			completeExecution(FrameworkRuntimeExitCode::moduleInitializationFailure);
 			return false;
 		}
 	}
@@ -312,22 +152,14 @@ bool Framework::initialize(
 void Framework::shutdown()
 {
 	shutdownModules();
-
-	executionCompleted = false;
-	runtimeExitCode = FrameworkRuntimeExitCode::success;
+	worldStorage.clear();
+	activeWorldIndex = invalidWorldIndex;
+	backendOptions = {};
 	windowsWindowObject = nullptr;
 	activeWorldFilePath.clear();
 	worldUpdateSerial = 0;
-}
-
-void Framework::setExecutionFlow(const FrameworkExecutionFlow executionFlow)
-{
-	this->executionFlow = executionFlow;
-}
-
-FrameworkExecutionFlow Framework::getExecutionFlow() const
-{
-	return executionFlow;
+	runtimeExitCode = FrameworkRuntimeExitCode::success;
+	editorUIEnabled = true;
 }
 
 uint32 Framework::createWorld(const wstring& worldName)
@@ -354,11 +186,6 @@ bool Framework::loadWorld(const uint32 worldIndex)
 	}
 
 	if (worldStorage[worldIndex] == nullptr)
-	{
-		return false;
-	}
-
-	if (!ensureEditorCameraFromTemplate(*worldStorage[worldIndex]))
 	{
 		return false;
 	}
@@ -474,147 +301,24 @@ uint32 Framework::getActiveWorldIndex() const
 
 bool Framework::update()
 {
-	if (executionCompleted)
-	{
-		return true;
-	}
-
-	if (executionFlow == FrameworkExecutionFlow::testFlow)
-	{
-		return updateTestExecutionFlow();
-	}
-
-	if (executionFlow == FrameworkExecutionFlow::backendFlow)
-	{
-		return updateBackendExecutionFlow();
-	}
-
 	preUpdateModules();
+
 	const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 	World* activeWorldObject = getActiveWorld();
-	if (activeWorldObject == nullptr)
+	if (activeWorldObject != nullptr)
 	{
-		return false;
+		activeWorldObject->tick(deltaTimeSeconds);
 	}
 
-	activeWorldObject->tick(deltaTimeSeconds);
 	postUpdateModules();
 	++worldUpdateSerial;
 
 	return true;
 }
 
-bool Framework::ensureEditorCameraFromTemplate(World& world)
+FrameworkRuntimeExitCode Framework::getRuntimeExitCode() const
 {
-	PlaceableEntity* existingEditorCameraEntity = nullptr;
-	CameraComponent* existingEditorCameraComponent = nullptr;
-	uint32 editorCameraCount = 0;
-
-	for (uint32 entityIndex = 0; entityIndex < world.getEntityCount(); ++entityIndex)
-	{
-		Entity* entity = world.getEntityByIndex(entityIndex);
-		if (entity == nullptr)
-		{
-			continue;
-		}
-
-		CameraComponent* cameraComponent = getFirstCameraComponent(entity, &world);
-		if (cameraComponent == nullptr || !cameraComponent->editorCamera)
-		{
-			continue;
-		}
-
-		++editorCameraCount;
-		if (existingEditorCameraComponent != nullptr)
-		{
-			continue;
-		}
-
-		existingEditorCameraEntity = dynamic_cast<PlaceableEntity*>(entity);
-		existingEditorCameraComponent = cameraComponent;
-	}
-
-	const bool hasDuplicateEditorCamera = editorCameraCount > 1;
-	assert(!hasDuplicateEditorCamera && "[Framework][Assert] reason=duplicate_editor_camera");
-	if (hasDuplicateEditorCamera)
-	{
-		return false;
-	}
-
-	if (existingEditorCameraComponent != nullptr)
-	{
-		assert(existingEditorCameraEntity != nullptr && "[Framework][Assert] reason=editor_camera_requires_placeable_entity");
-		if (existingEditorCameraEntity == nullptr)
-		{
-			return false;
-		}
-
-		EditorCameraMovementComponent* existingEditorCameraMovementComponent =
-			getFirstEditorCameraMovementComponent(existingEditorCameraEntity, &world);
-		if (existingEditorCameraMovementComponent == nullptr)
-		{
-			unique_pointer<World> editorWorldTemplate = nullptr;
-			string errorText = {};
-			if (!loadEditorWorldTemplate(editorWorldTemplate, errorText) || editorWorldTemplate == nullptr)
-			{
-				error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
-					  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-				return false;
-			}
-
-			uint32 templateEditorCameraEntityIndex = invalidEntityIndex;
-			PlaceableEntity* templateEditorCameraEntity = nullptr;
-			getEditorCameraComponent(editorWorldTemplate.get(), templateEditorCameraEntityIndex, templateEditorCameraEntity);
-			EditorCameraMovementComponent* templateEditorCameraMovementComponent =
-				templateEditorCameraEntity != nullptr
-				? getFirstEditorCameraMovementComponent(templateEditorCameraEntity, editorWorldTemplate.get())
-				: nullptr;
-			if (templateEditorCameraMovementComponent == nullptr)
-			{
-				error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason=editor_world_template_missing_movement" << lineBreak;
-				return false;
-			}
-
-			unique_pointer<EditorCameraMovementComponent> editorCameraMovementComponent(new EditorCameraMovementComponent());
-			editorCameraMovementComponent->setMovementSpeed(templateEditorCameraMovementComponent->getMovementSpeed());
-			const bool addMovementResult = existingEditorCameraEntity->addComponent(moveValue(editorCameraMovementComponent));
-			assert(addMovementResult && "[Framework][Assert] reason=editor_camera_movement_component_add_failed");
-			if (!addMovementResult)
-			{
-				return false;
-			}
-		}
-
-		existingEditorCameraEntity->tick(0.0f);
-		return true;
-	}
-
-	unique_pointer<World> editorWorldTemplate = nullptr;
-	string errorText = {};
-	if (!loadEditorWorldTemplate(editorWorldTemplate, errorText) || editorWorldTemplate == nullptr)
-	{
-		error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
-			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-		return false;
-	}
-
-	if (!cloneEditorCameraFromTemplateWorld(*editorWorldTemplate, world, errorText))
-	{
-		error << "[Framework][Error] ensureEditorCameraFromTemplate_failed reason="
-			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-		return false;
-	}
-	return true;
-}
-
-bool Framework::isExecutionCompleted() const
-{
-	return executionCompleted;
-}
-
-int32 Framework::getRuntimeExitCode() const
-{
-	return static_cast<int32>(runtimeExitCode);
+	return runtimeExitCode;
 }
 
 const FrameworkBackendOptions& Framework::getBackendOptions() const
@@ -637,27 +341,19 @@ uint64 Framework::getWorldUpdateSerial() const
 	return worldUpdateSerial;
 }
 
-void Framework::notifyRenderCommandQueueFlushed()
+void Framework::setEditorUIEnabled(const bool enabled)
 {
-	if (executionFlow == FrameworkExecutionFlow::backendFlow
-		&& !executionCompleted)
-	{
-		if (backendTestState.finalizePending)
-		{
-			backendTestState.finalizePending = false;
-			finalizeBackendFlow(true);
-		}
-	}
+	editorUIEnabled = enabled;
 }
 
-void Framework::initializeTestFlow()
+bool Framework::isEditorUIEnabled() const
 {
-	resetBackendTestState();
+	return editorUIEnabled;
 }
 
-void Framework::resetBackendTestState()
+void Framework::completeExecution(const FrameworkRuntimeExitCode exitCode)
 {
-	backendTestState.reset();
+	runtimeExitCode = exitCode;
 }
 
 bool Framework::isValidWorldIndex(const uint32 worldIndex) const

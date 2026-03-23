@@ -5,40 +5,18 @@ bool RenderBackendModule::init(Framework& framework)
 {
 	destroyBackend();
 
-	const FrameworkExecutionFlow executionFlow = framework.getExecutionFlow();
-	const bool backendCliFlow = executionFlow == FrameworkExecutionFlow::backendFlow;
-	if (executionFlow == FrameworkExecutionFlow::testFlow)
+	const FrameworkBackendOptions& backendOptions = framework.getBackendOptions();
+	if (!backendOptions.createBackend)
 	{
 		return true;
 	}
 
 	WindowsWindowObject* windowObject = framework.getWindowObject();
-	if (windowObject == nullptr)
-	{
-		if (backendCliFlow)
-		{
-			error << "[BackendCLI][Error] stage=create reason=window_object_missing" << lineBreak;
-		}
-		else
-		{
-			error << "Render backend create failed. reason=window_object_missing" << lineBreak;
-		}
-		return false;
-	}
+	const bool validWindowObject = windowObject != nullptr;
+	assert(validWindowObject && "[RenderBackendModule][Assert] reason=window_object_missing");
 
-	const FrameworkBackendOptions& backendOptions = framework.getBackendOptions();
-	if (!RenderBackend::isSupportedBackend(backendOptions.backendType))
-	{
-		if (backendCliFlow)
-		{
-			error << "[BackendCLI][Error] stage=create reason=backend_not_supported" << lineBreak;
-		}
-		else
-		{
-			error << "Render backend create failed. reason=backend_not_supported" << lineBreak;
-		}
-		return false;
-	}
+	const bool supportedBackend = RenderBackend::isSupportedBackend(backendOptions.backendType);
+	assert(supportedBackend && "[RenderBackendModule][Assert] reason=backend_not_supported");
 
 	RenderBackendCreateOptions backendCreateOptions = {};
 	backendCreateOptions.windowHandle = windowObject->getWindowHandle();
@@ -46,21 +24,9 @@ bool RenderBackendModule::init(Framework& framework)
 	backendCreateOptions.height = windowObject->getClientHeight();
 	backendCreateOptions.backendType = backendOptions.backendType;
 	backendCreateOptions.enableDebugLayer = backendOptions.enableDebugLayer;
-
-	if (!createBackend(backendCreateOptions))
-	{
-		if (backendCliFlow)
-		{
-			error << "[BackendCLI][Error] stage=create reason=backend_create_failed" << lineBreak;
-		}
-		else
-		{
-			error << "Render backend create failed. reason=backend_create_failed" << lineBreak;
-		}
-		return false;
-	}
-
-	return true;
+	const bool createdBackend = createBackend(backendCreateOptions);
+	assert(createdBackend && "[RenderBackendModule][Assert] reason=backend_create_failed");
+	return createdBackend;
 }
 
 void RenderBackendModule::preUpdate()

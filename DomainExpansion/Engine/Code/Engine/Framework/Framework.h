@@ -2,7 +2,6 @@
 
 #include "Engine/Framework/BackendValidation.h"
 #include "Engine/Framework/FrameworkConstants.h"
-#include "Engine/Framework/TestFramework.h"
 #include "Engine/Framework/World.h"
 #include "Engine/Window/WindowsWindowObject.h"
 #include "Engine/Module/Module.h"
@@ -11,30 +10,37 @@
 
 struct FrameworkBackendOptions
 {
+	bool createBackend = true;
 	RenderBackendType backendType = RenderBackendType::dx12;
-	uint32 frameCount = 120;
-	bool forceResize = false;
 	bool enableDebugLayer = false;
 	BackendValidationInjectMode validationInjectMode = BackendValidationInjectMode::none;
 };
 
 struct FrameworkInitializeOptions
 {
-	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
+	bool bootstrapWorld = true;
+	bool editorUIEnabled = true;
 	FrameworkBackendOptions backendOptions = {};
 };
+
+template <typename ExitCodeType>
+inline int32 resolveFrameworkInitializeExitCode(
+	const FrameworkRuntimeExitCode initializeExitCode,
+	const ExitCodeType fallbackExitCode)
+{
+	return initializeExitCode != FrameworkRuntimeExitCode::success
+		? static_cast<int32>(initializeExitCode)
+		: static_cast<int32>(fallbackExitCode);
+}
 
 class Framework
 {
 public:
-	explicit Framework(FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow);
+	Framework() = default;
 	~Framework() = default;
 
 	bool initialize(WindowsWindowObject& windowsWindowObject, const FrameworkInitializeOptions& initializeOptions);
 	void shutdown();
-
-	void setExecutionFlow(FrameworkExecutionFlow executionFlow);
-	FrameworkExecutionFlow getExecutionFlow() const;
 
 	uint32 createWorld(const wstring& worldName);
 	bool loadWorld(uint32 worldIndex);
@@ -51,57 +57,37 @@ public:
 	uint32 getActiveWorldIndex() const;
 
 	bool update();
-	bool isExecutionCompleted() const;
-	int32 getRuntimeExitCode() const;
+	FrameworkRuntimeExitCode getRuntimeExitCode() const;
 	const FrameworkBackendOptions& getBackendOptions() const;
 	WindowsWindowObject* getWindowObject();
 	const WindowsWindowObject* getWindowObject() const;
 	uint64 getWorldUpdateSerial() const;
-	bool processBackendValidationFailFast();
-	void notifyRenderCommandQueueFlushed();
 	void onWindowResize(uint32 width, uint32 height);
+	void setEditorUIEnabled(bool enabled);
+	bool isEditorUIEnabled() const;
 
-	void registerModule();
+	void registerModule(const FrameworkInitializeOptions& initializeOptions);
 	void addModule(const shared_pointer<Module>& module);
-
-	void registerTest();
-	void addTestCase(unique_pointer<FrameworkTestCase> testCase);
-	void clearTestCases();
-	bool isTestFlowCompleted() const;
-	const FrameworkTestSummary& getTestSummary() const;
 
 private:
 	bool initializeModules();
-	bool updateTestExecutionFlow();
-	bool updateBackendExecutionFlow();
 	void preUpdateModules();
 	void postUpdateModules();
 	void shutdownModules();
-	void initializeTestFlow();
-	bool tickTestFlow();
-	bool initializeBackendFlow();
-	bool enqueueBackendRenderFrameCommand();
-	bool tickBackendFlow(float deltaTimeSeconds);
-	bool ensureEditorCameraFromTemplate(World& world);
-	void resetBackendTestState();
-	void finalizeTestFlow();
-	void finalizeBackendFlow(bool passState);
 	bool isValidWorldIndex(uint32 worldIndex) const;
+	void completeExecution(FrameworkRuntimeExitCode exitCode);
 
 	vector<unique_pointer<World>> worldStorage;
 	vector<shared_pointer<Module>> moduleStorage;
 	uint32 activeWorldIndex = invalidWorldIndex;
 
-	FrameworkExecutionFlow executionFlow = FrameworkExecutionFlow::worldFlow;
-	TestFramework testFramework;
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
-	FrameworkBackendTestState backendTestState = {};
 	string activeWorldFilePath = {};
 	uint64 worldUpdateSerial = 0;
 
-	bool executionCompleted = false;
 	bool moduleRegistrationCompleted = false;
 	bool moduleInitializationCompleted = false;
+	bool editorUIEnabled = true;
 	FrameworkRuntimeExitCode runtimeExitCode = FrameworkRuntimeExitCode::success;
 };
