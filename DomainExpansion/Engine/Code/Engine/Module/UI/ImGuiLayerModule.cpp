@@ -254,18 +254,48 @@ struct ImGuiLayerModule::Dx12BackendBridge final : ImGuiLayerModule::BackendBrid
 	bool initialized = false;
 };
 
-ImGuiLayerModule::ImportPanel::ImportPanel(const filesystem_path& filePath)
-	: opened(true)
-	, sourceFilePath(filePath.lexically_normal())
-	, sourceFilePathText(sourceFilePath.string())
-	, sourceFileExtension(buildFileExtension(sourceFilePath))
-	, formatText(buildFormatText(sourceFilePath))
+ImGuiLayerModule::ImGuiLayerModule()
+	: StaticModule("ImGuiLayerModule")
+	, importPanel(new ImportPanel())
+	, outlinerPanel(new OutlinerPanel())
+	, detailPanel(new DetailPanel())
+	, fileSystemPanel(new FileSystemPanel(*importPanel))
 {
+	panels.push_back(outlinerPanel.get());
+	panels.push_back(detailPanel.get());
+	panels.push_back(fileSystemPanel.get());
+	panels.push_back(importPanel.get());
+}
+
+void ImGuiLayerModule::ImportPanel::reset()
+{
+	opened = false;
+	sourceFilePath.clear();
+	sourceFilePathText.clear();
+	sourceFileExtension.clear();
+	formatText.clear();
+	commandText.clear();
+	processCode = ProcessCode::succeeded;
+	processCodeAvailable = false;
+}
+
+void ImGuiLayerModule::ImportPanel::open(const filesystem_path& filePath)
+{
+	reset();
+
+	opened = true;
+	sourceFilePath = filePath.lexically_normal();
+	sourceFilePathText = sourceFilePath.string();
+	sourceFileExtension = buildFileExtension(sourceFilePath);
+	formatText = buildFormatText(sourceFilePath);
 	executeImportCommand();
 }
 
-void ImGuiLayerModule::ImportPanel::build()
+void ImGuiLayerModule::ImportPanel::build(ImGuiLayerModule& owner, World* world)
 {
+	unused(owner);
+	unused(world);
+
 	if (!opened)
 	{
 		return;
@@ -293,11 +323,6 @@ void ImGuiLayerModule::ImportPanel::build()
 	ImGui::TextWrapped("Import execution is routed through CLI command dispatch.");
 
 	ImGui::End();
-}
-
-bool ImGuiLayerModule::ImportPanel::isOpened() const
-{
-	return opened;
 }
 
 string ImGuiLayerModule::ImportPanel::buildFileExtension(const filesystem_path& filePath)
@@ -401,15 +426,19 @@ bool ImGuiLayerModule::init(Framework& framework)
 
 	frameworkReference = &framework;
 	selectedEntityIndex = invalidEntityIndex;
-	resourcesRootPathText.clear();
-	resourcesRootResolved = false;
-	resourcesRootValid = false;
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
-	createWorldNameText = "NewWorld";
-	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
-	importPanel.reset();
+	const bool validPanels = panels.size() == 4
+		&& importPanel != nullptr
+		&& outlinerPanel != nullptr
+		&& detailPanel != nullptr
+		&& fileSystemPanel != nullptr;
+	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
+	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
+	{
+		panels[panelIndex]->reset();
+	}
 
 	if (!framework.isEditorUIEnabled())
 	{
@@ -484,15 +513,19 @@ void ImGuiLayerModule::shutdown()
 	shutdownContext();
 	frameworkReference = nullptr;
 	selectedEntityIndex = invalidEntityIndex;
-	resourcesRootPathText.clear();
-	resourcesRootResolved = false;
-	resourcesRootValid = false;
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
-	createWorldNameText = "NewWorld";
-	lastOpenedWorldPath.clear();
 	lastEditorActionStatus.clear();
-	importPanel.reset();
+	const bool validPanels = panels.size() == 4
+		&& importPanel != nullptr
+		&& outlinerPanel != nullptr
+		&& detailPanel != nullptr
+		&& fileSystemPanel != nullptr;
+	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
+	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
+	{
+		panels[panelIndex]->reset();
+	}
 }
 
 bool ImGuiLayerModule::processNativeMessage(
@@ -571,10 +604,20 @@ void ImGuiLayerModule::buildAndRender(
 	ImGui::NewFrame();
 
 	World* world = frameworkReference->getActiveWorld();
-	buildOutlinerPanel(world);
-	buildDetailPanel(world);
-	buildFileSystemPanel();
-	buildImportPanel();
+	const bool validPanels = panels.size() == 4
+		&& importPanel != nullptr
+		&& outlinerPanel != nullptr
+		&& detailPanel != nullptr
+		&& fileSystemPanel != nullptr
+		&& panels[0] != nullptr
+		&& panels[1] != nullptr
+		&& panels[2] != nullptr
+		&& panels[3] != nullptr;
+	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
+	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
+	{
+		panels[panelIndex]->build(*this, world);
+	}
 
 	ImGui::Render();
 	backendBridge->renderDrawData(commandList);
@@ -792,7 +835,7 @@ float ImGuiLayerModule::calculateUiScale() const
 	return clampFloat(preferredScale, 1.0f, 2.5f);
 }
 
-void ImGuiLayerModule::buildOutlinerPanel(World* world)
+void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* world)
 {
 	ImGui::Begin("Outliner");
 
@@ -803,12 +846,12 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		return;
 	}
 
-	if (selectedEntityIndex != invalidEntityIndex)
+	if (owner.selectedEntityIndex != invalidEntityIndex)
 	{
-		const Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
+		const Entity* selectedEntity = world->getEntityByIndex(owner.selectedEntityIndex);
 		if (selectedEntity == nullptr || isEditorCameraEntity(world, selectedEntity))
 		{
-			selectedEntityIndex = invalidEntityIndex;
+			owner.selectedEntityIndex = invalidEntityIndex;
 		}
 	}
 
@@ -823,28 +866,28 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 	{
 		const uint32 newEntityIndex = world->createPlaceableEntity();
 		bool addEntityResult = true;
-		if (selectedEntityIndex != invalidEntityIndex
-			&& world->getEntityByIndex(selectedEntityIndex) != nullptr)
+		if (owner.selectedEntityIndex != invalidEntityIndex
+			&& world->getEntityByIndex(owner.selectedEntityIndex) != nullptr)
 		{
-			addEntityResult = world->addChildEntity(selectedEntityIndex, newEntityIndex);
+			addEntityResult = world->addChildEntity(owner.selectedEntityIndex, newEntityIndex);
 		}
 
-		selectedEntityIndex = newEntityIndex;
+		owner.selectedEntityIndex = newEntityIndex;
 		if (!addEntityResult)
 		{
-			lastEditorActionStatus = "add_entity_failed";
+			owner.lastEditorActionStatus = "add_entity_failed";
 		}
-		else if (saveActiveWorldImmediate())
+		else if (owner.saveActiveWorldImmediate())
 		{
-			lastEditorActionStatus = "entity_added_and_saved";
+			owner.lastEditorActionStatus = "entity_added_and_saved";
 		}
 		else
 		{
-			lastEditorActionStatus = "entity_added_save_skipped";
+			owner.lastEditorActionStatus = "entity_added_save_skipped";
 		}
 	}
 
-	const bool deleteShortcutPressed = selectedEntityIndex != invalidEntityIndex
+	const bool deleteShortcutPressed = owner.selectedEntityIndex != invalidEntityIndex
 		&& ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
 		&& !ImGui::GetIO().WantTextInput
 		&& !ImGui::IsAnyItemActive()
@@ -852,7 +895,7 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		&& ImGui::IsKeyPressed(ImGuiKey_Delete, false);
 	if (deleteShortcutPressed)
 	{
-		tryDeleteSelectedEntity(world);
+		owner.tryDeleteSelectedEntity(world);
 	}
 
 	const uint32 entityCount = world->getEntityCount();
@@ -868,7 +911,7 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 			continue;
 		}
 
-		drawOutlinerEntityNode(world, entityIndex);
+		drawEntityNode(owner, world, entityIndex);
 		++rootEntityCount;
 	}
 
@@ -877,16 +920,16 @@ void ImGuiLayerModule::buildOutlinerPanel(World* world)
 		ImGui::TextUnformatted("No root entities.");
 	}
 
-	if (!lastEditorActionStatus.empty())
+	if (!owner.lastEditorActionStatus.empty())
 	{
 		ImGui::Separator();
-		ImGui::Text("Status: %s", lastEditorActionStatus.c_str());
+		ImGui::Text("Status: %s", owner.lastEditorActionStatus.c_str());
 	}
 
 	ImGui::End();
 }
 
-void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 entityIndex)
+void ImGuiLayerModule::OutlinerPanel::drawEntityNode(ImGuiLayerModule& owner, const World* world, const uint32 entityIndex)
 {
 	if (world == nullptr)
 	{
@@ -904,7 +947,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 	ImGui::PushID(static_cast<int32>(entityIndex));
 
 	ImGuiTreeNodeFlags treeNodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-	if (selectedEntityIndex == entityIndex && !editorCameraEntity)
+	if (owner.selectedEntityIndex == entityIndex && !editorCameraEntity)
 	{
 		treeNodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
@@ -920,7 +963,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 		buildEntityDisplayText(world, entity, entityIndex).c_str());
 	if (ImGui::IsItemClicked() && !editorCameraEntity)
 	{
-		selectedEntityIndex = entityIndex;
+		owner.selectedEntityIndex = entityIndex;
 	}
 
 	if (isNodeOpened)
@@ -930,7 +973,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 		const uint32 maxChildGuardCount = world->getEntityCount();
 		while (childEntityIndex != invalidEntityIndex && childGuardCount < maxChildGuardCount)
 		{
-			drawOutlinerEntityNode(world, childEntityIndex);
+			drawEntityNode(owner, world, childEntityIndex);
 			const Entity* childEntity = world->getEntityByIndex(childEntityIndex);
 			if (childEntity == nullptr)
 			{
@@ -947,7 +990,7 @@ void ImGuiLayerModule::drawOutlinerEntityNode(const World* world, const uint32 e
 	ImGui::PopID();
 }
 
-void ImGuiLayerModule::buildDetailPanel(World* world)
+void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 {
 	ImGui::Begin("Detail");
 
@@ -958,36 +1001,36 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 		return;
 	}
 
-	if (selectedEntityIndex == invalidEntityIndex)
+	if (owner.selectedEntityIndex == invalidEntityIndex)
 	{
 		ImGui::TextUnformatted("Select an entity from Outliner.");
 		ImGui::End();
 		return;
 	}
 
-	Entity* selectedEntity = world->getEntityByIndex(selectedEntityIndex);
+	Entity* selectedEntity = world->getEntityByIndex(owner.selectedEntityIndex);
 	if (selectedEntity == nullptr)
 	{
-		selectedEntityIndex = invalidEntityIndex;
+		owner.selectedEntityIndex = invalidEntityIndex;
 		ImGui::TextUnformatted("Selected entity is invalid.");
 		ImGui::End();
 		return;
 	}
 	if (isEditorCameraEntity(world, selectedEntity))
 	{
-		selectedEntityIndex = invalidEntityIndex;
+		owner.selectedEntityIndex = invalidEntityIndex;
 		ImGui::TextUnformatted("Select an entity from Outliner.");
 		ImGui::End();
 		return;
 	}
 
-	const string selectedEntityDisplayText = buildEntityDisplayText(world, selectedEntity, selectedEntityIndex);
+	const string selectedEntityDisplayText = buildEntityDisplayText(world, selectedEntity, owner.selectedEntityIndex);
 	ImGui::Text("%s", selectedEntityDisplayText.c_str());
 	string entityName = selectedEntity->getName();
 	if (ImGui::InputText("Name", &entityName))
 	{
 		selectedEntity->setName(entityName);
-		lastEditorActionStatus = saveActiveWorldImmediate()
+		owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 			? "entity_name_updated_and_saved"
 			: "entity_name_updated_save_skipped";
 	}
@@ -1059,12 +1102,12 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 		ImGui::TextDisabled("Editor camera entity cannot be deleted.");
 		if (deleteShortcutPressed)
 		{
-			lastEditorActionStatus = "editor_camera_entity_delete_blocked";
+			owner.lastEditorActionStatus = "editor_camera_entity_delete_blocked";
 		}
 	}
 
 	if ((deleteButtonPressed || (canDeleteSelectedEntity && deleteShortcutPressed))
-		&& tryDeleteSelectedEntity(world))
+		&& owner.tryDeleteSelectedEntity(world))
 	{
 		ImGui::End();
 		return;
@@ -1085,13 +1128,13 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 			unique_pointer<MeshComponent> newMeshComponent(new MeshComponent());
 			if (selectedEntity->addComponent(moveValue(newMeshComponent)))
 			{
-				lastEditorActionStatus = saveActiveWorldImmediate()
+				owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 					? "mesh_component_added_and_saved"
 					: "mesh_component_added_save_skipped";
 			}
 			else
 			{
-				lastEditorActionStatus = "mesh_component_add_failed";
+				owner.lastEditorActionStatus = "mesh_component_add_failed";
 			}
 		}
 		ImGui::EndDisabled();
@@ -1102,13 +1145,13 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 			unique_pointer<CameraComponent> newCameraComponent(new CameraComponent());
 			if (selectedEntity->addComponent(moveValue(newCameraComponent)))
 			{
-				lastEditorActionStatus = saveActiveWorldImmediate()
+				owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 					? "camera_component_added_and_saved"
 					: "camera_component_added_save_skipped";
 			}
 			else
 			{
-				lastEditorActionStatus = "camera_component_add_failed";
+				owner.lastEditorActionStatus = "camera_component_add_failed";
 			}
 		}
 		ImGui::EndDisabled();
@@ -1165,7 +1208,7 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 					meshComponent->lodLevel);
 			}
 
-			lastEditorActionStatus = saveActiveWorldImmediate()
+			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 				? "mesh_component_updated_and_saved"
 				: "mesh_component_updated_save_skipped";
 		}
@@ -1213,7 +1256,7 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 			cameraComponent->nearPlane = nearPlane;
 			cameraComponent->farPlane = farPlane;
 
-			lastEditorActionStatus = saveActiveWorldImmediate()
+			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 				? "camera_component_updated_and_saved"
 				: "camera_component_updated_save_skipped";
 		}
@@ -1265,7 +1308,7 @@ void ImGuiLayerModule::buildDetailPanel(World* world)
 		if (transformChanged)
 		{
 			placeableEntity->transform = updatedTransform;
-			lastEditorActionStatus = saveActiveWorldImmediate()
+			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
 				? "entity_transform_updated_and_saved"
 				: "entity_transform_updated_save_skipped";
 		}
@@ -1310,8 +1353,19 @@ bool ImGuiLayerModule::tryDeleteSelectedEntity(World* world)
 	return true;
 }
 
-void ImGuiLayerModule::buildFileSystemPanel()
+void ImGuiLayerModule::FileSystemPanel::reset()
 {
+	resourcesRootPathText.clear();
+	resourcesRootResolved = false;
+	resourcesRootValid = false;
+	createWorldNameText = "NewWorld";
+	lastOpenedWorldPath.clear();
+}
+
+void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* world)
+{
+	unused(world);
+
 	ImGui::Begin("FileSystem");
 
 	if (!resolveResourcesRootPath())
@@ -1356,23 +1410,23 @@ void ImGuiLayerModule::buildFileSystemPanel()
 			string createdWorldPath = {};
 			if (createWorldFile(createWorldNameText, createdWorldPath))
 			{
-				if (frameworkReference != nullptr
-					&& frameworkReference->loadWorldFromFile(createdWorldPath))
+				if (owner.frameworkReference != nullptr
+					&& owner.frameworkReference->loadWorldFromFile(createdWorldPath))
 				{
 					lastOpenedWorldPath = createdWorldPath;
-					lastEditorActionStatus = frameworkReference->saveActiveWorldToFile()
+					owner.lastEditorActionStatus = owner.frameworkReference->saveActiveWorldToFile()
 						? "world_created_loaded_and_saved"
 						: "world_created_loaded_save_skipped";
-					selectedEntityIndex = invalidEntityIndex;
+					owner.selectedEntityIndex = invalidEntityIndex;
 				}
 				else
 				{
-					lastEditorActionStatus = "world_created_but_load_failed";
+					owner.lastEditorActionStatus = "world_created_but_load_failed";
 				}
 			}
 			else
 			{
-				lastEditorActionStatus = "world_create_failed";
+				owner.lastEditorActionStatus = "world_create_failed";
 			}
 
 			closeCreateWorldPopup = true;
@@ -1393,7 +1447,7 @@ void ImGuiLayerModule::buildFileSystemPanel()
 
 	if (ImGui::TreeNodeEx("ResourcesRoot", ImGuiTreeNodeFlags_DefaultOpen, "Resources"))
 	{
-		drawDirectoryEntriesRecursive(resourcesRootPath);
+		drawDirectoryEntriesRecursive(owner, resourcesRootPath);
 		ImGui::TreePop();
 	}
 
@@ -1402,29 +1456,17 @@ void ImGuiLayerModule::buildFileSystemPanel()
 		ImGui::Separator();
 		ImGui::Text("Last Opened: %s", lastOpenedWorldPath.c_str());
 	}
-	if (!lastEditorActionStatus.empty())
+	if (!owner.lastEditorActionStatus.empty())
 	{
-		ImGui::Text("Status: %s", lastEditorActionStatus.c_str());
+		ImGui::Text("Status: %s", owner.lastEditorActionStatus.c_str());
 	}
 
 	ImGui::End();
 }
 
-void ImGuiLayerModule::buildImportPanel()
-{
-	if (importPanel == nullptr)
-	{
-		return;
-	}
-
-	importPanel->build();
-	if (!importPanel->isOpened())
-	{
-		importPanel.reset();
-	}
-}
-
-void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& directoryPath)
+void ImGuiLayerModule::FileSystemPanel::drawDirectoryEntriesRecursive(
+	ImGuiLayerModule& owner,
+	const filesystem_path& directoryPath)
 {
 	vector<filesystem_directory_entry> directoryEntries;
 	error_code iterateErrorCode;
@@ -1463,7 +1505,7 @@ void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& dire
 				displayName.c_str());
 			if (isNodeOpened)
 			{
-				drawDirectoryEntriesRecursive(directoryEntry.path());
+				drawDirectoryEntriesRecursive(owner, directoryEntry.path());
 				ImGui::TreePop();
 			}
 			ImGui::PopID();
@@ -1479,16 +1521,16 @@ void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& dire
 			&& directoryEntry.path().extension() == ".world";
 		if (worldFileDoubleClicked)
 		{
-			if (frameworkReference != nullptr
-				&& frameworkReference->loadWorldFromFile(directoryEntry.path().string()))
+			if (owner.frameworkReference != nullptr
+				&& owner.frameworkReference->loadWorldFromFile(directoryEntry.path().string()))
 			{
 				lastOpenedWorldPath = directoryEntry.path().lexically_normal().string();
-				selectedEntityIndex = invalidEntityIndex;
-				lastEditorActionStatus = "world_loaded";
+				owner.selectedEntityIndex = invalidEntityIndex;
+				owner.lastEditorActionStatus = "world_loaded";
 			}
 			else
 			{
-				lastEditorActionStatus = "world_load_failed";
+				owner.lastEditorActionStatus = "world_load_failed";
 			}
 		}
 
@@ -1496,7 +1538,7 @@ void ImGuiLayerModule::drawDirectoryEntriesRecursive(const filesystem_path& dire
 	}
 }
 
-bool ImGuiLayerModule::isImportSupportedFile(const filesystem_path& filePath) const
+bool ImGuiLayerModule::FileSystemPanel::isImportSupportedFile(const filesystem_path& filePath) const
 {
 	// TO DO:consider import list from file. not using hard coded name.
 	string extension = filePath.extension().string();
@@ -1504,7 +1546,7 @@ bool ImGuiLayerModule::isImportSupportedFile(const filesystem_path& filePath) co
 	return extension == ".obj" || extension == ".fbx";
 }
 
-void ImGuiLayerModule::drawFileEntryContextMenu(const filesystem_path& filePath)
+void ImGuiLayerModule::FileSystemPanel::drawFileEntryContextMenu(const filesystem_path& filePath)
 {
 	if (!ImGui::BeginPopupContextItem("FileContextMenu"))
 	{
@@ -1514,13 +1556,15 @@ void ImGuiLayerModule::drawFileEntryContextMenu(const filesystem_path& filePath)
 	const bool importSupported = isImportSupportedFile(filePath);
 	if (ImGui::MenuItem("Import", nullptr, false, importSupported))
 	{
-		importPanel.reset(new ImportPanel(filePath));
+		importPanel.open(filePath);
 	}
 
 	ImGui::EndPopup();
 }
 
-bool ImGuiLayerModule::createWorldFile(const string& requestedWorldName, string& outWorldFilePath)
+bool ImGuiLayerModule::FileSystemPanel::createWorldFile(
+	const string& requestedWorldName,
+	string& outWorldFilePath)
 {
 	outWorldFilePath.clear();
 	if (!resolveResourcesRootPath())
@@ -1591,7 +1635,7 @@ bool ImGuiLayerModule::saveActiveWorldImmediate()
 	return frameworkReference->saveActiveWorldToFile();
 }
 
-bool ImGuiLayerModule::resolveResourcesRootPath()
+bool ImGuiLayerModule::FileSystemPanel::resolveResourcesRootPath()
 {
 	if (resourcesRootResolved)
 	{

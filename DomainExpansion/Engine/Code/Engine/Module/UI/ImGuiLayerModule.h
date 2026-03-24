@@ -15,10 +15,7 @@ class World;
 class ImGuiLayerModule final : public StaticModule<ImGuiLayerModule>
 {
 public:
-	ImGuiLayerModule()
-		: StaticModule("ImGuiLayerModule")
-	{
-	}
+	ImGuiLayerModule();
 	~ImGuiLayerModule() override;
 
 	bool init(Framework& framework) override;
@@ -37,7 +34,18 @@ public:
 	void buildAndRender(CommandList* commandList, const float4x4* editorViewProjectionMatrix = nullptr);
 
 private:
-	class ImportPanel
+	class Panel
+	{
+	public:
+		virtual ~Panel() = default;
+		virtual void reset()
+		{
+		}
+
+		virtual void build(ImGuiLayerModule& owner, World* world) = 0;
+	};
+
+	class ImportPanel final : public Panel
 	{
 	public:
 		enum class ProcessCode : int32
@@ -53,9 +61,9 @@ private:
 			importFileOpenFailed = -104,
 		};
 
-		explicit ImportPanel(const filesystem_path& filePath);
-		void build();
-		bool isOpened() const;
+		void reset() override;
+		void open(const filesystem_path& filePath);
+		void build(ImGuiLayerModule& owner, World* world) override;
 
 	private:
 		static string buildFileExtension(const filesystem_path& filePath);
@@ -71,6 +79,47 @@ private:
 		string commandText = {};
 		ProcessCode processCode = ProcessCode::succeeded;
 		bool processCodeAvailable = false;
+	};
+
+	class OutlinerPanel final : public Panel
+	{
+	public:
+		void build(ImGuiLayerModule& owner, World* world) override;
+
+	private:
+		void drawEntityNode(ImGuiLayerModule& owner, const World* world, uint32 entityIndex);
+	};
+
+	class DetailPanel final : public Panel
+	{
+	public:
+		void build(ImGuiLayerModule& owner, World* world) override;
+	};
+
+	class FileSystemPanel final : public Panel
+	{
+	public:
+		explicit FileSystemPanel(ImportPanel& importPanelReference)
+			: importPanel(importPanelReference)
+		{
+		}
+
+		void reset() override;
+		void build(ImGuiLayerModule& owner, World* world) override;
+
+	private:
+		bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
+		bool resolveResourcesRootPath();
+		void drawDirectoryEntriesRecursive(ImGuiLayerModule& owner, const filesystem_path& directoryPath);
+		void drawFileEntryContextMenu(const filesystem_path& filePath);
+		bool isImportSupportedFile(const filesystem_path& filePath) const;
+
+		ImportPanel& importPanel;
+		string resourcesRootPathText = {};
+		bool resourcesRootResolved = false;
+		bool resourcesRootValid = false;
+		string createWorldNameText = "NewWorld";
+		string lastOpenedWorldPath = {};
 	};
 
 	struct EditorGridRenderResources
@@ -95,32 +144,21 @@ private:
 	float calculateUiScale() const;
 	void renderEditorGrid(CommandList* commandList, const float4x4& editorViewProjectionMatrix);
 	bool resolveEditorGridRenderResources(EditorGridRenderResources& outRenderResources) const;
-	void buildOutlinerPanel(World* world);
-	void drawOutlinerEntityNode(const World* world, uint32 entityIndex);
-	void buildDetailPanel(World* world);
-	void buildFileSystemPanel();
-	void buildImportPanel();
-	void drawDirectoryEntriesRecursive(const filesystem_path& directoryPath);
-	bool isImportSupportedFile(const filesystem_path& filePath) const;
-	void drawFileEntryContextMenu(const filesystem_path& filePath);
 	bool tryDeleteSelectedEntity(World* world);
-	bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
 	bool saveActiveWorldImmediate();
-	bool resolveResourcesRootPath();
 
 	Framework* frameworkReference = nullptr;
 	unique_pointer<BackendBridge> backendBridge;
 	bool contextCreated = false;
 	bool win32BackendInitialized = false;
 	uint32 selectedEntityIndex = invalidEntityIndex;
-	string resourcesRootPathText;
-	bool resourcesRootResolved = false;
-	bool resourcesRootValid = false;
 	float currentUiScale = 1.0f;
 	bool uiScaleInitialized = false;
 	string imguiIniFilePath = {};
-	string createWorldNameText = "NewWorld";
-	string lastOpenedWorldPath = {};
 	string lastEditorActionStatus = {};
 	unique_pointer<ImportPanel> importPanel;
+	unique_pointer<OutlinerPanel> outlinerPanel;
+	unique_pointer<DetailPanel> detailPanel;
+	unique_pointer<FileSystemPanel> fileSystemPanel;
+	vector<Panel*> panels = {};
 };
