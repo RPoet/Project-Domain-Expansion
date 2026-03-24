@@ -14,7 +14,7 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{0502813C-26D4-45B2-A4C5-E2009046D43E}</ProjectGuid>
-    <RootNamespace>Engine</RootNamespace>
+    <RootNamespace>EngineEditor</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -43,8 +43,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)Engine\Artifacts\Bin\$(Configuration)\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)Engine\Artifacts\Intermediate\$(Configuration)\$(Platform)\</IntDir>
-    <TargetName>DomainExpansionEngine</TargetName>
+    <IntDir>$(SolutionDir)Engine\Artifacts\Intermediate\EngineEditor\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>EngineEditor</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -59,7 +59,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
@@ -83,7 +83,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -95,58 +95,12 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Engine\Code\Engine\Assets\MeshAsset.cpp" />
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\BackendValidation.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\Entity.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\Framework.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkBackend.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkFileSystem.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\FrameworkSerialization.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\CameraComponent.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\MeshComponent.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
-    <ClCompile Include="Engine\Code\Bridge\CameraBridge.cpp" />
-    <ClCompile Include="Engine\Code\Bridge\EntityBridge.cpp" />
-    <ClCompile Include="Engine\Code\Bridge\MeshBridge.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\CLI\CLIModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Input\InputModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Timer\Timer.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\MeshParser.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12AgilitySdkBootstrap.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SwapChain.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp" />
-    <ClCompile Include="Engine\Code\Render\Backends\RenderBackend.cpp" />
-    <ClCompile Include="Engine\Code\Render\RenderCommand.cpp" />
-    <ClCompile Include="Engine\Code\Render\RenderWorld.cpp" />
-    <ClCompile Include="Engine\Code\Render\Screen.cpp" />
-    <ClCompile Include="Engine\Code\Render\Renderer.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Framework\World.cpp" />
-    <ClCompile Include="Engine\Code\Engine\Window\WindowsWindowObject.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_demo.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_draw.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_tables.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\imgui_widgets.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="EngineRuntime\Engine.vcxproj">
+      <Project>{4A21E574-DED8-4252-9782-17B1222BA698}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Engine\Code\Engine\Assets\MeshAsset.h" />
@@ -176,6 +130,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Module\CLI\CLIModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Input\InputModule.h" />
     <ClInclude Include="Engine\Code\Engine\Common\Singleton.h" />
+    <ClInclude Include="Engine\Code\Engine\Common\Container\Vector.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\UI\ImGuiLayerModule.h" />
@@ -203,12 +158,15 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackendDefinitions.h" />
     <ClInclude Include="Engine\Code\Render\Backends\RenderBackend.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\MeshParser\FbxBinaryParser.h" />
     <ClInclude Include="Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.h" />
     <ClInclude Include="Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\Settings\SettingsModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\MeshParser\MeshParser.h" />
     <ClInclude Include="Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.h" />
     <ClInclude Include="Engine\Code\Engine\Module\MeshParser\ObjMeshParser.h" />
     <ClInclude Include="Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.h" />
+    <ClInclude Include="Engine\Code\Engine\Module\XML\XMLModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\Shader\ShaderModule.h" />
     <ClInclude Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.h" />
     <ClInclude Include="Engine\Code\Render\CommandList.h" />
@@ -240,6 +198,15 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.h" />
     <ClInclude Include="Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.h" />
     <ClInclude Include="Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\crc32.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\gzguts.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\inflate.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\inffast.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\inftrees.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\inffixed.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\zconf.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\zlib.h" />
+    <ClInclude Include="Engine\Code\ThirdParty\Zlib\zutil.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

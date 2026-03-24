@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4A21E574-DED8-4252-9782-17B1222BA698}</ProjectGuid>
+    <RootNamespace>Engine</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)Artifacts\Bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(ProjectDir)Artifacts\Intermediate\Engine\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>Engine</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\..\Engine\Code;$(MSBuildProjectDirectory)\..\Engine\Code\ThirdParty\ImGui;$(MSBuildProjectDirectory)\..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\..\Engine\Code;$(MSBuildProjectDirectory)\..\Engine\Code\ThirdParty\ImGui;$(MSBuildProjectDirectory)\..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Engine\Code\Engine\Assets\MeshAsset.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\BackendValidation.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\Entity.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\Framework.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\FrameworkBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\FrameworkFileSystem.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\FrameworkModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\FrameworkSerialization.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\CameraComponent.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\MeshComponent.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
+    <ClCompile Include="..\Engine\Code\Bridge\CameraBridge.cpp" />
+    <ClCompile Include="..\Engine\Code\Bridge\EntityBridge.cpp" />
+    <ClCompile Include="..\Engine\Code\Bridge\MeshBridge.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\CLI\CLIModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Input\InputModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Timer\Timer.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\MeshParser.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\ObjMeshParser.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12AgilitySdkBootstrap.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12SwapChain.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\RenderBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\RenderCommand.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\RenderWorld.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Screen.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Renderer.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\World.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Window\WindowsWindowObject.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_demo.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
