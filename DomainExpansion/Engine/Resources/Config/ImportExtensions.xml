@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<ImportExtensions>
+  <entry key="extension0" value=".obj" />
+  <entry key="extension1" value=".fbx" />
+</ImportExtensions>

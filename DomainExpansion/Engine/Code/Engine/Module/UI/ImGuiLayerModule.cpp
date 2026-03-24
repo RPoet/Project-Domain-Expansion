@@ -14,6 +14,7 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
+#include "Engine/Module/XML/XMLModule.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -334,18 +335,17 @@ string ImGuiLayerModule::ImportPanel::buildFileExtension(const filesystem_path& 
 
 string ImGuiLayerModule::ImportPanel::buildFormatText(const filesystem_path& filePath)
 {
-	const string extension = buildFileExtension(filePath);
-	if (extension == ".obj")
+	string extension = buildFileExtension(filePath);
+	if (extension.empty())
 	{
-		return "OBJ";
+		return "Unknown";
 	}
 
-	if (extension == ".fbx")
+	if (!extension.empty() && extension[0] == '.')
 	{
-		return "FBX";
+		extension.erase(0, 1);
 	}
-
-	return "Unsupported";
+	return extension;
 }
 
 [[noreturn]] static void failUnexpectedImportProcessCode()
@@ -400,17 +400,14 @@ ImGuiLayerModule::ImportPanel::ProcessCode ImGuiLayerModule::ImportPanel::mapPro
 
 void ImGuiLayerModule::ImportPanel::executeImportCommand()
 {
-	if (sourceFileExtension == ".obj" || sourceFileExtension == ".fbx")
-	{
-		commandText = "MeshParser.import \"" + sourceFilePathText + "\"";
-	}
-	else
+	if (sourceFileExtension.empty())
 	{
 		processCode = ProcessCode::unsupportedSourceExtension;
 		processCodeAvailable = true;
 		return;
 	}
 
+	commandText = "MeshParser.import \"" + sourceFilePathText + "\"";
 	CLIModule::execute(commandText);
 	shared_pointer<CLIModule> cliModule = CLIModule::get();
 	assert(cliModule != nullptr && "[ImGuiLayerModule][Assert] reason=cli_module_missing");
@@ -1360,6 +1357,8 @@ void ImGuiLayerModule::FileSystemPanel::reset()
 	resourcesRootValid = false;
 	createWorldNameText = "NewWorld";
 	lastOpenedWorldPath.clear();
+	supportedImportExtensions.clear();
+	supportedImportExtensionsLoaded = false;
 }
 
 void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* world)
@@ -1538,12 +1537,78 @@ void ImGuiLayerModule::FileSystemPanel::drawDirectoryEntriesRecursive(
 	}
 }
 
-bool ImGuiLayerModule::FileSystemPanel::isImportSupportedFile(const filesystem_path& filePath) const
+bool ImGuiLayerModule::FileSystemPanel::ensureImportSupportedExtensionsLoaded()
 {
-	// TO DO:consider import list from file. not using hard coded name.
+	if (supportedImportExtensionsLoaded)
+	{
+		return true;
+	}
+
+	const bool validResourcesRoot = resolveResourcesRootPath();
+	assert(validResourcesRoot && "[ImGuiLayerModule][Assert] reason=import_extension_resources_root_resolve_failed");
+
+	shared_pointer<XMLModule> xmlModule = XMLModule::get();
+	assert(xmlModule != nullptr && "[ImGuiLayerModule][Assert] reason=xml_module_missing");
+
+	const string importConfigFilePath = (filesystem_path(resourcesRootPathText) / "Config" / "ImportExtensions.xml")
+		.lexically_normal()
+		.string();
+	XMLKeyValueDocument importDocument = {};
+	const XMLModule::ParseCode parseCode = xmlModule->loadKeyValueFile(importConfigFilePath, importDocument);
+	assert(parseCode == XMLModule::ParseCode::succeeded && "[ImGuiLayerModule][Assert] reason=import_extension_config_load_failed");
+
+	supportedImportExtensions.clear();
+	supportedImportExtensions.reserve(importDocument.valueByKey.size());
+	for (auto importEntryIterator = importDocument.valueByKey.begin();
+		importEntryIterator != importDocument.valueByKey.end();
+		++importEntryIterator)
+	{
+		if (!importEntryIterator->first.starts_with("extension"))
+		{
+			continue;
+		}
+
+		string extension = importEntryIterator->second;
+		tolower(extension);
+		if (extension.empty())
+		{
+			continue;
+		}
+
+		if (extension[0] != '.')
+		{
+			extension.insert(extension.begin(), '.');
+		}
+
+		supportedImportExtensions.push_back(moveValue(extension));
+	}
+
+	std::sort(supportedImportExtensions.begin(), supportedImportExtensions.end());
+	supportedImportExtensions.erase(
+		std::unique(supportedImportExtensions.begin(), supportedImportExtensions.end()),
+		supportedImportExtensions.end());
+	const bool hasSupportedImportExtensions = !supportedImportExtensions.empty();
+	assert(hasSupportedImportExtensions && "[ImGuiLayerModule][Assert] reason=import_extension_config_empty");
+
+	supportedImportExtensionsLoaded = true;
+	return true;
+}
+
+bool ImGuiLayerModule::FileSystemPanel::isImportSupportedFile(const filesystem_path& filePath)
+{
+	ensureImportSupportedExtensionsLoaded();
+
 	string extension = filePath.extension().string();
 	tolower(extension);
-	return extension == ".obj" || extension == ".fbx";
+	for (size_t extensionIndex = 0; extensionIndex < supportedImportExtensions.size(); ++extensionIndex)
+	{
+		if (supportedImportExtensions[extensionIndex] == extension)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void ImGuiLayerModule::FileSystemPanel::drawFileEntryContextMenu(const filesystem_path& filePath)

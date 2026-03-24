@@ -109,10 +109,11 @@ private:
 
 	private:
 		bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
+		bool ensureImportSupportedExtensionsLoaded();
 		bool resolveResourcesRootPath();
 		void drawDirectoryEntriesRecursive(ImGuiLayerModule& owner, const filesystem_path& directoryPath);
 		void drawFileEntryContextMenu(const filesystem_path& filePath);
-		bool isImportSupportedFile(const filesystem_path& filePath) const;
+		bool isImportSupportedFile(const filesystem_path& filePath);
 
 		ImportPanel& importPanel;
 		string resourcesRootPathText = {};
@@ -120,6 +121,8 @@ private:
 		bool resourcesRootValid = false;
 		string createWorldNameText = "NewWorld";
 		string lastOpenedWorldPath = {};
+		vector<string> supportedImportExtensions = {};
+		bool supportedImportExtensionsLoaded = false;
 	};
 
 	struct EditorGridRenderResources
