@@ -41,6 +41,7 @@ using input_file_stream = std::ifstream;
 using output_file_stream = std::ofstream;
 using string_input_stream = std::istringstream;
 using stream_position = std::streampos;
+using stream_size = std::streamsize;
 using error_code = std::error_code;
 using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;

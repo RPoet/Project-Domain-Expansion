@@ -100,6 +100,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\ObjMeshParser.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\XML\XMLModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
