@@ -59,6 +59,10 @@ using Bool = bool;
 using HandleBrush = void*;
 using HandleEvent = void*;
 
+inline void platformInitializeFailFastAssertBehavior()
+{
+}
+
 template <typename type_name>
 using platform_com_pointer = type_name*;
 

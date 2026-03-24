@@ -5,6 +5,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -54,6 +55,7 @@ using std::filesystem::current_path;
 using std::filesystem::exists;
 using std::filesystem::is_directory;
 using std::getline;
+using std::terminate;
 using std::tolower;
 using std::to_string;
 using std::transform;
@@ -62,6 +64,28 @@ inline output_stream& output = std::cout;
 inline error_stream& error = std::cerr;
 inline constexpr char lineBreak = '\n';
 
+inline void platformInitializeFailFastAssertBehavior();
+
+[[noreturn]] inline void platformAssertFailFast(
+	const char* expressionText,
+	const char* filePath,
+	const int32 lineNumber,
+	const char* functionName)
+{
+	platformInitializeFailFastAssertBehavior();
+	error << "[Assert][Failure] expression=" << (expressionText != nullptr ? expressionText : "unknown")
+		  << " file=" << (filePath != nullptr ? filePath : "unknown")
+		  << " line=" << lineNumber
+		  << " function=" << (functionName != nullptr ? functionName : "unknown")
+		  << lineBreak;
+	error.flush();
+	terminate();
+}
+
+#ifdef assert
+#undef assert
+#endif
+#define assert(expression) ((expression) ? (void)0 : platformAssertFailFast(#expression, __FILE__, static_cast<int32>(__LINE__), __func__))
 template <typename signature>
 using function = std::function<signature>;
 
