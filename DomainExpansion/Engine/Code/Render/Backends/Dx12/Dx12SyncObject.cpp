@@ -123,7 +123,7 @@ void Dx12SyncObject::signal()
 	lastSubmittedFenceValue = signalValue;
 }
 
-uint64 Dx12SyncObject::getCompletedFenceValue() const
+uint64 Dx12SyncObject::getCompletedSyncValue() const
 {
 	if (frameFence == nullptr)
 	{

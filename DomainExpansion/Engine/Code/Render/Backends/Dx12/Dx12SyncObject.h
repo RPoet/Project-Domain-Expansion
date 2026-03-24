@@ -20,7 +20,7 @@ public:
 
 	void wait() override;
 	void signal() override;
-	uint64 getCompletedFenceValue() const override final;
+	uint64 getCompletedSyncValue() const override final;
 
 private:
 	Dx12CommandQueue* commandQueue = nullptr;

@@ -269,9 +269,18 @@ void RenderWorld::shutdown()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	RenderBackend* renderBackend = renderBackendModule != nullptr ? renderBackendModule->getBackend() : nullptr;
-	if (renderBackend != nullptr && view.depthStencilView != nullptr)
+	if (renderBackend != nullptr)
 	{
-		renderBackend->destroyDepthStencilView(view.depthStencilView);
+		SyncObject* syncObject = renderBackend->getSyncObject();
+		if (syncObject != nullptr)
+		{
+			syncObject->wait();
+		}
+
+		if (view.depthStencilView != nullptr)
+		{
+			renderBackend->destroyDepthStencilView(view.depthStencilView);
+		}
 	}
 
 	view.depthTextureObject.reset();
@@ -415,6 +424,7 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		}
 
 		syncObject->wait();
+		renderBackendReference.releaseQueuedRenderResources();
 		if (!swapChain->isRenderable())
 		{
 			return;
@@ -609,7 +619,6 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		renderBackendReference.executeQueuedCommandLists();
 		swapChain->present();
 		syncObject->signal();
-		renderBackendReference.releaseQueuedRenderResources();
 	});
 
 	RenderCommand::flushRenderCommandQueue(updateInput.renderCommandFlushInput);

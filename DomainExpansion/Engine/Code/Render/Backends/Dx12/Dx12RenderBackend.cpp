@@ -952,8 +952,8 @@ void Dx12RenderBackend::beforeDestroy()
 		return;
 	}
 
-	releaseQueuedRenderResources();
 	waitForGpuIdle();
+	releaseQueuedRenderResources();
 }
 
 bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)

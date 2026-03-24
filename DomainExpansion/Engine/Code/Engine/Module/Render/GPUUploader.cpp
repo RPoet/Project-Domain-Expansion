@@ -10,7 +10,7 @@ bool GPUUploader::init(Framework& framework)
 {
 	unused(framework);
 	uploaderMode = GPUUploaderMode::staging;
-	currentFenceValue = 0;
+	completedSyncValue = 0;
 	clearPool();
 	return true;
 }
@@ -28,7 +28,7 @@ void GPUUploader::postUpdate()
 void GPUUploader::shutdown()
 {
 	clearPool();
-	currentFenceValue = 0;
+	completedSyncValue = 0;
 }
 
 unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
@@ -112,9 +112,9 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	return createdBufferObject;
 }
 
-void GPUUploader::setFenceValue(const uint64 fenceValue)
+void GPUUploader::setCompletedSyncValue(const uint64 completedSyncValue)
 {
-	currentFenceValue = fenceValue;
+	this->completedSyncValue = completedSyncValue;
 }
 
 void GPUUploader::uploadQueuedBuffers(CommandList& commandList)
@@ -183,7 +183,7 @@ bool GPUUploader::reserveUploadSpace(
 		outBlockIndex = blockIndex;
 		outBlockOffsetInBytes = block.usedInBytes;
 		block.usedInBytes += requestSizeInBytes;
-		block.lastUsedFenceValue = currentFenceValue;
+		block.lastUsedSyncValue = completedSyncValue;
 		return true;
 	}
 
@@ -201,7 +201,7 @@ bool GPUUploader::reserveUploadSpace(
 	UploadBufferPoolBlock& block = uploadBufferPoolBlocks[outBlockIndex];
 	outBlockOffsetInBytes = 0;
 	block.usedInBytes = requestSizeInBytes;
-	block.lastUsedFenceValue = currentFenceValue;
+	block.lastUsedSyncValue = completedSyncValue;
 	return true;
 }
 
@@ -245,7 +245,7 @@ bool GPUUploader::createUploadPoolBlock(RenderBackend& renderBackend, const uint
 	uploadBufferPoolBlock.mappedMemory = static_cast<char*>(mappedMemory);
 	uploadBufferPoolBlock.capacityInBytes = poolBlockSizeInBytes;
 	uploadBufferPoolBlock.usedInBytes = 0;
-	uploadBufferPoolBlock.lastUsedFenceValue = currentFenceValue;
+	uploadBufferPoolBlock.lastUsedSyncValue = completedSyncValue;
 	uploadBufferPoolBlocks.push_back(moveValue(uploadBufferPoolBlock));
 	return true;
 }
@@ -265,7 +265,7 @@ void GPUUploader::clearUploadBufferBlock(UploadBufferPoolBlock& poolBlock)
 	poolBlock.mappedMemory = nullptr;
 	poolBlock.capacityInBytes = 0;
 	poolBlock.usedInBytes = 0;
-	poolBlock.lastUsedFenceValue = 0;
+	poolBlock.lastUsedSyncValue = 0;
 }
 
 void GPUUploader::releaseIdlePoolBlocks()
@@ -278,7 +278,7 @@ void GPUUploader::releaseIdlePoolBlocks()
 	for (int32 blockIndex = static_cast<int32>(uploadBufferPoolBlocks.size()) - 1; blockIndex >= 0; --blockIndex)
 	{
 		UploadBufferPoolBlock& block = uploadBufferPoolBlocks[static_cast<uint32>(blockIndex)];
-		if (block.lastUsedFenceValue + idleReleaseFenceThreshold >= currentFenceValue)
+		if (block.lastUsedSyncValue + idleReleaseSyncValueThreshold >= completedSyncValue)
 		{
 			continue;
 		}

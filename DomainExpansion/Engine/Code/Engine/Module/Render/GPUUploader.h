@@ -20,7 +20,7 @@ struct BufferUploadRequestOptions
 	uint64 destinationOffsetInBytes = 0;
 };
 
-// TO DO : Consdier having itw own fence value and signaling it to get more finer grain tuning.
+// TO DO : Consider giving the uploader its own sync value and signaling path for finer-grained control.
 class GPUUploader final : public StaticModule<GPUUploader>
 {
 public:
@@ -38,7 +38,7 @@ public:
 		RenderBackend& renderBackend,
 		const BufferObjectCreateOptions& createOptions,
 		const BufferUploadRequestOptions& uploadRequestOptions);
-	void setFenceValue(uint64 fenceValue);
+	void setCompletedSyncValue(uint64 completedSyncValue);
 	void uploadQueuedBuffers(CommandList& commandList);
 	bool hasQueuedUploadRequests() const;
 
@@ -49,7 +49,7 @@ private:
 		char* mappedMemory = nullptr;
 		uint64 capacityInBytes = 0;
 		uint64 usedInBytes = 0;
-		uint64 lastUsedFenceValue = 0;
+		uint64 lastUsedSyncValue = 0;
 	};
 
 	struct QueuedUploadRequest
@@ -62,7 +62,7 @@ private:
 	};
 
 	static constexpr uint64 minimumPoolBlockSizeInBytes = 64ull * 1024ull;
-	static constexpr uint64 idleReleaseFenceThreshold = 180;
+	static constexpr uint64 idleReleaseSyncValueThreshold = 180;
 
 	bool reserveUploadSpace(
 		RenderBackend& renderBackend,
@@ -76,7 +76,7 @@ private:
 	void clearPool();
 
 	GPUUploaderMode uploaderMode = GPUUploaderMode::staging;
-	uint64 currentFenceValue = 0;
+	uint64 completedSyncValue = 0;
 	vector<UploadBufferPoolBlock> uploadBufferPoolBlocks;
 	vector<QueuedUploadRequest> queuedUploadRequests;
 };

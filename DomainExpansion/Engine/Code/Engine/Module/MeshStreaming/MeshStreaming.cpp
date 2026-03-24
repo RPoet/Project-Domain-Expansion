@@ -170,7 +170,7 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 	SyncObject* syncObject = renderBackend.getSyncObject();
 	if (syncObject != nullptr)
 	{
-		gpuUploader->setFenceValue(syncObject->getCompletedFenceValue());
+		gpuUploader->setCompletedSyncValue(syncObject->getCompletedSyncValue());
 	}
 
 	if (pendingGpuUploadHandles.empty() && !gpuUploader->hasQueuedUploadRequests())
