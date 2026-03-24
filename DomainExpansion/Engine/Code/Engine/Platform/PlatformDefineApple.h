@@ -64,5 +64,83 @@ inline void platformInitializeFailFastAssertBehavior()
 }
 
 template <typename type_name>
-using platform_com_pointer = type_name*;
+class platform_com_pointer
+{
+public:
+	platform_com_pointer() = default;
+	platform_com_pointer(decltype(nullptr))
+	{
+	}
+
+	platform_com_pointer(type_name* rawPointer)
+		: pointer(rawPointer)
+	{
+	}
+
+	platform_com_pointer& operator=(type_name* rawPointer)
+	{
+		pointer = rawPointer;
+		return *this;
+	}
+
+	platform_com_pointer& operator=(decltype(nullptr))
+	{
+		pointer = nullptr;
+		return *this;
+	}
+
+	type_name* Get() const
+	{
+		return pointer;
+	}
+
+	type_name** operator&()
+	{
+		return ReleaseAndGetAddressOf();
+	}
+
+	type_name** GetAddressOf()
+	{
+		return &pointer;
+	}
+
+	type_name* const* GetAddressOf() const
+	{
+		return &pointer;
+	}
+
+	type_name** ReleaseAndGetAddressOf()
+	{
+		pointer = nullptr;
+		return &pointer;
+	}
+
+	void Reset()
+	{
+		pointer = nullptr;
+	}
+
+	type_name* operator->() const
+	{
+		return pointer;
+	}
+
+	explicit operator bool() const
+	{
+		return pointer != nullptr;
+	}
+
+	bool operator==(decltype(nullptr)) const
+	{
+		return pointer == nullptr;
+	}
+
+	bool operator!=(decltype(nullptr)) const
+	{
+		return pointer != nullptr;
+	}
+
+private:
+	type_name* pointer = nullptr;
+};
 

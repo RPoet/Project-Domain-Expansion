@@ -50,6 +50,7 @@ using filesystem_path = std::filesystem::path;
 using filesystem_directory_entry = std::filesystem::directory_entry;
 using filesystem_directory_iterator = std::filesystem::directory_iterator;
 using filesystem_directory_options = std::filesystem::directory_options;
+using std::addressof;
 using std::filesystem::create_directories;
 using std::filesystem::current_path;
 using std::filesystem::exists;
