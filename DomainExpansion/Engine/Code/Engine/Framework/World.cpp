@@ -28,11 +28,6 @@ uint32 World::createPlaceableEntity()
 uint32 World::addEntityObject(unique_pointer<Entity> entity)
 {
 	assert(entity != nullptr);
-	if (entity == nullptr)
-	{
-		return invalidEntityIndex;
-	}
-
 	entityStorage.push_back(moveValue(entity));
 	const uint32 entityIndex = static_cast<uint32>(entityStorage.size() - 1);
 	Entity* createdEntity = entityStorage[entityIndex].get();

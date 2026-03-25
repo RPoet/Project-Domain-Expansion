@@ -43,19 +43,9 @@ void CameraComponent::generateCameraBridgeHandle()
 	Entity* ownerEntity = ownerWorld != nullptr ? ownerWorld->getEntityByIndex(getOwnerEntityIndex()) : nullptr;
 	PlaceableEntity* ownerPlaceableEntity = dynamic_cast<PlaceableEntity*>(ownerEntity);
 	assert(ownerPlaceableEntity != nullptr && "[CameraComponent][Assert] reason=camera_requires_placeable_entity");
-	if (ownerPlaceableEntity == nullptr)
-	{
-		cameraHandleReference.reset();
-		return;
-	}
 
 	const BridgeHandle entityHandle = getOwnerEntityHandle();
 	assert(entityHandle != invalidBridgeHandle);
-	if (entityHandle == invalidBridgeHandle)
-	{
-		cameraHandleReference.reset();
-		return;
-	}
 
 	float3 cameraPosition = {};
 	cameraPosition.x = ownerPlaceableEntity->transform.positionX;

@@ -115,33 +115,36 @@ static bool parseUint64Text(const string& text, uint64& outValue)
 	return true;
 }
 
+static bool verifyShaderPackageCondition(const bool condition, const char* assertReason)
+{
+	assert(condition && assertReason);
+	return condition;
+}
+
 static bool flushShaderRecord(
 	const string& packageAbsolutePath,
 	const uint32 lineNumber,
 	ShaderPackageShaderRecord& shaderRecord,
 	vector<ShaderPackageShaderRecord>& outShaderRecords)
 {
-	if (shaderRecord.id.empty())
+	unused(packageAbsolutePath);
+	unused(lineNumber);
+	if (!verifyShaderPackageCondition(!shaderRecord.id.empty(), "[ShaderPackageModule][Assert] reason=shader_id_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " line=" << lineNumber
-			  << " reason=shader_id_missing" << lineBreak;
 		return false;
 	}
 
-	if (getShaderStageIndex(shaderRecord.loadRequest.stage) == uint32MaxValue)
+	if (!verifyShaderPackageCondition(
+		getShaderStageIndex(shaderRecord.loadRequest.stage) != uint32MaxValue,
+		"[ShaderPackageModule][Assert] reason=shader_stage_invalid"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " line=" << lineNumber
-			  << " reason=shader_stage_invalid id=" << shaderRecord.id << lineBreak;
 		return false;
 	}
 
-	if (shaderRecord.binaryLoadRequest.binaryRelativePath.empty())
+	if (!verifyShaderPackageCondition(
+		!shaderRecord.binaryLoadRequest.binaryRelativePath.empty(),
+		"[ShaderPackageModule][Assert] reason=shader_binary_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " line=" << lineNumber
-			  << " reason=shader_binary_missing id=" << shaderRecord.id << lineBreak;
 		return false;
 	}
 
@@ -173,11 +176,10 @@ static bool flushVariantRecord(
 	ShaderPackageVariantRecord& variantRecord,
 	vector<ShaderPackageVariantRecord>& outVariantRecords)
 {
-	if (variantRecord.name.empty())
+	unused(packageAbsolutePath);
+	unused(lineNumber);
+	if (!verifyShaderPackageCondition(!variantRecord.name.empty(), "[ShaderPackageModule][Assert] reason=variant_name_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " line=" << lineNumber
-			  << " reason=variant_name_missing" << lineBreak;
 		return false;
 	}
 
@@ -191,11 +193,8 @@ static bool flushVariantRecord(
 		}
 	}
 
-	if (!hasAnyShader)
+	if (!verifyShaderPackageCondition(hasAnyShader, "[ShaderPackageModule][Assert] reason=variant_shader_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " line=" << lineNumber
-			  << " reason=variant_shader_missing name=" << variantRecord.name << lineBreak;
 		return false;
 	}
 
@@ -213,10 +212,8 @@ static bool parseShaderPackageManifest(
 	outVariantRecords.clear();
 
 	input_file_stream fileStream(packageAbsolutePath);
-	if (!fileStream.is_open())
+	if (!verifyShaderPackageCondition(fileStream.is_open(), "[ShaderPackageModule][Assert] reason=package_open_failed"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " reason=package_open_failed" << lineBreak;
 		return false;
 	}
 
@@ -288,11 +285,8 @@ static bool parseShaderPackageManifest(
 		}
 
 		const size_t delimiterIndex = lineText.find('=');
-		if (delimiterIndex == string::npos)
+		if (!verifyShaderPackageCondition(delimiterIndex != string::npos, "[ShaderPackageModule][Assert] reason=invalid_key_value"))
 		{
-			error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-				  << " line=" << lineNumber
-				  << " reason=invalid_key_value" << lineBreak;
 			return false;
 		}
 
@@ -308,11 +302,10 @@ static bool parseShaderPackageManifest(
 
 			if (key == "stage")
 			{
-				if (!parseShaderStageText(value, shaderRecord.loadRequest.stage))
+				if (!verifyShaderPackageCondition(
+					parseShaderStageText(value, shaderRecord.loadRequest.stage),
+					"[ShaderPackageModule][Assert] reason=shader_stage_parse_failed"))
 				{
-					error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-						  << " line=" << lineNumber
-						  << " reason=shader_stage_parse_failed value=" << value << lineBreak;
 					return false;
 				}
 				continue;
@@ -344,11 +337,10 @@ static bool parseShaderPackageManifest(
 
 			if (key == "definesHash")
 			{
-				if (!parseUint64Text(value, shaderRecord.loadRequest.definesHash))
+				if (!verifyShaderPackageCondition(
+					parseUint64Text(value, shaderRecord.loadRequest.definesHash),
+					"[ShaderPackageModule][Assert] reason=defines_hash_parse_failed"))
 				{
-					error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-						  << " line=" << lineNumber
-						  << " reason=defines_hash_parse_failed value=" << value << lineBreak;
 					return false;
 				}
 				continue;
@@ -387,17 +379,13 @@ static bool parseShaderPackageManifest(
 		return false;
 	}
 
-	if (outShaderRecords.empty())
+	if (!verifyShaderPackageCondition(!outShaderRecords.empty(), "[ShaderPackageModule][Assert] reason=shader_section_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " reason=shader_section_missing" << lineBreak;
 		return false;
 	}
 
-	if (outVariantRecords.empty())
+	if (!verifyShaderPackageCondition(!outVariantRecords.empty(), "[ShaderPackageModule][Assert] reason=variant_section_missing"))
 	{
-		error << "[ShaderPackageModule][Error] path=" << packageAbsolutePath
-			  << " reason=variant_section_missing" << lineBreak;
 		return false;
 	}
 
@@ -411,36 +399,33 @@ static bool resolveShaderRecords(
 {
 	outShaderById.clear();
 	shared_pointer<ShaderModule> shaderModule = ShaderModule::get();
-	if (shaderModule == nullptr)
+	unused(packageRelativePath);
+	if (!verifyShaderPackageCondition(shaderModule != nullptr, "[ShaderPackageModule][Assert] reason=shader_module_missing"))
 	{
-		error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-			  << " reason=shader_module_missing" << lineBreak;
 		return false;
 	}
 
 	for (uint32 shaderIndex = 0; shaderIndex < static_cast<uint32>(shaderRecords.size()); ++shaderIndex)
 	{
 		const ShaderPackageShaderRecord& shaderRecord = shaderRecords[shaderIndex];
-		if (shaderRecord.id.empty())
+		if (!verifyShaderPackageCondition(!shaderRecord.id.empty(), "[ShaderPackageModule][Assert] reason=shader_id_empty"))
 		{
-			error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-				  << " reason=shader_id_empty" << lineBreak;
 			return false;
 		}
 
-		if (outShaderById.find(shaderRecord.id) != outShaderById.end())
+		if (!verifyShaderPackageCondition(
+			outShaderById.find(shaderRecord.id) == outShaderById.end(),
+			"[ShaderPackageModule][Assert] reason=shader_id_duplicate"))
 		{
-			error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-				  << " reason=shader_id_duplicate id=" << shaderRecord.id << lineBreak;
 			return false;
 		}
 
 		shared_pointer<ShaderHandle> shaderHandle =
 			shaderModule->getOrLoadShader(shaderRecord.loadRequest, shaderRecord.binaryLoadRequest);
-		if (shaderHandle == nullptr || shaderHandle->state != ShaderHandleState::ready)
+		if (!verifyShaderPackageCondition(
+			shaderHandle != nullptr && shaderHandle->state == ShaderHandleState::ready,
+			"[ShaderPackageModule][Assert] reason=shader_load_failed"))
 		{
-			error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-				  << " reason=shader_load_failed id=" << shaderRecord.id << lineBreak;
 			return false;
 		}
 
@@ -475,13 +460,12 @@ static bool buildVariants(
 			}
 
 			const auto foundShader = shaderById.find(shaderId);
-			if (foundShader == shaderById.end()
-				|| foundShader->second == nullptr
-				|| foundShader->second->shader == nullptr)
+			if (!verifyShaderPackageCondition(
+				foundShader != shaderById.end()
+				&& foundShader->second != nullptr
+				&& foundShader->second->shader != nullptr,
+				"[ShaderPackageModule][Assert] reason=variant_shader_id_missing"))
 			{
-				error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-					  << " variant=" << variantRecord.name
-					  << " reason=variant_shader_id_missing id=" << shaderId << lineBreak;
 				return false;
 			}
 
@@ -489,11 +473,8 @@ static bool buildVariants(
 			++linkedShaderCount;
 		}
 
-		if (linkedShaderCount == 0)
+		if (!verifyShaderPackageCondition(linkedShaderCount != 0, "[ShaderPackageModule][Assert] reason=variant_shader_link_empty"))
 		{
-			error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-				  << " variant=" << variantRecord.name
-				  << " reason=variant_shader_link_empty" << lineBreak;
 			return false;
 		}
 
@@ -525,9 +506,8 @@ void ShaderPackageModule::shutdown()
 
 shared_pointer<ShaderPackageAsset> ShaderPackageModule::getOrLoadPackage(const string& packageRelativePath)
 {
-	if (packageRelativePath.empty())
+	if (!verifyShaderPackageCondition(!packageRelativePath.empty(), "[ShaderPackageModule][Assert] reason=package_path_empty"))
 	{
-		error << "[ShaderPackageModule][Error] reason=package_path_empty" << lineBreak;
 		return nullptr;
 	}
 
@@ -547,9 +527,7 @@ shared_pointer<ShaderPackageAsset> ShaderPackageModule::getOrLoadPackage(const s
 	{
 		packageAsset->state = ShaderPackageState::failed;
 		packageCache.emplace(packageCacheKey, packageAsset);
-		error << "[ShaderPackageModule][Error] package=" << packageRelativePath
-			  << " reason=package_path_resolve_failed" << lineBreak;
-		return packageAsset;
+		assert(false && "[ShaderPackageModule][Assert] reason=package_path_resolve_failed");
 	}
 
 	vector<ShaderPackageShaderRecord> shaderRecords = {};

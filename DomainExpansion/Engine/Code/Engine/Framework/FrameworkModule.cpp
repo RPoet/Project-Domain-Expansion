@@ -81,11 +81,8 @@ bool Framework::initializeModules()
 			continue;
 		}
 
-		if (!module->init(*this))
-		{
-			error << "Module init failed. module=" << module->getName() << lineBreak;
-			return false;
-		}
+		const bool initializedModule = module->init(*this);
+		assert(initializedModule && "[Framework][Assert] reason=module_init_failed");
 	}
 
 	moduleInitializationCompleted = true;

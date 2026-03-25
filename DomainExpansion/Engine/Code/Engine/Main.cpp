@@ -164,14 +164,9 @@ static ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer 
 	if (tryGetArgumentValue(commandLineText, L"-backend_validation_inject=", argumentValue))
 	{
 		BackendValidationInjectMode parsedInjectMode = BackendValidationInjectMode::none;
-		if (parseBackendValidationInjectMode(argumentValue, parsedInjectMode))
-		{
-			applicationRunOptions.backendValidationInjectMode = parsedInjectMode;
-		}
-		else
-		{
-			error << "Unknown backend validation inject mode. Fallback to none." << lineBreak;
-		}
+		const bool validInjectMode = parseBackendValidationInjectMode(argumentValue, parsedInjectMode);
+		assert(validInjectMode && "[Main][Assert] reason=backend_validation_inject_mode_invalid");
+		applicationRunOptions.backendValidationInjectMode = parsedInjectMode;
 	}
 
 	return applicationRunOptions;
@@ -206,11 +201,8 @@ int WINAPI wWinMain(
 	}
 
 	WindowsWindowObject windowsWindowObject;
-	if (!windowsWindowObject.create(windowCreateOptions))
-	{
-		error << "Failed to create main window." << lineBreak;
-		return static_cast<int32>(ApplicationExitCode::windowCreateFailed);
-	}
+	const bool createdMainWindow = windowsWindowObject.create(windowCreateOptions);
+	assert(createdMainWindow && "[Main][Assert] reason=main_window_create_failed");
 	diskLoaderModule->TEMP_saveRuntimeWindowResolution(
 		windowsWindowObject.getClientWidth(),
 		windowsWindowObject.getClientHeight());
@@ -244,22 +236,16 @@ int WINAPI wWinMain(
 
 	while (windowsWindowObject.pumpMessages())
 	{
-		if (!framework.update())
-		{
-			error << "Framework update failed." << lineBreak;
-			break;
-		}
+		const bool updatedFramework = framework.update();
+		assert(updatedFramework && "[Main][Assert] reason=framework_update_failed");
 
 		RenderWorldUpdateInput renderWorldUpdateInput = {};
 		renderWorldUpdateInput.worldFlow = true;
 		renderWorldUpdateInput.worldUpdateSerial = framework.getWorldUpdateSerial();
 		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = false;
 
-		if (!renderWorld.update(renderWorldUpdateInput))
-		{
-			error << "RenderWorld update failed." << lineBreak;
-			break;
-		}
+		const bool updatedRenderWorld = renderWorld.update(renderWorldUpdateInput);
+		assert(updatedRenderWorld && "[Main][Assert] reason=render_world_update_failed");
 
 		Sleep(1);
 	}

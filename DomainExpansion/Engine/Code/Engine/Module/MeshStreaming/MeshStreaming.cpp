@@ -4,6 +4,12 @@
 #include "Engine/Module/Render/GPUUploader.h"
 #include "Render/Backends/RenderBackend.h"
 
+[[noreturn]] static void failUpload(const char* reason)
+{
+	unused(reason);
+	assert(false && "[MeshStreaming][Assert] reason=mesh_gpu_upload_failed");
+}
+
 static uint32 getDefaultRequiredVertexBufferFlags()
 {
 	return getMeshBufferSignatureFlag(MeshBufferSignature::position)
@@ -95,27 +101,14 @@ void MeshStreaming::flushCpuRequests()
 			}
 
 			string resolvedMeshPath = {};
-			if (!resolveMeshAbsolutePath(handle->meshRelativePath, resolvedMeshPath))
-			{
-				handle->state = MeshAssetHandleState::failed;
-				const char* const failReason = "mesh_path_resolve_failed";
-				error << "[MeshStreaming][Error] mesh=" << handle->meshRelativePath
-					  << " lod=" << handle->lodLevel
-					  << " reason=" << failReason << lineBreak;
-				continue;
-			}
+			const bool resolvedMeshPathResult = resolveMeshAbsolutePath(handle->meshRelativePath, resolvedMeshPath);
+			assert(resolvedMeshPathResult && "[MeshStreaming][Assert] reason=mesh_path_resolve_failed");
 
 			MeshAsset meshAsset = {};
 			string errorText = {};
-			if (!MeshParser::get().parseFromFile(resolvedMeshPath, handle->lodLevel, meshAsset, errorText))
-			{
-				handle->state = MeshAssetHandleState::failed;
-				const string failReason = errorText.empty() ? "mesh_load_failed" : errorText;
-				error << "[MeshStreaming][Error] mesh=" << handle->meshRelativePath
-					  << " lod=" << handle->lodLevel
-					  << " reason=" << failReason << lineBreak;
-				continue;
-			}
+			const bool parsedMeshAsset =
+				MeshParser::get().parseFromFile(resolvedMeshPath, handle->lodLevel, meshAsset, errorText);
+			assert(parsedMeshAsset && "[MeshStreaming][Assert] reason=mesh_load_failed");
 
 			handle->meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(meshAsset)));
 			handle->state = MeshAssetHandleState::ready;
@@ -161,11 +154,7 @@ bool MeshStreaming::resolveMeshAbsolutePath(
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 {
 	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
-	if (gpuUploader == nullptr)
-	{
-		error << "[MeshStreaming][Error] reason=gpu_uploader_missing" << lineBreak;
-		return;
-	}
+	assert(gpuUploader != nullptr && "[MeshStreaming][Assert] reason=gpu_uploader_missing");
 
 	gpuUploader->refreshCompletedSyncValue();
 
@@ -178,24 +167,7 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 	processingHandles.swap(pendingGpuUploadHandles);
 
 	CommandList* uploadCommandList = renderBackend.acquireCommandList();
-	if (uploadCommandList == nullptr)
-	{
-		error << "[MeshStreaming][Error] reason=gpu_upload_command_list_acquire_failed" << lineBreak;
-		for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
-		{
-			shared_pointer<MeshAssetHandle>& handle = processingHandles[handleIndex];
-			if (handle == nullptr || handle->gpuState != MeshAssetGpuState::pending)
-			{
-				continue;
-			}
-
-			handle->gpuState = MeshAssetGpuState::failed;
-			error << "[MeshStreaming][Error] mesh=" << handle->meshRelativePath
-				  << " lod=" << handle->lodLevel
-				  << " reason=gpu_upload_command_list_acquire_failed" << lineBreak;
-		}
-		return;
-	}
+	assert(uploadCommandList != nullptr && "[MeshStreaming][Assert] reason=gpu_upload_command_list_acquire_failed");
 
 	vector<shared_pointer<MeshAssetHandle>> uploadedHandles;
 	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
@@ -256,23 +228,16 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	MeshAssetHandle& handle) const
 {
 	initializeMeshAssetHandleVertexBuffers(handle);
-	const auto failUpload = [&handle](const char* reason) -> bool
-	{
-		error << "[MeshStreaming][Error] mesh=" << handle.meshRelativePath
-			  << " lod=" << handle.lodLevel
-			  << " reason=" << reason << lineBreak;
-		return false;
-	};
 
 	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
 	if (gpuUploader == nullptr)
 	{
-		return failUpload("gpu_uploader_missing");
+		failUpload("gpu_uploader_missing");
 	}
 
 	if (handle.meshAsset == nullptr)
 	{
-		return failUpload("mesh_asset_missing");
+		failUpload("mesh_asset_missing");
 	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
@@ -314,7 +279,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 			break;
 		case MeshBufferSignature::count:
 		default:
-			return failUpload("mesh_buffer_signature_invalid");
+			failUpload("mesh_buffer_signature_invalid");
 		}
 
 		vertexBufferSizesInBytes[signatureIndex] = bufferByteSize;
@@ -333,33 +298,33 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 		if (bufferByteSize == 0)
 		{
-			return failUpload("mesh_data_empty");
+			failUpload("mesh_data_empty");
 		}
 
 		if (bufferByteSize > static_cast<uint64>(uint32MaxValue))
 		{
-			return failUpload("mesh_buffer_size_overflow");
+			failUpload("mesh_buffer_size_overflow");
 		}
 
 		if (vertexBufferElementCounts[signatureIndex] != meshAsset.vertexCount)
 		{
-			return failUpload("mesh_vertex_stream_mismatch");
+			failUpload("mesh_vertex_stream_mismatch");
 		}
 	}
 
 	if ((sourceVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
 	{
-		return failUpload("mesh_required_vertex_buffer_missing");
+		failUpload("mesh_required_vertex_buffer_missing");
 	}
 
 	if (indexBufferBytes == 0)
 	{
-		return failUpload("mesh_data_empty");
+		failUpload("mesh_data_empty");
 	}
 
 	if (indexBufferBytes > static_cast<uint64>(uint32MaxValue))
 	{
-		return failUpload("mesh_buffer_size_overflow");
+		failUpload("mesh_buffer_size_overflow");
 	}
 
 	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
@@ -380,13 +345,13 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 		uploadRequestOptions.destinationOffsetInBytes = 0;
 		if (bufferCreateOptions.sizeInBytes == 0 || uploadRequestOptions.sourceData == nullptr)
 		{
-			return failUpload("mesh_data_empty");
+			failUpload("mesh_data_empty");
 		}
 
 		unique_pointer<BufferResourceObject> createdBufferObject = gpuUploader->createBufferObject(renderBackend, bufferCreateOptions, uploadRequestOptions);
 		if (createdBufferObject == nullptr)
 		{
-			return failUpload(vertexBufferCreateFailReasons[signatureIndex]);
+			failUpload(vertexBufferCreateFailReasons[signatureIndex]);
 		}
 
 		handle.vertexBufferObjects[signatureIndex] = moveValue(createdBufferObject);
@@ -396,7 +361,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 	if ((handle.activeVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
 	{
-		return failUpload("mesh_vertex_upload_flag_mismatch");
+		failUpload("mesh_vertex_upload_flag_mismatch");
 	}
 
 	BufferObjectCreateOptions indexBufferCreateOptions = {};
@@ -409,7 +374,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	unique_pointer<BufferResourceObject> indexBufferObject = gpuUploader->createBufferObject(renderBackend, indexBufferCreateOptions, indexUploadRequestOptions);
 	if (indexBufferObject == nullptr)
 	{
-		return failUpload("index_buffer_create_failed");
+		failUpload("index_buffer_create_failed");
 	}
 
 	handle.indexBufferObject = moveValue(indexBufferObject);
@@ -417,7 +382,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 
 	if (handle.indexBufferObject == nullptr || handle.indexBufferSizeInBytes == 0)
 	{
-		return failUpload("mesh_index_upload_invalid");
+		failUpload("mesh_index_upload_invalid");
 	}
 
 	return true;

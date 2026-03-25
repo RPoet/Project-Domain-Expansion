@@ -145,11 +145,6 @@ public:
 		else
 		{
 			assert(nextUnusedIndex < default_size);
-			if (nextUnusedIndex >= default_size)
-			{
-				return HandleReference();
-			}
-
 			slotIndex = nextUnusedIndex;
 			++nextUnusedIndex;
 		}

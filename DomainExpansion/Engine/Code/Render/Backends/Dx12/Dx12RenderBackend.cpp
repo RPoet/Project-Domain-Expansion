@@ -189,10 +189,6 @@ unique_pointer<TextureResourceObject> Dx12RenderBackend::createTextureObject(
 {
 	const bool validCreateOptions = validateTextureObjectCreateOptions(device.Get(), createOptions);
 	assert(validCreateOptions);
-	if (!validCreateOptions)
-	{
-		return nullptr;
-	}
 
 	D3D12_HEAP_PROPERTIES heapProperties = {};
 	heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -260,17 +256,10 @@ RootSignatureObject* Dx12RenderBackend::getOrCreateRootSignatureObject(const Roo
 		const bool pushConstantSizeZero = pushConstantRange.sizeInBytes == 0;
 		const bool pushConstantOffsetMisaligned = (pushConstantRange.offsetInBytes & 3u) != 0;
 		const bool pushConstantSizeMisaligned = (pushConstantRange.sizeInBytes & 3u) != 0;
-		if (pushConstantSizeZero || pushConstantOffsetMisaligned || pushConstantSizeMisaligned)
-		{
-			error << "[Dx12RootSignature][Error] reason=push_constant_invalid"
-				  << " rangeIndex=" << rangeIndex
-				  << " sizeZero=" << static_cast<uint32>(pushConstantSizeZero)
-				  << " offsetMisaligned=" << static_cast<uint32>(pushConstantOffsetMisaligned)
-				  << " sizeMisaligned=" << static_cast<uint32>(pushConstantSizeMisaligned)
-				  << " offsetInBytes=" << pushConstantRange.offsetInBytes
-				  << " sizeInBytes=" << pushConstantRange.sizeInBytes << lineBreak;
-			return nullptr;
-		}
+		const bool validPushConstantRange = !pushConstantSizeZero
+			&& !pushConstantOffsetMisaligned
+			&& !pushConstantSizeMisaligned;
+		assert(validPushConstantRange && "[Dx12RootSignature][Assert] reason=push_constant_invalid");
 
 		D3D12_ROOT_PARAMETER rootParameter = {};
 		rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -295,33 +284,20 @@ RootSignatureObject* Dx12RenderBackend::getOrCreateRootSignatureObject(const Roo
 
 	com_pointer<ID3DBlob> serializedRootSignature;
 	com_pointer<ID3DBlob> errorBlob;
-	if (FAILED(D3D12SerializeRootSignature(
+	const bool serializedRootSignatureCreated = SUCCEEDED(D3D12SerializeRootSignature(
 		&rootSignatureDescription,
 		D3D_ROOT_SIGNATURE_VERSION_1,
 		&serializedRootSignature,
-		&errorBlob)))
-	{
-		const char* errorText = "serialize_failed";
-		if (errorBlob != nullptr && errorBlob->GetBufferPointer() != nullptr)
-		{
-			errorText = static_cast<const char*>(errorBlob->GetBufferPointer());
-		}
-
-		error << "[Dx12RootSignature][Error] reason=" << errorText
-			  << " hash=" << rootSignatureHash << lineBreak;
-		return nullptr;
-	}
+		&errorBlob));
+	assert(serializedRootSignatureCreated && "[Dx12RootSignature][Assert] reason=serialize_root_signature_failed");
 
 	com_pointer<ID3D12RootSignature> rootSignature;
-	if (FAILED(device->CreateRootSignature(
+	const bool rootSignatureCreated = SUCCEEDED(device->CreateRootSignature(
 		0,
 		serializedRootSignature->GetBufferPointer(),
 		serializedRootSignature->GetBufferSize(),
-		IID_PPV_ARGS(&rootSignature))))
-	{
-		error << "[Dx12RootSignature][Error] reason=create_root_signature_failed hash=" << rootSignatureHash << lineBreak;
-		return nullptr;
-	}
+		IID_PPV_ARGS(&rootSignature)));
+	assert(rootSignatureCreated && "[Dx12RootSignature][Assert] reason=create_root_signature_failed");
 
 	return rootSignatureManager.addOrGet(rootSignatureHash, dx12RootSignatureDesc, Dx12RootSignatureObject(dx12RootSignatureDesc, rootSignature));
 }
@@ -336,18 +312,12 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	dx12PipelineStateDesc.renderTargets = pipelineStateDesc.renderTargets;
 	dx12PipelineStateDesc.depthStencilDesc = pipelineStateDesc.depthStencilDesc;
 	dx12PipelineStateDesc.cullMode = pipelineStateDesc.cullMode;
-	if (pipelineStateDesc.sampleCount == 0)
-	{
-		error << "[Dx12PipelineState][Error] reason=sample_count_zero" << lineBreak;
-		return nullptr;
-	}
+	const bool validSampleCount = pipelineStateDesc.sampleCount != 0;
+	assert(validSampleCount && "[Dx12PipelineState][Assert] reason=sample_count_zero");
 
 	RootSignatureObject* rootSignatureObject = getOrCreateRootSignatureObject(pipelineStateDesc.rootSignatureDesc);
-	if (rootSignatureObject == nullptr)
-	{
-		error << "[Dx12PipelineState][Error] reason=root_signature_create_failed" << lineBreak;
-		return nullptr;
-	}
+	const bool validRootSignatureObject = rootSignatureObject != nullptr;
+	assert(validRootSignatureObject && "[Dx12PipelineState][Assert] reason=root_signature_create_failed");
 
 	Dx12RootSignatureObject* dx12RootSignatureObject = static_cast<Dx12RootSignatureObject*>(rootSignatureObject);
 	dx12PipelineStateDesc.rootSignatureHash = dx12RootSignatureObject->getPlatformRootSignatureDesc().getHashValue();
@@ -373,22 +343,13 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 			&& (pipelineStateDesc.depthStencilDesc.depthTestEnabled
 				|| pipelineStateDesc.depthStencilDesc.depthWriteEnabled
 				|| pipelineStateDesc.depthStencilDesc.stencilEnabled);
-		if (missingVertexShader
-			|| missingPixelShader
-			|| missingRenderTargets
-			|| tooManyRenderTargets
-			|| invalidRenderTargetFormat
-			|| invalidDepthStencilState)
-		{
-			error << "[Dx12PipelineState][Error] reason=graphics_pipeline_invalid"
-				  << " missingVertexShader=" << static_cast<uint32>(missingVertexShader)
-				  << " missingPixelShader=" << static_cast<uint32>(missingPixelShader)
-				  << " missingRenderTargets=" << static_cast<uint32>(missingRenderTargets)
-				  << " tooManyRenderTargets=" << static_cast<uint32>(tooManyRenderTargets)
-				  << " invalidRenderTargetFormat=" << static_cast<uint32>(invalidRenderTargetFormat)
-				  << " invalidDepthStencilState=" << static_cast<uint32>(invalidDepthStencilState) << lineBreak;
-			return nullptr;
-		}
+		const bool validGraphicsPipeline = !missingVertexShader
+			&& !missingPixelShader
+			&& !missingRenderTargets
+			&& !tooManyRenderTargets
+			&& !invalidRenderTargetFormat
+			&& !invalidDepthStencilState;
+		assert(validGraphicsPipeline && "[Dx12PipelineState][Assert] reason=graphics_pipeline_invalid");
 
 		const Dx12ShaderObject* dx12VertexShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.vertexShader.get());
 		const Dx12ShaderObject* dx12PixelShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.pixelShader.get());
@@ -400,11 +361,8 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	}
 	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
 	{
-		if (pipelineStateDesc.computeShader == nullptr)
-		{
-			error << "[Dx12PipelineState][Error] reason=compute_shader_missing" << lineBreak;
-			return nullptr;
-		}
+		const bool validComputePipeline = pipelineStateDesc.computeShader != nullptr;
+		assert(validComputePipeline && "[Dx12PipelineState][Assert] reason=compute_shader_missing");
 
 		const Dx12ShaderObject* dx12ComputeShader = static_cast<const Dx12ShaderObject*>(pipelineStateDesc.computeShader.get());
 
@@ -413,9 +371,7 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 	}
 	else
 	{
-		error << "[Dx12PipelineState][Error] reason=pipeline_type_invalid value="
-			  << static_cast<uint32>(pipelineStateDesc.pipelineStateType) << lineBreak;
-		return nullptr;
+		assert(false && "[Dx12PipelineState][Assert] reason=pipeline_type_invalid");
 	}
 
 	const uint64 pipelineStateHash = dx12PipelineStateDesc.getHashValue();
@@ -442,17 +398,8 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 			const PipelineInputElementDesc& inputElement = pipelineStateDesc.inputElements[elementIndex];
 			const char* semanticName = getDx12VertexInputSemanticName(inputElement.semantic);
 			const DXGI_FORMAT inputFormat = getDx12VertexInputFormat(inputElement.format);
-			const bool invalidInputElement = semanticName == nullptr || inputFormat == DXGI_FORMAT_UNKNOWN;
-			if (invalidInputElement)
-			{
-				error << "[Dx12PipelineState][Error] reason=input_layout_element_invalid"
-					  << " elementIndex=" << elementIndex
-					  << " semantic=" << static_cast<uint32>(inputElement.semantic)
-					  << " format=" << static_cast<uint32>(inputElement.format)
-					  << " inputSlot=" << inputElement.inputSlot
-					  << " alignedByteOffset=" << inputElement.alignedByteOffset << lineBreak;
-				return nullptr;
-			}
+			const bool validInputElement = semanticName != nullptr && inputFormat != DXGI_FORMAT_UNKNOWN;
+			assert(validInputElement && "[Dx12PipelineState][Assert] reason=input_layout_element_invalid");
 
 			D3D12_INPUT_ELEMENT_DESC dx12InputElement = {};
 			dx12InputElement.SemanticName = semanticName;
@@ -536,14 +483,10 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 		graphicsPipelineStateDesc.NodeMask = 0;
 		graphicsPipelineStateDesc.CachedPSO = {};
 		graphicsPipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-		if (FAILED(device->CreateGraphicsPipelineState(
+		const bool graphicsPipelineStateCreated = SUCCEEDED(device->CreateGraphicsPipelineState(
 			&graphicsPipelineStateDesc,
-			IID_PPV_ARGS(&pipelineState))))
-		{
-			error << "[Dx12PipelineState][Error] reason=create_graphics_pso_failed hash="
-				  << pipelineStateHash << lineBreak;
-			return nullptr;
-		}
+			IID_PPV_ARGS(&pipelineState)));
+		assert(graphicsPipelineStateCreated && "[Dx12PipelineState][Assert] reason=create_graphics_pso_failed");
 	}
 	else if (pipelineStateDesc.pipelineStateType == PipelineStateType::compute)
 	{
@@ -556,20 +499,14 @@ PipelineStateObject* Dx12RenderBackend::getOrCreatePipelineStateObject(const Pip
 		computePipelineStateDesc.NodeMask = 0;
 		computePipelineStateDesc.CachedPSO = {};
 		computePipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-		if (FAILED(device->CreateComputePipelineState(
+		const bool computePipelineStateCreated = SUCCEEDED(device->CreateComputePipelineState(
 			&computePipelineStateDesc,
-			IID_PPV_ARGS(&pipelineState))))
-		{
-			error << "[Dx12PipelineState][Error] reason=create_compute_pso_failed hash="
-				  << pipelineStateHash << lineBreak;
-			return nullptr;
-		}
+			IID_PPV_ARGS(&pipelineState)));
+		assert(computePipelineStateCreated && "[Dx12PipelineState][Assert] reason=create_compute_pso_failed");
 	}
 	else
 	{
-		error << "[Dx12PipelineState][Error] reason=pipeline_type_unsupported value="
-			  << static_cast<uint32>(pipelineStateDesc.pipelineStateType) << lineBreak;
-		return nullptr;
+		assert(false && "[Dx12PipelineState][Assert] reason=pipeline_type_unsupported");
 	}
 
 	Dx12PipelineStateObject createdPipelineStateObject(dx12PipelineStateDesc, pipelineState);
@@ -952,11 +889,9 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 	if (enableDebugLayer)
 	{
 		com_pointer<ID3D12Debug> debugController;
-		if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))) || debugController == nullptr)
-		{
-			error << "[BackendValidation][Error] flow=initialize backend=dx12 reason=debug_layer_unavailable" << lineBreak;
-			return false;
-		}
+		const bool validDebugController = SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))
+			&& debugController != nullptr;
+		assert(validDebugController && "[BackendValidation][Assert] reason=debug_layer_unavailable");
 
 		debugController->EnableDebugLayer();
 		factoryFlags |= DXGI_CREATE_FACTORY_DEBUG;

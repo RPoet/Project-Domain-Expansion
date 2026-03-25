@@ -6,10 +6,9 @@ bool FbxMeshParserStub::parse(
 	MeshAsset& outMeshAsset,
 	string& outErrorText) const
 {
+	unused(meshFilePath);
 	unused(lodLevel);
 	outMeshAsset = {};
 	outErrorText = "fbx_not_implemented";
-	error << "[MeshParser][Warn] path=" << meshFilePath
-		  << " reason=" << outErrorText << lineBreak;
-	return false;
+	assert(false && "[MeshParser][Assert] reason=fbx_not_implemented");
 }

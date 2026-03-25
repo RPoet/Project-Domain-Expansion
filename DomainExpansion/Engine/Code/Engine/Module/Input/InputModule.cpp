@@ -100,11 +100,6 @@ void InputModule::shutdown()
 InputKeyState InputModule::getKeyState(const uint32 keyCode) const
 {
 	assert(keyCode < keyboardKeyCount && "[InputModule][Assert] reason=invalid_key_code");
-	if (keyCode >= keyboardKeyCount)
-	{
-		return InputKeyState::up;
-	}
-
 	return keyStateStorage[keyCode];
 }
 
@@ -112,11 +107,6 @@ InputKeyState InputModule::getMouseButtonState(const InputMouseButton mouseButto
 {
 	const uint32 mouseButtonIndex = getMouseButtonIndex(mouseButton);
 	assert(mouseButtonIndex < mouseButtonCount && "[InputModule][Assert] reason=invalid_mouse_button");
-	if (mouseButtonIndex >= mouseButtonCount)
-	{
-		return InputKeyState::up;
-	}
-
 	return mouseButtonStateStorage[mouseButtonIndex];
 }
 

@@ -323,6 +323,11 @@ string ImGuiLayerModule::ImportPanel::buildFormatText(const filesystem_path& fil
 	return "Unsupported";
 }
 
+[[noreturn]] static void failUnexpectedImportProcessCode()
+{
+	assert(false && "[ImGuiLayerModule][Assert] reason=import_panel_process_code_unexpected");
+}
+
 ImGuiLayerModule::ImportPanel::ProcessCode ImGuiLayerModule::ImportPanel::mapProcessCodeFromCLIExecutionCode(const int32 executionCode)
 {
 	if (executionCode == static_cast<int32>(CLIModule::ExecutionCode::parseFailed))
@@ -365,8 +370,7 @@ ImGuiLayerModule::ImportPanel::ProcessCode ImGuiLayerModule::ImportPanel::mapPro
 		return ProcessCode::importFileOpenFailed;
 	}
 
-	assert(false && "[ImGuiLayerModule][Assert] reason=import_panel_process_code_unexpected");
-	return ProcessCode::importParseFailed;
+	failUnexpectedImportProcessCode();
 }
 
 void ImGuiLayerModule::ImportPanel::executeImportCommand()
@@ -419,21 +423,14 @@ bool ImGuiLayerModule::init(Framework& framework)
 
 	WindowsWindowObject* windowObject = framework.getWindowObject();
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (windowObject == nullptr
-		|| renderBackendModule == nullptr
-		|| !renderBackendModule->isBackendCreated())
-	{
-		error << "ImGuiLayerModule init failed. reason=worldflow_prerequisite_missing" << lineBreak;
-		shutdown();
-		return false;
-	}
+	const bool validWorldFlowPrerequisites =
+		windowObject != nullptr
+		&& renderBackendModule != nullptr
+		&& renderBackendModule->isBackendCreated();
+	assert(validWorldFlowPrerequisites && "[ImGuiLayerModule][Assert] reason=worldflow_prerequisite_missing");
 
-	if (!ImGui_ImplWin32_Init(windowObject->getWindowHandle()))
-	{
-		error << "ImGuiLayerModule init failed. reason=win32_backend_init_failed" << lineBreak;
-		shutdown();
-		return false;
-	}
+	const bool initializedWin32Backend = ImGui_ImplWin32_Init(windowObject->getWindowHandle());
+	assert(initializedWin32Backend && "[ImGuiLayerModule][Assert] reason=win32_backend_init_failed");
 
 	win32BackendInitialized = true;
 
@@ -444,20 +441,13 @@ bool ImGuiLayerModule::init(Framework& framework)
 	}
 
 	RenderBackend* renderBackend = renderBackendModule->getBackend();
-	if (renderBackend == nullptr)
-	{
-		error << "ImGuiLayerModule init failed. reason=render_backend_missing" << lineBreak;
-		shutdown();
-		return false;
-	}
+	assert(renderBackend != nullptr && "[ImGuiLayerModule][Assert] reason=render_backend_missing");
 
 	backendBridge.reset(new Dx12BackendBridge());
-	if (backendBridge == nullptr || !backendBridge->initialize(*renderBackend))
-	{
-		error << "ImGuiLayerModule init failed. reason=dx12_backend_init_failed" << lineBreak;
-		shutdown();
-		return false;
-	}
+	const bool initializedDx12Backend =
+		backendBridge != nullptr
+		&& backendBridge->initialize(*renderBackend);
+	assert(initializedDx12Backend && "[ImGuiLayerModule][Assert] reason=dx12_backend_init_failed");
 
 	updateUiScaleIfNeeded();
 	return true;
@@ -649,25 +639,13 @@ bool ImGuiLayerModule::resolveEditorGridRenderResources(EditorGridRenderResource
 		&& shaderPackageModule != nullptr
 		&& renderBackendModule->isBackendCreated();
 	assert(validModules && "[ImGuiLayerModule][Assert] reason=editor_grid_module_missing");
-	if (!validModules)
-	{
-		return false;
-	}
 
 	RenderBackend* renderBackend = renderBackendModule->getBackend();
 	assert(renderBackend != nullptr && "[ImGuiLayerModule][Assert] reason=editor_grid_render_backend_missing");
-	if (renderBackend == nullptr)
-	{
-		return false;
-	}
 
 	shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage("Shaders/Packages/EditorGrid.shaderpkg");
 	const bool shaderPackageReady = shaderPackage != nullptr && shaderPackage->state == ShaderPackageState::ready;
 	assert(shaderPackageReady && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_package_not_ready");
-	if (!shaderPackageReady)
-	{
-		return false;
-	}
 
 	const auto findShaderPackageVariantByName = [](const ShaderPackageAsset& shaderPackageAsset, const string& variantName) -> const ShaderPackageVariant*
 	{
@@ -685,19 +663,11 @@ bool ImGuiLayerModule::resolveEditorGridRenderResources(EditorGridRenderResource
 
 	const ShaderPackageVariant* shaderVariant = findShaderPackageVariantByName(*shaderPackage, "EditorGridDefault");
 	assert(shaderVariant != nullptr && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_variant_missing");
-	if (shaderVariant == nullptr)
-	{
-		return false;
-	}
 
 	shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
 	shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
 	const bool validShaders = vertexShader != nullptr && pixelShader != nullptr;
 	assert(validShaders && "[ImGuiLayerModule][Assert] reason=editor_grid_shader_stage_missing");
-	if (!validShaders)
-	{
-		return false;
-	}
 
 	PipelineStateDesc pipelineStateDesc = {};
 	pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;

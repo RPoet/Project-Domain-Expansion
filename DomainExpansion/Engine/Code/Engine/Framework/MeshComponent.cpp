@@ -29,19 +29,9 @@ void MeshComponent::generateMeshBridgeHandle()
 
 	const BridgeHandle entityHandle = getOwnerEntityHandle();
 	assert(entityHandle != invalidBridgeHandle);
-	if (entityHandle == invalidBridgeHandle)
-	{
-		meshHandleReference.reset();
-		return;
-	}
 
 	shared_pointer<MeshAssetHandle> meshAssetHandle = MeshStreaming::get()->requestMesh(meshRelativePath, lodLevel);
 	assert(meshAssetHandle != nullptr);
-	if (meshAssetHandle == nullptr)
-	{
-		meshHandleReference.reset();
-		return;
-	}
 
 	bool recreateMeshBridge = !meshHandleReference.isValid();
 	if (!recreateMeshBridge)

@@ -144,17 +144,16 @@ static bool parseFloat3Text(
 	return true;
 }
 
-static bool failParse(
+[[noreturn]] static void failParse(
 	const string& worldFilePath,
 	const uint32 lineNumber,
 	const string& reason,
 	string& outErrorText)
 {
+	unused(worldFilePath);
+	unused(lineNumber);
 	outErrorText = reason;
-	error << "[FrameworkSerialization][Error] path=" << worldFilePath
-		  << " line=" << lineNumber
-		  << " reason=" << outErrorText << lineBreak;
-	return false;
+	assert(false && "[FrameworkSerialization][Assert] reason=parse_failed");
 }
 
 static MeshComponent* getFirstMeshComponent(Entity* entity, World* world)
@@ -229,13 +228,8 @@ bool frameworkSerializationLoadWorldFromFile(
 	outErrorText.clear();
 
 	input_file_stream fileStream(worldFilePath);
-	if (!fileStream.is_open())
-	{
-		outErrorText = "file_open_failed";
-		error << "[FrameworkSerialization][Error] path=" << worldFilePath
-			  << " reason=" << outErrorText << lineBreak;
-		return false;
-	}
+	const bool validInputFileStream = fileStream.is_open();
+	assert(validInputFileStream && "[FrameworkSerialization][Assert] reason=file_open_failed");
 
 	vector<Temp_EntityRecord> entityRecords;
 	Temp_EntityRecord currentRecord = {};
@@ -291,7 +285,7 @@ bool frameworkSerializationLoadWorldFromFile(
 		const size_t delimiterIndex = lineText.find('=');
 		if (delimiterIndex == string::npos)
 		{
-			return failParse(worldFilePath, lineNumber, "invalid_key_value", outErrorText);
+			failParse(worldFilePath, lineNumber, "invalid_key_value", outErrorText);
 		}
 
 		const string key = trimText(lineText.substr(0, delimiterIndex));
@@ -314,7 +308,7 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			if (!parseIntText(value, currentRecord.sourceId))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_entity_id", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_entity_id", outErrorText);
 			}
 			continue;
 		}
@@ -335,7 +329,7 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			if (!parseBoolText(value, currentRecord.active))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_active_state", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_active_state", outErrorText);
 			}
 			continue;
 		}
@@ -344,7 +338,7 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			if (!parseIntText(value, currentRecord.parentId))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_parent_id", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_parent_id", outErrorText);
 			}
 			continue;
 		}
@@ -357,7 +351,7 @@ bool frameworkSerializationLoadWorldFromFile(
 				currentRecord.transform.positionY,
 				currentRecord.transform.positionZ))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_position", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_position", outErrorText);
 			}
 			continue;
 		}
@@ -370,7 +364,7 @@ bool frameworkSerializationLoadWorldFromFile(
 				currentRecord.transform.rotationYaw,
 				currentRecord.transform.rotationRoll))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_rotation", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_rotation", outErrorText);
 			}
 			continue;
 		}
@@ -383,7 +377,7 @@ bool frameworkSerializationLoadWorldFromFile(
 				currentRecord.transform.scaleY,
 				currentRecord.transform.scaleZ))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_scale", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_scale", outErrorText);
 			}
 			continue;
 		}
@@ -399,7 +393,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			int32 parsedLodLevel = 0;
 			if (!parseIntText(value, parsedLodLevel) || parsedLodLevel < 0)
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_lod_level", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_lod_level", outErrorText);
 			}
 
 			currentRecord.lodLevel = static_cast<uint32>(parsedLodLevel);
@@ -410,7 +404,7 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			if (!parseBoolText(value, currentRecord.visible))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_mesh_visibility", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_mesh_visibility", outErrorText);
 			}
 
 			continue;
@@ -421,7 +415,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			currentRecord.hasCameraComponent = true;
 			if (!parseBoolText(value, currentRecord.cameraPrimary))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_camera_primary", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_camera_primary", outErrorText);
 			}
 
 			continue;
@@ -432,7 +426,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			currentRecord.hasCameraComponent = true;
 			if (!parseBoolText(value, currentRecord.cameraEditor))
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_camera_editor", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_camera_editor", outErrorText);
 			}
 
 			continue;
@@ -445,7 +439,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			parser >> currentRecord.cameraFieldOfViewYDegrees;
 			if (!parser || !parser.eof())
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_camera_field_of_view", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_camera_field_of_view", outErrorText);
 			}
 
 			continue;
@@ -458,7 +452,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			parser >> currentRecord.cameraNearPlane;
 			if (!parser || !parser.eof())
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_camera_near_plane", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_camera_near_plane", outErrorText);
 			}
 
 			continue;
@@ -471,7 +465,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			parser >> currentRecord.cameraFarPlane;
 			if (!parser || !parser.eof())
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_camera_far_plane", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_camera_far_plane", outErrorText);
 			}
 
 			continue;
@@ -484,7 +478,7 @@ bool frameworkSerializationLoadWorldFromFile(
 			parser >> currentRecord.editorCameraMovementSpeed;
 			if (!parser || !parser.eof())
 			{
-				return failParse(worldFilePath, lineNumber, "invalid_editor_camera_movement_speed", outErrorText);
+				failParse(worldFilePath, lineNumber, "invalid_editor_camera_movement_speed", outErrorText);
 			}
 
 			continue;
@@ -513,7 +507,6 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			assert(false && "[FrameworkSerialization][Assert] reason=camera_requires_placeable_entity");
 			outErrorText = "camera_requires_placeable_entity";
-			return false;
 		}
 
 		if (record.hasEditorCameraMovementComponent
@@ -521,7 +514,6 @@ bool frameworkSerializationLoadWorldFromFile(
 		{
 			assert(false && "[FrameworkSerialization][Assert] reason=editor_camera_movement_requires_editor_camera");
 			outErrorText = "editor_camera_movement_requires_editor_camera";
-			return false;
 		}
 
 		const uint32 entityIndex = createPlaceableEntity
@@ -529,11 +521,8 @@ bool frameworkSerializationLoadWorldFromFile(
 			: loadedWorld->createEntity();
 
 		Entity* entity = loadedWorld->getEntityByIndex(entityIndex);
-		if (entity == nullptr)
-		{
-			outErrorText = "entity_create_failed";
-			return false;
-		}
+		const bool validCreatedEntity = entity != nullptr;
+		assert(validCreatedEntity && "[FrameworkSerialization][Assert] reason=entity_create_failed");
 
 		entity->setName(record.name);
 		entity->setActive(record.active);
@@ -664,22 +653,12 @@ bool frameworkSerializationSaveWorldToFile(
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	assert(diskLoaderModule != nullptr && "[FrameworkSerialization][Assert] reason=disk_loader_module_missing");
-	if (!diskLoaderModule->ensureParentDirectory(worldFilePath))
-	{
-		outErrorText = "parent_directory_create_failed";
-		error << "[FrameworkSerialization][Error] path=" << worldFilePath
-			  << " reason=" << outErrorText << lineBreak;
-		return false;
-	}
+	const bool validParentDirectory = diskLoaderModule->ensureParentDirectory(worldFilePath);
+	assert(validParentDirectory && "[FrameworkSerialization][Assert] reason=parent_directory_create_failed");
 
 	output_file_stream fileStream(worldFilePath, output_file_stream::trunc);
-	if (!fileStream.is_open())
-	{
-		outErrorText = "file_open_failed";
-		error << "[FrameworkSerialization][Error] path=" << worldFilePath
-			  << " reason=" << outErrorText << lineBreak;
-		return false;
-	}
+	const bool validOutputFileStream = fileStream.is_open();
+	assert(validOutputFileStream && "[FrameworkSerialization][Assert] reason=file_open_failed");
 
 	fileStream << "[World]" << '\n';
 	fileStream << "version=1" << '\n';

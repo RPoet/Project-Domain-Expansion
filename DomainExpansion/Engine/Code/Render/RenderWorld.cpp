@@ -294,10 +294,6 @@ void RenderWorld::shutdown()
 bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 {
 	assert(windowObject != nullptr);
-	if (windowObject == nullptr)
-	{
-		return false;
-	}
 
 	if (!updateInput.worldFlow)
 	{
@@ -383,18 +379,8 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			view.depthStencilView = renderBackend->createDepthStencilView(view.depthTextureObject.get());
 		}
 
-		if (view.depthTextureObject == nullptr || view.depthStencilView == nullptr)
-		{
-			if (view.depthStencilView != nullptr)
-			{
-				renderBackend->destroyDepthStencilView(view.depthStencilView);
-				view.depthStencilView = nullptr;
-			}
-
-			view.depthTextureObject.reset();
-			error << "[RenderWorld][Error] reason=depth_resource_create_failed" << lineBreak;
-			return true;
-		}
+		const bool validDepthResources = view.depthTextureObject != nullptr && view.depthStencilView != nullptr;
+		assert(validDepthResources && "[RenderWorld][Assert] reason=depth_resource_create_failed");
 
 		view.width = swapChainWidth;
 		view.height = swapChainHeight;

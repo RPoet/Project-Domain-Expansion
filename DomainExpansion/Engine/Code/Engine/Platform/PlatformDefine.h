@@ -73,12 +73,13 @@ inline void platformInitializeFailFastAssertBehavior();
 	const char* functionName)
 {
 	platformInitializeFailFastAssertBehavior();
-	error << "[Assert][Failure] expression=" << (expressionText != nullptr ? expressionText : "unknown")
-		  << " file=" << (filePath != nullptr ? filePath : "unknown")
-		  << " line=" << lineNumber
-		  << " function=" << (functionName != nullptr ? functionName : "unknown")
-		  << lineBreak;
-	error.flush();
+	error_stream& failureStream = error;
+	failureStream << "[Assert][Failure] expression=" << (expressionText != nullptr ? expressionText : "unknown")
+				  << " file=" << (filePath != nullptr ? filePath : "unknown")
+				  << " line=" << lineNumber
+				  << " function=" << (functionName != nullptr ? functionName : "unknown")
+				  << lineBreak;
+	failureStream.flush();
 	terminate();
 }
 

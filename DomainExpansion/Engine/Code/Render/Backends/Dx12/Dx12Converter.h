@@ -96,12 +96,6 @@ inline D3D12_RESOURCE_STATES getDx12ResourceState(const ResourceState resourceSt
 
 	const uint32 resourceStateIndex = static_cast<uint32>(resourceState);
 	assert(resourceStateIndex > static_cast<uint32>(ResourceState::unknown) && resourceStateIndex < static_cast<uint32>(ResourceState::count));
-	if (resourceStateIndex <= static_cast<uint32>(ResourceState::unknown)
-		|| resourceStateIndex >= static_cast<uint32>(ResourceState::count))
-	{
-		return D3D12_RESOURCE_STATE_COMMON;
-	}
-
 	return dx12ResourceStates[resourceStateIndex - 1];
 }
 

@@ -124,30 +124,23 @@ bool Framework::initialize(
 
 	const bool hasRegisteredModules = !moduleStorage.empty();
 	assert(hasRegisteredModules && "[Framework][Assert] reason=module_not_registered");
-
-	if (!initializeModules())
-	{
-		error << "Framework module initialization failed." << lineBreak;
-		completeExecution(FrameworkRuntimeExitCode::moduleInitializationFailure);
-		return false;
-	}
+	const bool initializedModules = initializeModules();
+	assert(initializedModules && "[Framework][Assert] reason=module_initialization_failed");
 
 	if (initializeOptions.bootstrapWorld && getActiveWorld() == nullptr)
 	{
 		string defaultWorldPath = {};
-		if (frameworkFileSystemResolveDefaultWorldFilePath(defaultWorldPath)
-			&& loadWorldFromFile(defaultWorldPath))
+		const bool defaultWorldLoaded =
+			frameworkFileSystemResolveDefaultWorldFilePath(defaultWorldPath)
+			&& loadWorldFromFile(defaultWorldPath);
+		if (defaultWorldLoaded)
 		{
 			return true;
 		}
 
 		const uint32 editorWorldIndex = createWorld(L"EditorWorld");
-		if (!loadWorld(editorWorldIndex))
-		{
-			error << "World bootstrap failed. reason=editor_world_load_failed" << lineBreak;
-			completeExecution(FrameworkRuntimeExitCode::moduleInitializationFailure);
-			return false;
-		}
+		const bool loadedEditorWorld = loadWorld(editorWorldIndex);
+		assert(loadedEditorWorld && "[Framework][Assert] reason=editor_world_load_failed");
 	}
 
 	return true;
@@ -170,12 +163,10 @@ uint32 Framework::createWorld(const wstring& worldName)
 {
 	unique_pointer<World> worldInstance = nullptr;
 	string errorText = {};
-	if (!loadEditorWorldTemplate(worldInstance, errorText) || worldInstance == nullptr)
-	{
-		error << "[Framework][Error] createWorld_failed reason="
-			  << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-		return invalidWorldIndex;
-	}
+	const bool loadedEditorWorldTemplate =
+		loadEditorWorldTemplate(worldInstance, errorText)
+		&& worldInstance != nullptr;
+	assert(loadedEditorWorldTemplate && "[Framework][Assert] reason=create_world_editor_template_load_failed");
 
 	worldInstance->setWorldName(worldName);
 	worldStorage.push_back(moveValue(worldInstance));
@@ -225,13 +216,10 @@ bool Framework::loadWorldFromFile(const string& worldFilePath)
 {
 	unique_pointer<World> loadedWorld = nullptr;
 	string errorText = {};
-	if (!frameworkSerializationLoadWorldFromFile(worldFilePath, loadedWorld, errorText)
-		|| loadedWorld == nullptr)
-	{
-		error << "[Framework][Error] loadWorldFromFile_failed path=" << worldFilePath
-			  << " reason=" << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-		return false;
-	}
+	const bool loadedWorldFromFile =
+		frameworkSerializationLoadWorldFromFile(worldFilePath, loadedWorld, errorText)
+		&& loadedWorld != nullptr;
+	assert(loadedWorldFromFile && "[Framework][Assert] reason=load_world_from_file_failed");
 
 	worldStorage.push_back(moveValue(loadedWorld));
 	const uint32 worldIndex = static_cast<uint32>(worldStorage.size() - 1);
@@ -253,12 +241,9 @@ bool Framework::saveActiveWorldToFile()
 	}
 
 	string errorText = {};
-	if (!frameworkSerializationSaveWorldToFile(*activeWorld, activeWorldFilePath, errorText))
-	{
-		error << "[Framework][Error] saveActiveWorldToFile_failed path=" << activeWorldFilePath
-			  << " reason=" << (errorText.empty() ? "unknown" : errorText) << lineBreak;
-		return false;
-	}
+	const bool savedActiveWorld =
+		frameworkSerializationSaveWorldToFile(*activeWorld, activeWorldFilePath, errorText);
+	assert(savedActiveWorld && "[Framework][Assert] reason=save_active_world_to_file_failed");
 
 	return true;
 }

@@ -7,7 +7,6 @@ bool ShaderCompiler::compileFromFile(
 	outCompileResult.clear();
 	unused(compileRequest);
 	assert(false && "[ShaderCompiler][Assert] reason=not_implemented_yet mode=file");
-	return false;
 }
 
 bool ShaderCompiler::compileFromMemory(
@@ -19,5 +18,4 @@ bool ShaderCompiler::compileFromMemory(
 	outCompileResult.clear();
 	unused(compileRequest);
 	assert(false && "[ShaderCompiler][Assert] reason=not_implemented_yet mode=memory");
-	return false;
 }

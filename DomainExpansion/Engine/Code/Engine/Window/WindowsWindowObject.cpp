@@ -70,11 +70,7 @@ bool WindowsWindowObject::create(const WindowCreateOptions& options)
 
 	windowTitle = options.windowTitle;
 	windowInstanceHandle = GetModuleHandleW(nullptr);
-	if (windowInstanceHandle == nullptr)
-	{
-		error << "Window creation failed: module handle is null." << lineBreak;
-		return false;
-	}
+	assert(windowInstanceHandle != nullptr && "[WindowsWindowObject][Assert] reason=module_handle_missing");
 
 	WindowClassDefinition windowClassDefinition = {};
 	windowClassDefinition.cbSize = sizeof(WindowClassDefinition);
@@ -86,11 +82,10 @@ bool WindowsWindowObject::create(const WindowCreateOptions& options)
 	windowClassDefinition.lpszClassName = windowClassName.c_str();
 
 	const Atom classRegistrationResult = RegisterClassExW(&windowClassDefinition);
-	if (classRegistrationResult == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
-	{
-		error << "Window creation failed: RegisterClassExW failed." << lineBreak;
-		return false;
-	}
+	const bool validClassRegistration =
+		classRegistrationResult != 0
+		|| GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+	assert(validClassRegistration && "[WindowsWindowObject][Assert] reason=register_class_failed");
 
 	const WindowStyle windowStyle = WS_OVERLAPPEDWINDOW;
 	const WindowExtendedStyle windowExtendedStyle = WS_EX_APPWINDOW;
@@ -117,11 +112,7 @@ bool WindowsWindowObject::create(const WindowCreateOptions& options)
 		windowInstanceHandle,
 		this);
 
-	if (windowHandle == nullptr)
-	{
-		error << "Window creation failed: CreateWindowExW returned null." << lineBreak;
-		return false;
-	}
+	assert(windowHandle != nullptr && "[WindowsWindowObject][Assert] reason=create_window_failed");
 
 	windowDotsPerInch = GetDpiForWindow(windowHandle);
 	updateClientSizeFromWindow();

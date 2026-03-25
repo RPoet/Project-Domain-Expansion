@@ -67,10 +67,6 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 	const bool validLoadRequest = validateLoadRequest(loadRequest);
 	const bool validBinaryLoadRequest = validateBinaryLoadRequest(normalizedBinaryLoadRequest);
 	assert(validLoadRequest && validBinaryLoadRequest);
-	if (!validLoadRequest || !validBinaryLoadRequest)
-	{
-		return nullptr;
-	}
 
 	const string cacheKey = buildShaderCacheKey(loadRequest, normalizedBinaryLoadRequest);
 	const auto foundShader = shaderCache.find(cacheKey);
@@ -87,63 +83,27 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 
 	const bool targetPlatformMatched = normalizedBinaryLoadRequest.targetPlatform == activeTargetPlatform;
 	assert(targetPlatformMatched && "[ShaderModule][Assert] reason=shader_target_platform_mismatch");
-	if (!targetPlatformMatched)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	string shaderBinaryAbsolutePath = {};
 	const bool resolvedBinaryAbsolutePath =
 		resolveShaderBinaryAbsolutePath(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
 	assert(resolvedBinaryAbsolutePath && "[ShaderModule][Assert] reason=shader_binary_path_resolve_failed");
-	if (!resolvedBinaryAbsolutePath)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
-	if (diskLoaderModule == nullptr)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	vector<char> shaderByteCode = {};
 	const bool loadedShaderByteCode = diskLoaderModule->loadBinaryFile(shaderBinaryAbsolutePath, shaderByteCode);
 	assert(loadedShaderByteCode && "[ShaderModule][Assert] reason=shader_binary_load_failed");
-	if (!loadedShaderByteCode)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	shared_pointer<ShaderAsset> shaderAsset(new ShaderAsset());
 	const bool initializedShaderAsset = shaderAsset != nullptr && shaderAsset->initialize(loadRequest);
 	assert(initializedShaderAsset && "[ShaderModule][Assert] reason=shader_asset_initialize_failed");
-	if (!initializedShaderAsset)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	shaderHandle->shader =
 		createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
 	const bool createdShaderObject = shaderHandle->shader != nullptr;
 	assert(createdShaderObject && "[ShaderModule][Assert] reason=shader_object_create_failed");
-	if (!createdShaderObject)
-	{
-		shaderHandle->state = ShaderHandleState::failed;
-		shaderCache.emplace(cacheKey, shaderHandle);
-		return shaderHandle;
-	}
 
 	shaderHandle->state = ShaderHandleState::ready;
 	shaderCache.emplace(cacheKey, shaderHandle);

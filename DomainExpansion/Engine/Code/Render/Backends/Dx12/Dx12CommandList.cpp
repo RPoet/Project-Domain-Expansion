@@ -161,20 +161,12 @@ void Dx12CommandList::setRenderTargets(
 	}
 
 	assert(!hasRenderTargets || renderTargetViews != nullptr);
-	if (hasRenderTargets && renderTargetViews == nullptr)
-	{
-		return;
-	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE dx12RenderTargetDescriptorHandles[renderBackendRenderTargetSlotCount] = {};
 	for (uint32 renderTargetIndex = 0; renderTargetIndex < renderTargetViewCount; ++renderTargetIndex)
 	{
 		RenderTargetView* renderTargetView = renderTargetViews[renderTargetIndex];
 		assert(renderTargetView != nullptr);
-		if (renderTargetView == nullptr)
-		{
-			return;
-		}
 
 		Dx12RenderTargetView* dx12RenderTargetView = static_cast<Dx12RenderTargetView*>(renderTargetView);
 		dx12RenderTargetDescriptorHandles[renderTargetIndex] = dx12RenderTargetView->descriptorHandle;
@@ -339,7 +331,6 @@ void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, Root
 	if (!isRecordingReady() || pipelineStateObject == nullptr || rootSignatureObject == nullptr)
 	{
 		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_precondition_failed");
-		return;
 	}
 
 	Dx12PipelineStateObject* dx12PipelineStateObject = static_cast<Dx12PipelineStateObject*>(pipelineStateObject);
@@ -349,7 +340,6 @@ void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, Root
 	if (dx12PipelineState == nullptr || dx12RootSignature == nullptr)
 	{
 		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_native_object_missing");
-		return;
 	}
 
 	const uint64 pipelineRootSignatureHash = dx12PipelineStateObject->getPlatformPipelineStateDesc().rootSignatureHash;
@@ -357,7 +347,6 @@ void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, Root
 	if (pipelineRootSignatureHash != boundRootSignatureHash)
 	{
 		assert(false && "[Dx12CommandList][Assert] reason=set_pipeline_root_signature_mismatch");
-		return;
 	}
 
 	const PipelineStateType pipelineStateType = dx12PipelineStateObject->getPlatformPipelineStateDesc().pipelineStateType;
@@ -372,7 +361,6 @@ void Dx12CommandList::setPipeline(PipelineStateObject* pipelineStateObject, Root
 	else
 	{
 		assert(false && "[Dx12CommandList][Assert] reason=pipeline_type_unsupported");
-		return;
 	}
 
 	commandList->SetPipelineState(dx12PipelineState);
@@ -386,7 +374,6 @@ void Dx12CommandList::setGraphicsPushConstants(
 	if (!isRecordingReady() || data == nullptr || sizeInBytes == 0 || (sizeInBytes & 3u) != 0)
 	{
 		assert(false && "[Dx12CommandList][Assert] reason=set_graphics_push_constants_precondition_failed");
-		return;
 	}
 
 	commandList->SetGraphicsRoot32BitConstants(

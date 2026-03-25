@@ -52,55 +52,36 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	const BufferObjectCreateOptions& createOptions,
 	const BufferUploadRequestOptions& uploadRequestOptions)
 {
-	if (createOptions.sizeInBytes == 0)
-	{
-		error << "[GPUUploader][Error] reason=invalid_buffer_create_options sizeInBytes="
-			  << createOptions.sizeInBytes << lineBreak;
-		return nullptr;
-	}
+	const bool validCreateOptions = createOptions.sizeInBytes != 0;
+	assert(validCreateOptions && "[GPUUploader][Assert] reason=invalid_buffer_create_options");
 
-	if (uploadRequestOptions.sourceData == nullptr || uploadRequestOptions.sourceDataSizeInBytes == 0)
-	{
-		error << "[GPUUploader][Error] reason=invalid_upload_request sourceDataSizeInBytes="
-			  << uploadRequestOptions.sourceDataSizeInBytes << lineBreak;
-		return nullptr;
-	}
+	const bool validUploadRequest =
+		uploadRequestOptions.sourceData != nullptr
+		&& uploadRequestOptions.sourceDataSizeInBytes != 0;
+	assert(validUploadRequest && "[GPUUploader][Assert] reason=invalid_upload_request");
 
-	if (uploadRequestOptions.destinationOffsetInBytes + uploadRequestOptions.sourceDataSizeInBytes > createOptions.sizeInBytes)
-	{
-		error << "[GPUUploader][Error] reason=upload_request_out_of_range sizeInBytes="
-			  << createOptions.sizeInBytes << " destinationOffsetInBytes="
-			  << uploadRequestOptions.destinationOffsetInBytes << " sourceDataSizeInBytes="
-			  << uploadRequestOptions.sourceDataSizeInBytes << lineBreak;
-		return nullptr;
-	}
+	const bool uploadRequestInRange =
+		uploadRequestOptions.destinationOffsetInBytes + uploadRequestOptions.sourceDataSizeInBytes
+		<= createOptions.sizeInBytes;
+	assert(uploadRequestInRange && "[GPUUploader][Assert] reason=upload_request_out_of_range");
 
 	uint32 poolBlockIndex = uint32MaxValue;
 	uint64 sourceOffsetInBytes = 0;
-	if (!reserveUploadSpace(
+	const bool reservedUploadSpace = reserveUploadSpace(
 		renderBackend,
 		uploadRequestOptions.sourceDataSizeInBytes,
 		poolBlockIndex,
-		sourceOffsetInBytes))
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_reserve_failed sourceDataSizeInBytes="
-			  << uploadRequestOptions.sourceDataSizeInBytes << lineBreak;
-		return nullptr;
-	}
+		sourceOffsetInBytes);
+	assert(reservedUploadSpace && "[GPUUploader][Assert] reason=upload_pool_reserve_failed");
 
-	if (poolBlockIndex >= static_cast<uint32>(uploadBufferPoolBlocks.size()))
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_block_index_invalid poolBlockIndex="
-			  << poolBlockIndex << lineBreak;
-		return nullptr;
-	}
+	const bool validPoolBlockIndex = poolBlockIndex < static_cast<uint32>(uploadBufferPoolBlocks.size());
+	assert(validPoolBlockIndex && "[GPUUploader][Assert] reason=upload_pool_block_index_invalid");
 
 	UploadBufferPoolBlock& uploadBufferPoolBlock = uploadBufferPoolBlocks[poolBlockIndex];
-	if (uploadBufferPoolBlock.bufferObject == nullptr || uploadBufferPoolBlock.mappedMemory == nullptr)
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_block_missing" << lineBreak;
-		return nullptr;
-	}
+	const bool validUploadPoolBlock =
+		uploadBufferPoolBlock.bufferObject != nullptr
+		&& uploadBufferPoolBlock.mappedMemory != nullptr;
+	assert(validUploadPoolBlock && "[GPUUploader][Assert] reason=upload_pool_block_missing");
 
 	std::memcpy(
 		uploadBufferPoolBlock.mappedMemory + static_cast<size_t>(sourceOffsetInBytes),
@@ -110,12 +91,7 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	BufferObjectCreateOptions destinationBufferCreateOptions = createOptions;
 	destinationBufferCreateOptions.memoryType = BufferObjectMemoryType::defaultHeap;
 	unique_pointer<BufferResourceObject> createdBufferObject = renderBackend.createBufferObject(destinationBufferCreateOptions);
-	if (createdBufferObject == nullptr)
-	{
-		error << "[GPUUploader][Error] reason=backend_create_buffer_failed sizeInBytes="
-			  << createOptions.sizeInBytes << lineBreak;
-		return nullptr;
-	}
+	assert(createdBufferObject != nullptr && "[GPUUploader][Assert] reason=backend_create_buffer_failed");
 
 	QueuedUploadRequest queuedUploadRequest = {};
 	queuedUploadRequest.destinationBufferObject = createdBufferObject.get();
@@ -164,14 +140,12 @@ void GPUUploader::uploadQueuedBuffers(CommandList& commandList)
 	for (uint32 requestIndex = 0; requestIndex < static_cast<uint32>(queuedUploadRequests.size()); ++requestIndex)
 	{
 		const QueuedUploadRequest& queuedUploadRequest = queuedUploadRequests[requestIndex];
-		if (queuedUploadRequest.destinationBufferObject == nullptr
-			|| queuedUploadRequest.sourceBufferObject == nullptr
-			|| queuedUploadRequest.copySizeInBytes == 0)
-		{
-			error << "[GPUUploader][Error] reason=queued_upload_request_invalid requestIndex="
-				  << requestIndex << lineBreak;
-			continue;
-		}
+		unused(requestIndex);
+		const bool validQueuedUploadRequest =
+			queuedUploadRequest.destinationBufferObject != nullptr
+			&& queuedUploadRequest.sourceBufferObject != nullptr
+			&& queuedUploadRequest.copySizeInBytes != 0;
+		assert(validQueuedUploadRequest && "[GPUUploader][Assert] reason=queued_upload_request_invalid");
 
 		commandList.copyBuffer(
 			queuedUploadRequest.destinationBufferObject,
@@ -251,31 +225,19 @@ bool GPUUploader::createUploadPoolBlock(RenderBackend& renderBackend, const uint
 	uploadBufferCreateOptions.sizeInBytes = poolBlockSizeInBytes;
 	uploadBufferCreateOptions.memoryType = BufferObjectMemoryType::uploadHeap;
 	unique_pointer<BufferResourceObject> uploadBufferObject = renderBackend.createBufferObject(uploadBufferCreateOptions);
-	if (uploadBufferObject == nullptr)
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_block_create_failed sizeInBytes="
-			  << poolBlockSizeInBytes << lineBreak;
-		return false;
-	}
+	assert(uploadBufferObject != nullptr && "[GPUUploader][Assert] reason=upload_pool_block_create_failed");
 
 	ID3D12Resource* dx12UploadBuffer = static_cast<ID3D12Resource*>(uploadBufferObject->getNativeResource());
-	if (dx12UploadBuffer == nullptr)
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_block_native_resource_missing sizeInBytes="
-			  << poolBlockSizeInBytes << lineBreak;
-		return false;
-	}
+	assert(dx12UploadBuffer != nullptr && "[GPUUploader][Assert] reason=upload_pool_block_native_resource_missing");
 
 	void* mappedMemory = nullptr;
 	D3D12_RANGE readRange = {};
 	readRange.Begin = 0;
 	readRange.End = 0;
-	if (FAILED(dx12UploadBuffer->Map(0, &readRange, &mappedMemory)) || mappedMemory == nullptr)
-	{
-		error << "[GPUUploader][Error] reason=upload_pool_block_map_failed sizeInBytes="
-			  << poolBlockSizeInBytes << lineBreak;
-		return false;
-	}
+	const bool mappedUploadBuffer =
+		SUCCEEDED(dx12UploadBuffer->Map(0, &readRange, &mappedMemory))
+		&& mappedMemory != nullptr;
+	assert(mappedUploadBuffer && "[GPUUploader][Assert] reason=upload_pool_block_map_failed");
 
 	UploadBufferPoolBlock uploadBufferPoolBlock = {};
 	uploadBufferPoolBlock.bufferObject = moveValue(uploadBufferObject);

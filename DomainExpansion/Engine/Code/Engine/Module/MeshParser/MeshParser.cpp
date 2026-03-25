@@ -87,7 +87,5 @@ bool MeshParser::parseFromFile(
 	}
 
 	outErrorText = "unsupported_extension";
-	error << "[MeshParser][Error] path=" << meshFilePath
-		  << " reason=" << outErrorText << lineBreak;
-	return false;
+	assert(false && "[MeshParser][Assert] reason=unsupported_extension");
 }
