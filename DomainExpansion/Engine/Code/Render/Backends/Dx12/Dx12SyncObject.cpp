@@ -1,17 +1,13 @@
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
-#include "Render/Backends/Dx12/Dx12SwapChain.h"
 
 bool Dx12SyncObject::initialize(
 	com_pointer<ID3D12Device> device,
-	Dx12CommandQueue* commandQueue,
-	Dx12SwapChain* swapChain,
-	const uint32 frameBufferCount)
+	Dx12CommandQueue* commandQueue)
 {
 	shutdown();
 
-	unused(swapChain);
-	if (device == nullptr || commandQueue == nullptr || frameBufferCount == 0)
+	if (device == nullptr || commandQueue == nullptr)
 	{
 		return false;
 	}
@@ -104,23 +100,24 @@ void Dx12SyncObject::wait()
 	WaitForSingleObject(frameFenceEvent, INFINITE);
 }
 
-void Dx12SyncObject::signal()
+uint64 Dx12SyncObject::signal()
 {
 	if (commandQueue == nullptr
 		|| commandQueue->getNativeCommandQueue() == nullptr
 		|| frameFence == nullptr)
 	{
-		return;
+		return 0;
 	}
 
 	const uint64 signalValue = nextFenceValue;
 	nextFenceValue += 1;
 	if (FAILED(commandQueue->getNativeCommandQueue()->Signal(frameFence.Get(), signalValue)))
 	{
-		return;
+		return 0;
 	}
 
 	lastSubmittedFenceValue = signalValue;
+	return signalValue;
 }
 
 uint64 Dx12SyncObject::getCompletedSyncValue() const

@@ -127,9 +127,16 @@ SwapChain* Dx12RenderBackend::getSwapChain()
 	return swapChain.get();
 }
 
-SyncObject* Dx12RenderBackend::getSyncObject()
+unique_pointer<SyncObject> Dx12RenderBackend::createSyncObject()
 {
-	return syncObject.get();
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
+	const bool validStandaloneSyncContext = device != nullptr && dx12CommandQueue != nullptr;
+	assert(validStandaloneSyncContext && "[Dx12RenderBackend][Assert] reason=standalone_sync_context_invalid");
+
+	unique_pointer<Dx12SyncObject> createdSyncObject(new Dx12SyncObject());
+	const bool standaloneSyncInitialized = createdSyncObject->initialize(device, dx12CommandQueue);
+	assert(standaloneSyncInitialized && "[Dx12RenderBackend][Assert] reason=standalone_sync_initialize_failed");
+	return moveValue(createdSyncObject);
 }
 
 unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
@@ -870,23 +877,6 @@ bool Dx12RenderBackend::createSwapChain(uint32 width, uint32 height)
 	}
 
 	return dx12SwapChain->initialize(*this, width, height);
-}
-
-bool Dx12RenderBackend::createSyncObject()
-{
-	Dx12SyncObject* dx12SyncObject = static_cast<Dx12SyncObject*>(syncObject.get());
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
-	Dx12SwapChain* dx12SwapChain = static_cast<Dx12SwapChain*>(swapChain.get());
-	if (dx12SyncObject == nullptr || dx12CommandQueue == nullptr || dx12SwapChain == nullptr)
-	{
-		return false;
-	}
-
-	return dx12SyncObject->initialize(
-		device,
-		dx12CommandQueue,
-		dx12SwapChain,
-		dx12SwapChain->getFrameBufferCount());
 }
 
 bool Dx12RenderBackend::createBackendResources()

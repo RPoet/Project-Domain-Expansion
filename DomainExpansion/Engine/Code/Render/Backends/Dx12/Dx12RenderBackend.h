@@ -30,7 +30,7 @@ public:
 	void executeQueuedCommandLists() override;
 	CommandQueue* getCommandQueue() override;
 	SwapChain* getSwapChain() override;
-	SyncObject* getSyncObject() override;
+	unique_pointer<SyncObject> createSyncObject() override;
 	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
 	unique_pointer<TextureResourceObject> createTextureObject(const TextureObjectCreateOptions& createOptions) override;
 	RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) override;
@@ -53,7 +53,6 @@ protected:
 	bool createDevice() override;
 	bool createCommandQueue() override;
 	bool createSwapChain(uint32 width, uint32 height) override;
-	bool createSyncObject() override;
 	bool createBackendResources() override;
 	void destroyBackendResources() override;
 	void destroySyncObject() override;
@@ -83,5 +82,4 @@ private:
 	vector<RenderTargetView*> queuedRenderTargetViews;
 	unique_pointer<CommandQueue> commandQueue;
 	unique_pointer<SwapChain> swapChain;
-	unique_pointer<SyncObject> syncObject;
 };

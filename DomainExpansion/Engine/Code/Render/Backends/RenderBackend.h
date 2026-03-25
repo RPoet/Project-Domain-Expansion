@@ -50,7 +50,8 @@ public:
 	virtual void executeQueuedCommandLists() = 0;
 	virtual CommandQueue* getCommandQueue() = 0;
 	virtual SwapChain* getSwapChain() = 0;
-	virtual SyncObject* getSyncObject() = 0;
+	virtual unique_pointer<SyncObject> createSyncObject() = 0;
+	SyncObject* getSyncObject();
 	virtual unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) = 0;
 	virtual unique_pointer<TextureResourceObject> createTextureObject(const TextureObjectCreateOptions& createOptions) = 0;
 	virtual RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) = 0;
@@ -79,7 +80,6 @@ protected:
 	virtual bool createDevice() = 0;
 	virtual bool createCommandQueue() = 0;
 	virtual bool createSwapChain(uint32 width, uint32 height) = 0;
-	virtual bool createSyncObject() = 0;
 	virtual bool createBackendResources() = 0;
 	virtual void destroyBackendResources() = 0;
 	virtual void destroySyncObject() = 0;
@@ -91,4 +91,7 @@ protected:
 private:
 	RenderBackendCreateOptions createOptions = {};
 	bool createdState = false;
+
+protected:
+	unique_pointer<SyncObject> syncObject = nullptr;
 };

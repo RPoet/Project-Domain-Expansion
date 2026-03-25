@@ -8,7 +8,7 @@ public:
 	virtual ~SyncObject() = default;
 
 	virtual void wait() = 0;
-	virtual void signal() = 0;
+	virtual uint64 signal() = 0;
 
 	virtual uint64 getCompletedSyncValue() const = 0;
 };

@@ -25,11 +25,11 @@ void Framework::registerModule(const FrameworkInitializeOptions& initializeOptio
 	addModule(CLIModule::get());
 	addModule(MeshStreaming::get());
 	addModule(BridgeModule::get());
+	addModule(RenderBackendModule::get());
 	addModule(GPUUploader::get());
 	addModule(DiskLoaderModule::get());
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());
-	addModule(RenderBackendModule::get());
 	if (editorUIEnabled)
 	{
 		addModule(ImGuiLayerModule::get());

@@ -3,6 +3,7 @@
 #include "Engine/Module/Module.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/ResourceObject.h"
+#include "Render/SyncObject.h"
 
 class CommandList;
 class RenderBackend;
@@ -20,7 +21,6 @@ struct BufferUploadRequestOptions
 	uint64 destinationOffsetInBytes = 0;
 };
 
-// TO DO : Consider giving the uploader its own sync value and signaling path for finer-grained control.
 class GPUUploader final : public StaticModule<GPUUploader>
 {
 public:
@@ -38,7 +38,8 @@ public:
 		RenderBackend& renderBackend,
 		const BufferObjectCreateOptions& createOptions,
 		const BufferUploadRequestOptions& uploadRequestOptions);
-	void setCompletedSyncValue(uint64 completedSyncValue);
+	void refreshCompletedSyncValue();
+	void signalUploadSync();
 	void uploadQueuedBuffers(CommandList& commandList);
 	bool hasQueuedUploadRequests() const;
 
@@ -50,6 +51,7 @@ private:
 		uint64 capacityInBytes = 0;
 		uint64 usedInBytes = 0;
 		uint64 lastUsedSyncValue = 0;
+		bool pendingSubmission = false;
 	};
 
 	struct QueuedUploadRequest
@@ -74,9 +76,12 @@ private:
 	void releaseIdlePoolBlocks();
 	void resetFrameAllocations();
 	void clearPool();
+	void initializeUploadSyncObject(RenderBackend& renderBackend);
 
 	GPUUploaderMode uploaderMode = GPUUploaderMode::staging;
-	uint64 completedSyncValue = 0;
+	uint64 completedUploadSyncValue = 0;
+	uint64 lastSubmittedUploadSyncValue = 0;
+	unique_pointer<SyncObject> uploadSyncObject = nullptr;
 	vector<UploadBufferPoolBlock> uploadBufferPoolBlocks;
 	vector<QueuedUploadRequest> queuedUploadRequests;
 };

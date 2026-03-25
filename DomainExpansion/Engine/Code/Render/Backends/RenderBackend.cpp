@@ -35,7 +35,8 @@ bool RenderBackend::create(const RenderBackendCreateOptions& options)
 		return false;
 	}
 
-	if (!createSyncObject())
+	syncObject = createSyncObject();
+	if (syncObject == nullptr)
 	{
 		destroy();
 		return false;
@@ -86,6 +87,11 @@ const RenderBackendCreateOptions& RenderBackend::getCreateOptions() const
 bool RenderBackend::isCreated() const
 {
 	return createdState;
+}
+
+SyncObject* RenderBackend::getSyncObject()
+{
+	return syncObject.get();
 }
 
 void RenderBackend::beforeDestroy()

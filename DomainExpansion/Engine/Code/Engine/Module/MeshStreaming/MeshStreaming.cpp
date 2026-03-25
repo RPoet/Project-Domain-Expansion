@@ -167,11 +167,7 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		return;
 	}
 
-	SyncObject* syncObject = renderBackend.getSyncObject();
-	if (syncObject != nullptr)
-	{
-		gpuUploader->setCompletedSyncValue(syncObject->getCompletedSyncValue());
-	}
+	gpuUploader->refreshCompletedSyncValue();
 
 	if (pendingGpuUploadHandles.empty() && !gpuUploader->hasQueuedUploadRequests())
 	{
@@ -227,6 +223,9 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		gpuUploader->uploadQueuedBuffers(*uploadCommandList);
 		uploadCommandList->close();
 		renderBackend.queueCommandList(uploadCommandList);
+		renderBackend.executeQueuedCommandLists();
+		gpuUploader->signalUploadSync();
+		renderBackend.releaseQueuedRenderResources();
 	}
 	else
 	{

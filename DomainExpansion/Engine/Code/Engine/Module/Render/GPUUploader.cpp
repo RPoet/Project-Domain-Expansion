@@ -1,5 +1,6 @@
 #include "Engine/Module/Render/GPUUploader.h"
 
+#include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -10,7 +11,20 @@ bool GPUUploader::init(Framework& framework)
 {
 	unused(framework);
 	uploaderMode = GPUUploaderMode::staging;
-	completedSyncValue = 0;
+	completedUploadSyncValue = 0;
+	lastSubmittedUploadSyncValue = 0;
+	uploadSyncObject.reset();
+
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	const bool validRenderBackendModule = renderBackendModule != nullptr;
+	assert(validRenderBackendModule && "[GPUUploader][Assert] reason=render_backend_module_missing");
+	if (renderBackendModule->isBackendCreated())
+	{
+		RenderBackend* renderBackend = renderBackendModule->getBackend();
+		assert(renderBackend != nullptr && "[GPUUploader][Assert] reason=render_backend_missing");
+		initializeUploadSyncObject(*renderBackend);
+	}
+
 	clearPool();
 	return true;
 }
@@ -28,7 +42,9 @@ void GPUUploader::postUpdate()
 void GPUUploader::shutdown()
 {
 	clearPool();
-	completedSyncValue = 0;
+	completedUploadSyncValue = 0;
+	lastSubmittedUploadSyncValue = 0;
+	uploadSyncObject.reset();
 }
 
 unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
@@ -112,9 +128,30 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	return createdBufferObject;
 }
 
-void GPUUploader::setCompletedSyncValue(const uint64 completedSyncValue)
+void GPUUploader::refreshCompletedSyncValue()
 {
-	this->completedSyncValue = completedSyncValue;
+	assert(uploadSyncObject != nullptr && "[GPUUploader][Assert] reason=upload_sync_object_missing");
+	completedUploadSyncValue = uploadSyncObject->getCompletedSyncValue();
+}
+
+void GPUUploader::signalUploadSync()
+{
+	assert(uploadSyncObject != nullptr && "[GPUUploader][Assert] reason=upload_sync_object_missing");
+	const uint64 submittedSyncValue = uploadSyncObject->signal();
+	assert(submittedSyncValue != 0 && "[GPUUploader][Assert] reason=upload_sync_signal_failed");
+
+	lastSubmittedUploadSyncValue = submittedSyncValue;
+	for (uint32 blockIndex = 0; blockIndex < static_cast<uint32>(uploadBufferPoolBlocks.size()); ++blockIndex)
+	{
+		UploadBufferPoolBlock& block = uploadBufferPoolBlocks[blockIndex];
+		if (!block.pendingSubmission)
+		{
+			continue;
+		}
+
+		block.lastUsedSyncValue = submittedSyncValue;
+		block.pendingSubmission = false;
+	}
 }
 
 void GPUUploader::uploadQueuedBuffers(CommandList& commandList)
@@ -183,7 +220,7 @@ bool GPUUploader::reserveUploadSpace(
 		outBlockIndex = blockIndex;
 		outBlockOffsetInBytes = block.usedInBytes;
 		block.usedInBytes += requestSizeInBytes;
-		block.lastUsedSyncValue = completedSyncValue;
+		block.pendingSubmission = true;
 		return true;
 	}
 
@@ -201,7 +238,7 @@ bool GPUUploader::reserveUploadSpace(
 	UploadBufferPoolBlock& block = uploadBufferPoolBlocks[outBlockIndex];
 	outBlockOffsetInBytes = 0;
 	block.usedInBytes = requestSizeInBytes;
-	block.lastUsedSyncValue = completedSyncValue;
+	block.pendingSubmission = true;
 	return true;
 }
 
@@ -245,7 +282,8 @@ bool GPUUploader::createUploadPoolBlock(RenderBackend& renderBackend, const uint
 	uploadBufferPoolBlock.mappedMemory = static_cast<char*>(mappedMemory);
 	uploadBufferPoolBlock.capacityInBytes = poolBlockSizeInBytes;
 	uploadBufferPoolBlock.usedInBytes = 0;
-	uploadBufferPoolBlock.lastUsedSyncValue = completedSyncValue;
+	uploadBufferPoolBlock.lastUsedSyncValue = lastSubmittedUploadSyncValue;
+	uploadBufferPoolBlock.pendingSubmission = false;
 	uploadBufferPoolBlocks.push_back(moveValue(uploadBufferPoolBlock));
 	return true;
 }
@@ -266,6 +304,7 @@ void GPUUploader::clearUploadBufferBlock(UploadBufferPoolBlock& poolBlock)
 	poolBlock.capacityInBytes = 0;
 	poolBlock.usedInBytes = 0;
 	poolBlock.lastUsedSyncValue = 0;
+	poolBlock.pendingSubmission = false;
 }
 
 void GPUUploader::releaseIdlePoolBlocks()
@@ -278,7 +317,8 @@ void GPUUploader::releaseIdlePoolBlocks()
 	for (int32 blockIndex = static_cast<int32>(uploadBufferPoolBlocks.size()) - 1; blockIndex >= 0; --blockIndex)
 	{
 		UploadBufferPoolBlock& block = uploadBufferPoolBlocks[static_cast<uint32>(blockIndex)];
-		if (block.lastUsedSyncValue + idleReleaseSyncValueThreshold >= completedSyncValue)
+		if (block.pendingSubmission
+			|| block.lastUsedSyncValue + idleReleaseSyncValueThreshold >= completedUploadSyncValue)
 		{
 			continue;
 		}
@@ -305,4 +345,13 @@ void GPUUploader::clearPool()
 
 	uploadBufferPoolBlocks.clear();
 	queuedUploadRequests.clear();
+}
+
+void GPUUploader::initializeUploadSyncObject(RenderBackend& renderBackend)
+{
+	assert(uploadSyncObject == nullptr && "[GPUUploader][Assert] reason=upload_sync_object_already_initialized");
+	uploadSyncObject = renderBackend.createSyncObject();
+	assert(uploadSyncObject != nullptr && "[GPUUploader][Assert] reason=upload_sync_object_create_failed");
+	completedUploadSyncValue = 0;
+	lastSubmittedUploadSyncValue = 0;
 }
