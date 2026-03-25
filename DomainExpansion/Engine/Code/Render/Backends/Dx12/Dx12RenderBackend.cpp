@@ -633,14 +633,8 @@ void Dx12RenderBackend::queueRenderTargetViewForDestroy(RenderTargetView* render
 	queuedRenderTargetViews.push_back(renderTargetView);
 }
 
-void Dx12RenderBackend::releaseQueuedRenderResources()
+void Dx12RenderBackend::finalizeQueuedSubmissions()
 {
-	for (uint32 renderTargetViewIndex = 0; renderTargetViewIndex < queuedRenderTargetViews.size(); ++renderTargetViewIndex)
-	{
-		destroyRenderTargetView(queuedRenderTargetViews[renderTargetViewIndex]);
-	}
-	queuedRenderTargetViews.clear();
-
 	for (uint32 commandListIndex = 0; commandListIndex < queuedCommandLists.size(); ++commandListIndex)
 	{
 		releaseCommandList(queuedCommandLists[commandListIndex]);
@@ -651,6 +645,15 @@ void Dx12RenderBackend::releaseQueuedRenderResources()
 	{
 		commandQueue->clearQueued();
 	}
+}
+
+void Dx12RenderBackend::releaseQueuedRenderResources()
+{
+	for (uint32 renderTargetViewIndex = 0; renderTargetViewIndex < queuedRenderTargetViews.size(); ++renderTargetViewIndex)
+	{
+		destroyRenderTargetView(queuedRenderTargetViews[renderTargetViewIndex]);
+	}
+	queuedRenderTargetViews.clear();
 }
 
 bool Dx12RenderBackend::reportDebugErrorsIfAny()
@@ -880,6 +883,7 @@ void Dx12RenderBackend::beforeDestroy()
 	}
 
 	waitForGpuIdle();
+	finalizeQueuedSubmissions();
 	releaseQueuedRenderResources();
 }
 

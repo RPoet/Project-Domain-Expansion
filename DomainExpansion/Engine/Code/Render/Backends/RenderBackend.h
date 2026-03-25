@@ -63,6 +63,7 @@ public:
 	virtual DepthStencilView* createDepthStencilView(TextureResourceObject* textureResourceObject) = 0;
 	virtual void destroyDepthStencilView(DepthStencilView* depthStencilView) = 0;
 	virtual void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) = 0;
+	virtual void finalizeQueuedSubmissions() = 0;
 	virtual void releaseQueuedRenderResources() = 0;
 	virtual bool reportDebugErrorsIfAny() = 0;
 	virtual HandleWindow getWindowHandle() const = 0;

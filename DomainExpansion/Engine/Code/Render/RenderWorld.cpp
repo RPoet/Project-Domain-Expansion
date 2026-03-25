@@ -410,6 +410,7 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		}
 
 		syncObject->wait();
+		renderBackendReference.finalizeQueuedSubmissions();
 		renderBackendReference.releaseQueuedRenderResources();
 		if (!swapChain->isRenderable())
 		{
@@ -419,7 +420,6 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
 		if (outputResource == nullptr)
 		{
-			renderBackendReference.releaseQueuedRenderResources();
 			return;
 		}
 
@@ -577,6 +577,7 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			|| syncObject == nullptr
 			|| !swapChain->isRenderable())
 		{
+			renderBackendReference.finalizeQueuedSubmissions();
 			renderBackendReference.releaseQueuedRenderResources();
 			return;
 		}
@@ -584,12 +585,15 @@ bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
 		if (outputResource == nullptr)
 		{
+			renderBackendReference.finalizeQueuedSubmissions();
+			renderBackendReference.releaseQueuedRenderResources();
 			return;
 		}
 
 		CommandList* commandList = renderBackendReference.acquireCommandList();
 		if (commandList == nullptr)
 		{
+			renderBackendReference.finalizeQueuedSubmissions();
 			renderBackendReference.releaseQueuedRenderResources();
 			return;
 		}

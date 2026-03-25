@@ -197,7 +197,7 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		renderBackend.queueCommandList(uploadCommandList);
 		renderBackend.executeQueuedCommandLists();
 		gpuUploader->signalUploadSync();
-		renderBackend.releaseQueuedRenderResources();
+		renderBackend.finalizeQueuedSubmissions();
 	}
 	else
 	{

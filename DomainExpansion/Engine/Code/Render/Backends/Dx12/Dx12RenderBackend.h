@@ -42,6 +42,7 @@ public:
 	DepthStencilView* createDepthStencilView(TextureResourceObject* textureResourceObject) override;
 	void destroyDepthStencilView(DepthStencilView* depthStencilView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
+	void finalizeQueuedSubmissions() override;
 	void releaseQueuedRenderResources() override;
 	bool reportDebugErrorsIfAny() override;
 	HandleWindow getWindowHandle() const override;
