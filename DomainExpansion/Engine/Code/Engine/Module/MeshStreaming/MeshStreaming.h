@@ -67,9 +67,9 @@ struct MeshAssetHandle
 	uint32 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
 	uint32 vertexBufferStridesInBytes[meshVertexBufferSignatureCount] =
 	{
-		static_cast<uint32>(sizeof(MeshAsset::PositionData)),
-		static_cast<uint32>(sizeof(MeshAsset::NormalData)),
-		static_cast<uint32>(sizeof(MeshAsset::TexcoordData))
+		static_cast<uint32>(sizeof(PositionData)),
+		static_cast<uint32>(sizeof(NormalData)),
+		static_cast<uint32>(sizeof(TexcoordData))
 	};
 	unique_pointer<BufferResourceObject> indexBufferObject = nullptr;
 	uint32 indexBufferSizeInBytes = 0;

@@ -1,4 +1,4 @@
-#include "Engine/Module/XML/XMLModule.h"
+#include "Engine/Common/XML/XML.h"
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
@@ -8,7 +8,84 @@ struct XMLTagData
 	unordered_map<string, string> attributeValueByName = {};
 };
 
-using XMLParseCode = XMLModule::ParseCode;
+using XMLParseCode = XML::ParseCode;
+
+string XML::escapeText(const string& text) const
+{
+	string escapedText = {};
+	escapedText.reserve(text.length());
+	for (size_t characterIndex = 0; characterIndex < text.length(); ++characterIndex)
+	{
+		const char character = text[characterIndex];
+		switch (character)
+		{
+		case '&':
+			escapedText += "&amp;";
+			break;
+		case '<':
+			escapedText += "&lt;";
+			break;
+		case '>':
+			escapedText += "&gt;";
+			break;
+		case '"':
+			escapedText += "&quot;";
+			break;
+		case '\'':
+			escapedText += "&apos;";
+			break;
+		default:
+			escapedText.push_back(character);
+			break;
+		}
+	}
+
+	return escapedText;
+}
+
+string XML::buildPropertyValueText(const string& propertyValue) const
+{
+	return propertyValue;
+}
+
+string XML::buildPropertyValueText(const char* propertyValue) const
+{
+	return propertyValue != nullptr ? propertyValue : "";
+}
+
+string XML::parsePropertyValueText(const string& propertyValueText) const
+{
+	return propertyValueText;
+}
+
+void XML::writeOpenTag(OutputFileStream& fileStream, const char* tagName) const
+{
+	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
+	fileStream << string("<") << string(tagName) << string(">\n");
+}
+
+void XML::writeOpenTag(
+	OutputFileStream& fileStream,
+	const char* tagName,
+	const char* attributeName,
+	const string& attributeValue) const
+{
+	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
+	assert(attributeName != nullptr && "[XML][Assert] reason=attribute_name_missing");
+	fileStream << string("<")
+			   << string(tagName)
+			   << string(" ")
+			   << string(attributeName)
+			   << string("=\"")
+			   << escapeText(attributeValue)
+			   << string("\">\n");
+}
+
+void XML::writeCloseTag(OutputFileStream& fileStream, const char* tagName) const
+{
+	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
+	fileStream << string("</") << string(tagName) << string(">\n");
+}
 
 static bool isXMLWhitespace(const char character)
 {
@@ -71,7 +148,7 @@ static void skipXMLWhitespace(const string& xmlText, size_t& inOutCharacterIndex
 static XMLParseCode skipXMLComment(const string& xmlText, size_t& inOutCharacterIndex)
 {
 	assert(startsWithXMLToken(xmlText, inOutCharacterIndex, "<!--")
-		&& "[XMLModule][Assert] reason=comment_parse_must_start_at_comment");
+		&& "[XML][Assert] reason=comment_parse_must_start_at_comment");
 
 	const size_t commentEndIndex = xmlText.find("-->", inOutCharacterIndex + 4);
 	if (commentEndIndex == string::npos)
@@ -86,7 +163,7 @@ static XMLParseCode skipXMLComment(const string& xmlText, size_t& inOutCharacter
 static XMLParseCode skipXMLProcessingInstruction(const string& xmlText, size_t& inOutCharacterIndex)
 {
 	assert(startsWithXMLToken(xmlText, inOutCharacterIndex, "<?")
-		&& "[XMLModule][Assert] reason=instruction_parse_must_start_at_instruction");
+		&& "[XML][Assert] reason=instruction_parse_must_start_at_instruction");
 
 	const size_t instructionEndIndex = xmlText.find("?>", inOutCharacterIndex + 2);
 	if (instructionEndIndex == string::npos)
@@ -491,29 +568,11 @@ const string* XMLKeyValueDocument::find(const string& key) const
 		: nullptr;
 }
 
-bool XMLModule::init(Framework& framework)
-{
-	unused(framework);
-	return true;
-}
-
-void XMLModule::preUpdate()
-{
-}
-
-void XMLModule::postUpdate()
-{
-}
-
-void XMLModule::shutdown()
-{
-}
-
-XMLModule::ParseCode XMLModule::loadKeyValueFile(const string& filePath, XMLKeyValueDocument& outDocument) const
+XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument& outDocument) const
 {
 	outDocument.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[XMLModule][Assert] reason=disk_loader_module_missing");
+	assert(diskLoaderModule != nullptr && "[XML][Assert] reason=disk_loader_module_missing");
 
 	string absoluteFilePath = {};
 	if (!diskLoaderModule->resolvePathFromResources(filePath, absoluteFilePath))
@@ -521,12 +580,20 @@ XMLModule::ParseCode XMLModule::loadKeyValueFile(const string& filePath, XMLKeyV
 		return ParseCode::fileOpenFailed;
 	}
 
-	input_file_stream fileStream(absoluteFilePath, input_file_stream::binary | input_file_stream::ate);
-	if (!fileStream.is_open())
+	InputFileStream fileStream = {};
+	if (!diskLoaderModule->openInputFileStream(absoluteFilePath, fileStream, true))
 	{
 		return ParseCode::fileOpenFailed;
 	}
 
+	return readDocument(fileStream, outDocument);
+}
+
+XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
+{
+	outDocument.clear();
+
+	fileStream.seekg(0, InputFileStream::end);
 	const stream_position fileSize = fileStream.tellg();
 	if (fileSize < 0)
 	{
@@ -535,7 +602,7 @@ XMLModule::ParseCode XMLModule::loadKeyValueFile(const string& filePath, XMLKeyV
 
 	string xmlText = {};
 	xmlText.resize(static_cast<size_t>(fileSize));
-	fileStream.seekg(0, input_file_stream::beg);
+	fileStream.seekg(0, InputFileStream::beg);
 	if (!xmlText.empty())
 	{
 		fileStream.read(xmlText.data(), static_cast<stream_size>(xmlText.size()));
@@ -546,10 +613,10 @@ XMLModule::ParseCode XMLModule::loadKeyValueFile(const string& filePath, XMLKeyV
 		return ParseCode::fileOpenFailed;
 	}
 
-	return parseKeyValueText(xmlText, outDocument);
+	return readDocumentText(xmlText, outDocument);
 }
 
-XMLModule::ParseCode XMLModule::parseKeyValueText(const string& xmlText, XMLKeyValueDocument& outDocument) const
+XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
 {
 	outDocument.clear();
 

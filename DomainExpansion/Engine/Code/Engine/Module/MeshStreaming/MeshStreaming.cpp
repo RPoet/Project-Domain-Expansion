@@ -33,11 +33,11 @@ static void initializeMeshAssetHandleVertexBuffers(MeshAssetHandle& handle)
 	}
 
 	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::position)] =
-		static_cast<uint32>(sizeof(MeshAsset::PositionData));
+		static_cast<uint32>(sizeof(PositionData));
 	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::normal)] =
-		static_cast<uint32>(sizeof(MeshAsset::NormalData));
+		static_cast<uint32>(sizeof(NormalData));
 	handle.vertexBufferStridesInBytes[getMeshBufferSignatureIndex(MeshBufferSignature::texcoord)] =
-		static_cast<uint32>(sizeof(MeshAsset::TexcoordData));
+		static_cast<uint32>(sizeof(TexcoordData));
 
 	handle.indexBufferObject.reset();
 	handle.indexBufferSizeInBytes = 0;
@@ -116,8 +116,8 @@ void MeshStreaming::flushCpuRequests()
 			pendingGpuUploadHandles.push_back(handle);
 			output << "[MeshStreaming][Ready] mesh=" << handle->meshRelativePath
 				   << " lod=" << handle->lodLevel
-				   << " vertexCount=" << handle->meshAsset->vertexCount
-				   << " indexCount=" << handle->meshAsset->indexCount << lineBreak;
+				   << " vertexCount=" << handle->meshAsset->getVertexCount()
+				   << " indexCount=" << handle->meshAsset->getIndexCount() << lineBreak;
 		}
 	}
 }
@@ -241,7 +241,9 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
-	const uint64 indexBufferBytes = static_cast<uint64>(meshAsset.indices.size()) * sizeof(uint32);
+	const RawMeshData& rawMeshData = meshAsset.getRawMeshData();
+	const uint32 vertexCount = static_cast<uint32>(rawMeshData.positionVertices.size());
+	const uint64 indexBufferBytes = static_cast<uint64>(rawMeshData.indices.size()) * sizeof(uint32);
 	uint64 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
 	const void* vertexBufferInitialData[meshVertexBufferSignatureCount] = {};
 	uint32 vertexBufferElementCounts[meshVertexBufferSignatureCount] = {};
@@ -260,21 +262,21 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 		switch (signature)
 		{
 		case MeshBufferSignature::position:
-			bufferByteSize = static_cast<uint64>(meshAsset.positionVertices.size()) * sizeof(MeshAsset::PositionData);
-			initialData = meshAsset.positionVertices.data();
-			elementCount = static_cast<uint32>(meshAsset.positionVertices.size());
+			bufferByteSize = static_cast<uint64>(rawMeshData.positionVertices.size()) * sizeof(PositionData);
+			initialData = rawMeshData.positionVertices.data();
+			elementCount = static_cast<uint32>(rawMeshData.positionVertices.size());
 			createFailReason = "position_buffer_create_failed";
 			break;
 		case MeshBufferSignature::normal:
-			bufferByteSize = static_cast<uint64>(meshAsset.normalVertices.size()) * sizeof(MeshAsset::NormalData);
-			initialData = meshAsset.normalVertices.data();
-			elementCount = static_cast<uint32>(meshAsset.normalVertices.size());
+			bufferByteSize = static_cast<uint64>(rawMeshData.normalVertices.size()) * sizeof(NormalData);
+			initialData = rawMeshData.normalVertices.data();
+			elementCount = static_cast<uint32>(rawMeshData.normalVertices.size());
 			createFailReason = "normal_buffer_create_failed";
 			break;
 		case MeshBufferSignature::texcoord:
-			bufferByteSize = static_cast<uint64>(meshAsset.texcoordVertices.size()) * sizeof(MeshAsset::TexcoordData);
-			initialData = meshAsset.texcoordVertices.data();
-			elementCount = static_cast<uint32>(meshAsset.texcoordVertices.size());
+			bufferByteSize = static_cast<uint64>(rawMeshData.texcoordVertices.size()) * sizeof(TexcoordData);
+			initialData = rawMeshData.texcoordVertices.data();
+			elementCount = static_cast<uint32>(rawMeshData.texcoordVertices.size());
 			createFailReason = "texcoord_buffer_create_failed";
 			break;
 		case MeshBufferSignature::count:
@@ -306,7 +308,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 			failUpload("mesh_buffer_size_overflow");
 		}
 
-		if (vertexBufferElementCounts[signatureIndex] != meshAsset.vertexCount)
+		if (vertexBufferElementCounts[signatureIndex] != vertexCount)
 		{
 			failUpload("mesh_vertex_stream_mismatch");
 		}
@@ -368,7 +370,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	indexBufferCreateOptions.sizeInBytes = indexBufferBytes;
 
 	BufferUploadRequestOptions indexUploadRequestOptions = {};
-	indexUploadRequestOptions.sourceData = meshAsset.indices.data();
+	indexUploadRequestOptions.sourceData = rawMeshData.indices.data();
 	indexUploadRequestOptions.sourceDataSizeInBytes = indexBufferBytes;
 	indexUploadRequestOptions.destinationOffsetInBytes = 0;
 	unique_pointer<BufferResourceObject> indexBufferObject = gpuUploader->createBufferObject(renderBackend, indexBufferCreateOptions, indexUploadRequestOptions);

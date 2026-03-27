@@ -8,7 +8,7 @@ bool FbxMeshParserStub::parse(
 {
 	unused(meshFilePath);
 	unused(lodLevel);
-	outMeshAsset = {};
+	//outMeshAsset = {};
 	outErrorText = "fbx_not_implemented";
 	assert(false && "[MeshParser][Assert] reason=fbx_not_implemented");
 }

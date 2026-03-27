@@ -106,6 +106,85 @@ void DiskLoaderModule::shutdown()
 {
 }
 
+bool DiskLoaderModule::openInputFileStream(
+	const string& filePath,
+	InputFileStream& outFileStream,
+	const bool binary) const
+{
+	outFileStream.close();
+	outFileStream.clear();
+	if (filePath.empty())
+	{
+		return false;
+	}
+
+	input_file_stream::openmode openMode = input_file_stream::in;
+	if (binary)
+	{
+		openMode |= input_file_stream::binary;
+	}
+
+	outFileStream.open(filePath, openMode);
+	return outFileStream.is_open() && outFileStream.good();
+}
+
+bool DiskLoaderModule::openOutputFileStream(
+	const string& filePath,
+	OutputFileStream& outFileStream,
+	const bool binary,
+	const bool truncate) const
+{
+	outFileStream.close();
+	outFileStream.clear();
+	if (filePath.empty() || !ensureParentDirectory(filePath))
+	{
+		return false;
+	}
+
+	output_file_stream::openmode openMode = output_file_stream::out;
+	if (binary)
+	{
+		openMode |= output_file_stream::binary;
+	}
+
+	if (truncate)
+	{
+		openMode |= output_file_stream::trunc;
+	}
+
+	outFileStream.open(filePath, openMode);
+	return outFileStream.is_open() && outFileStream.good();
+}
+
+bool DiskLoaderModule::openBinaryAssetInputFileStream(
+	const string& assetPath,
+	InputFileStream& outFileStream) const
+{
+	string binaryAssetPath = {};
+	const bool validBinaryAssetPath = resolveBinaryAssetPathFromAssetPath(assetPath, binaryAssetPath);
+	if (!validBinaryAssetPath)
+	{
+		return false;
+	}
+
+	return openInputFileStream(binaryAssetPath, outFileStream, true);
+}
+
+bool DiskLoaderModule::openBinaryAssetOutputFileStream(
+	const string& assetPath,
+	OutputFileStream& outFileStream,
+	const bool truncate) const
+{
+	string binaryAssetPath = {};
+	const bool validBinaryAssetPath = resolveBinaryAssetPathFromAssetPath(assetPath, binaryAssetPath);
+	if (!validBinaryAssetPath)
+	{
+		return false;
+	}
+
+	return openOutputFileStream(binaryAssetPath, outFileStream, true, truncate);
+}
+
 bool DiskLoaderModule::ensureParentDirectory(const string& filePath) const
 {
 	const filesystem_path parentPath = filesystem_path(filePath).parent_path();
@@ -158,7 +237,23 @@ bool DiskLoaderModule::TEMP_resolveImGuiIniFilePath(string& outIniFilePath) cons
 	return true;
 }
 
-bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& outAbsolutePath) const
+bool DiskLoaderModule::resolveBinaryAssetPathFromAssetPath(
+	const string& assetPath,
+	string& outBinaryFilePath) const
+{
+	outBinaryFilePath.clear();
+	if (assetPath.empty())
+	{
+		return false;
+	}
+
+	filesystem_path binaryAssetPath(assetPath);
+	binaryAssetPath.replace_extension(".de");
+	outBinaryFilePath = binaryAssetPath.lexically_normal().string();
+	return true;
+}
+
+bool DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText, string& outAbsolutePath) const
 {
 	outAbsolutePath.clear();
 	if (pathText.empty())
@@ -170,6 +265,33 @@ bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& 
 	error_code pathErrorCode;
 	if (inputPath.is_absolute())
 	{
+		outAbsolutePath = inputPath.lexically_normal().string();
+		return true;
+	}
+
+	string resourcesRootPath = {};
+	if (!frameworkFileSystemResolveResourcesRootPath(resourcesRootPath))
+	{
+		return false;
+	}
+
+	const filesystem_path resourcesRoot(resourcesRootPath);
+	outAbsolutePath = (resourcesRoot / inputPath).lexically_normal().string();
+	return true;
+}
+
+bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& outAbsolutePath) const
+{
+	outAbsolutePath.clear();
+	if (pathText.empty())
+	{
+		return false;
+	}
+
+	const filesystem_path inputPath(pathText);
+	if (inputPath.is_absolute())
+	{
+		error_code pathErrorCode;
 		if (!exists(inputPath, pathErrorCode))
 		{
 			return false;
@@ -185,6 +307,7 @@ bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& 
 		return false;
 	}
 
+	error_code pathErrorCode;
 	const filesystem_path resourcesRoot(resourcesRootPath);
 	const filesystem_path resourcesRelativePath = resourcesRoot / inputPath;
 	if (exists(resourcesRelativePath, pathErrorCode))
@@ -214,8 +337,8 @@ bool DiskLoaderModule::TEMP_loadRuntimeWindowResolution(uint32& outClientWidth, 
 		return false;
 	}
 
-	input_file_stream fileStream(runtimeIniFilePath);
-	if (!fileStream.is_open())
+	InputFileStream fileStream = {};
+	if (!openInputFileStream(runtimeIniFilePath, fileStream, false))
 	{
 		return false;
 	}
@@ -261,8 +384,8 @@ bool DiskLoaderModule::TEMP_saveRuntimeWindowResolution(const uint32 clientWidth
 		return false;
 	}
 
-	output_file_stream fileStream(runtimeIniFilePath, output_file_stream::trunc);
-	if (!fileStream.is_open())
+	OutputFileStream fileStream = {};
+	if (!openOutputFileStream(runtimeIniFilePath, fileStream, false, true))
 	{
 		return false;
 	}
@@ -281,12 +404,13 @@ bool DiskLoaderModule::loadBinaryFile(const string& absolutePath, vector<char>& 
 		return false;
 	}
 
-	input_file_stream fileStream(absolutePath, input_file_stream::binary | input_file_stream::ate);
-	if (!fileStream.is_open())
+	InputFileStream fileStream = {};
+	if (!openInputFileStream(absolutePath, fileStream, true))
 	{
 		return false;
 	}
 
+	fileStream.seekg(0, InputFileStream::end);
 	const stream_position fileSize = fileStream.tellg();
 	if (fileSize <= 0)
 	{
@@ -294,20 +418,15 @@ bool DiskLoaderModule::loadBinaryFile(const string& absolutePath, vector<char>& 
 	}
 
 	outBinaryData.resize(static_cast<size_t>(fileSize));
-	fileStream.seekg(0, std::ios::beg);
+	fileStream.seekg(0, InputFileStream::beg);
 	fileStream.read(outBinaryData.data(), fileSize);
 	return fileStream.good();
 }
 
 bool DiskLoaderModule::saveBinaryFile(const string& absolutePath, const vector<char>& binaryData) const
 {
-	if (absolutePath.empty() || !ensureParentDirectory(absolutePath))
-	{
-		return false;
-	}
-
-	output_file_stream fileStream(absolutePath, output_file_stream::binary | output_file_stream::trunc);
-	if (!fileStream.is_open())
+	OutputFileStream fileStream = {};
+	if (!openOutputFileStream(absolutePath, fileStream, true, true))
 	{
 		return false;
 	}

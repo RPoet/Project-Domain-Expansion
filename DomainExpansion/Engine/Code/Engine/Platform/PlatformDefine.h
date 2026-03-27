@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -39,6 +40,10 @@ using output_stream = std::ostream;
 using error_stream = std::ostream;
 using input_file_stream = std::ifstream;
 using output_file_stream = std::ofstream;
+
+using InputFileStream = input_file_stream;
+using OutputFileStream = output_file_stream;
+
 using string_input_stream = std::istringstream;
 using stream_position = std::streampos;
 using stream_size = std::streamsize;

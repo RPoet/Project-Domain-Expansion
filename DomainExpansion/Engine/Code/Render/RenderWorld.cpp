@@ -185,7 +185,7 @@ public:
 			meshDrawCommand.baseColor[1] = 0.73f;
 			meshDrawCommand.baseColor[2] = 0.42f;
 			meshDrawCommand.baseColor[3] = 1.0f;
-			meshDrawCommand.indexCount = meshAssetHandle->meshAsset->indexCount;
+			meshDrawCommand.indexCount = meshAssetHandle->meshAsset->getIndexCount();
 			meshDrawCommand.primitiveTopology = PrimitiveTopology::triangleList;
 			meshDrawCommand.indexBufferBinding.resourceObject = meshAssetHandle->indexBufferObject.get();
 			meshDrawCommand.indexBufferBinding.elementSize = IndexElementSize::thirtyTwoBits;

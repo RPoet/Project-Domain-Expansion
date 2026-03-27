@@ -10,7 +10,6 @@
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
-#include "Engine/Module/XML/XMLModule.h"
 
 void Framework::registerModule(const FrameworkInitializeOptions& initializeOptions)
 {
@@ -29,7 +28,6 @@ void Framework::registerModule(const FrameworkInitializeOptions& initializeOptio
 	addModule(RenderBackendModule::get());
 	addModule(GPUUploader::get());
 	addModule(DiskLoaderModule::get());
-	addModule(XMLModule::get());
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());
 	if (editorUIEnabled)

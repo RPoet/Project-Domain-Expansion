@@ -152,6 +152,7 @@ bool ObjMeshParser::parse(
 {
 	outMeshAsset = {};
 	outErrorText.clear();
+	RawMeshData& rawMeshData = outMeshAsset.getRawMeshData();
 
 	input_file_stream fileStream(meshFilePath);
 	if (!fileStream.is_open())
@@ -262,14 +263,14 @@ bool ObjMeshParser::parse(
 				failObjLoad(meshFilePath, lineNumber, "position_index_out_of_range", outErrorText);
 			}
 
-			MeshAsset::PositionData positionVertex = {};
+			PositionData positionVertex = {};
 			const ObjFloat3& sourcePosition = sourcePositions[resolvedPositionIndex];
 			positionVertex.x = sourcePosition.x;
 			positionVertex.y = sourcePosition.y;
 			positionVertex.z = sourcePosition.z;
 
-			MeshAsset::NormalData normalVertex = {};
-			MeshAsset::TexcoordData texcoordVertex = {};
+			NormalData normalVertex = {};
+			TexcoordData texcoordVertex = {};
 
 			if (faceVertex.normalIndex != 0)
 			{
@@ -298,37 +299,36 @@ bool ObjMeshParser::parse(
 				texcoordVertex.y = sourceTexcoord.y;
 			}
 
-			const uint32 newVertexIndex = static_cast<uint32>(outMeshAsset.positionVertices.size());
-			outMeshAsset.positionVertices.push_back(positionVertex);
-			outMeshAsset.normalVertices.push_back(normalVertex);
-			outMeshAsset.texcoordVertices.push_back(texcoordVertex);
+			const uint32 newVertexIndex = static_cast<uint32>(rawMeshData.positionVertices.size());
+			rawMeshData.positionVertices.push_back(positionVertex);
+			rawMeshData.normalVertices.push_back(normalVertex);
+			rawMeshData.texcoordVertices.push_back(texcoordVertex);
 			vertexMap.emplace(faceVertex, newVertexIndex);
 			faceIndices.push_back(newVertexIndex);
 		}
 
 		for (uint32 triangleIndex = 1; triangleIndex + 1 < static_cast<uint32>(faceIndices.size()); ++triangleIndex)
 		{
-			outMeshAsset.indices.push_back(faceIndices[0]);
-			outMeshAsset.indices.push_back(faceIndices[triangleIndex]);
-			outMeshAsset.indices.push_back(faceIndices[triangleIndex + 1]);
+			rawMeshData.indices.push_back(faceIndices[0]);
+			rawMeshData.indices.push_back(faceIndices[triangleIndex]);
+			rawMeshData.indices.push_back(faceIndices[triangleIndex + 1]);
 		}
 	}
 
-	if (outMeshAsset.positionVertices.empty() || outMeshAsset.indices.empty())
+	if (rawMeshData.positionVertices.empty() || rawMeshData.indices.empty())
 	{
 		outErrorText = "mesh_data_empty";
 		assert(false && "[MeshParser][Assert] reason=obj_mesh_data_empty");
 	}
 
-	if (outMeshAsset.normalVertices.size() != outMeshAsset.positionVertices.size()
-		|| outMeshAsset.texcoordVertices.size() != outMeshAsset.positionVertices.size())
+	if (rawMeshData.normalVertices.size() != rawMeshData.positionVertices.size()
+		|| rawMeshData.texcoordVertices.size() != rawMeshData.positionVertices.size())
 	{
 		outErrorText = "mesh_vertex_stream_mismatch";
 		assert(false && "[MeshParser][Assert] reason=obj_mesh_vertex_stream_mismatch");
 	}
 
-	outMeshAsset.name = meshFilePath + ":LOD" + std::to_string(lodLevel);
-	outMeshAsset.vertexCount = static_cast<uint32>(outMeshAsset.positionVertices.size());
-	outMeshAsset.indexCount = static_cast<uint32>(outMeshAsset.indices.size());
+	outMeshAsset.setName(meshFilePath + ":LOD" + std::to_string(lodLevel));
+	outMeshAsset.setSource(meshFilePath);
 	return true;
 }

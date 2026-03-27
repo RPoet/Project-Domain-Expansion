@@ -14,7 +14,7 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
-#include "Engine/Module/XML/XMLModule.h"
+#include "Engine/Common/XML/XML.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -1547,15 +1547,14 @@ bool ImGuiLayerModule::FileSystemPanel::ensureImportSupportedExtensionsLoaded()
 	const bool validResourcesRoot = resolveResourcesRootPath();
 	assert(validResourcesRoot && "[ImGuiLayerModule][Assert] reason=import_extension_resources_root_resolve_failed");
 
-	shared_pointer<XMLModule> xmlModule = XMLModule::get();
-	assert(xmlModule != nullptr && "[ImGuiLayerModule][Assert] reason=xml_module_missing");
+	XML& xml = XML::get();
 
 	const string importConfigFilePath = (filesystem_path(resourcesRootPathText) / "Config" / "ImportExtensions.xml")
 		.lexically_normal()
 		.string();
 	XMLKeyValueDocument importDocument = {};
-	const XMLModule::ParseCode parseCode = xmlModule->loadKeyValueFile(importConfigFilePath, importDocument);
-	assert(parseCode == XMLModule::ParseCode::succeeded && "[ImGuiLayerModule][Assert] reason=import_extension_config_load_failed");
+	const XML::ParseCode parseCode = xml.readDocumentFile(importConfigFilePath, importDocument);
+	assert(parseCode == XML::ParseCode::succeeded && "[ImGuiLayerModule][Assert] reason=import_extension_config_load_failed");
 
 	supportedImportExtensions.clear();
 	supportedImportExtensions.reserve(importDocument.valueByKey.size());

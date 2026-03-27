@@ -35,6 +35,18 @@ template<typename T>
 class StaticModule : public Module
 {
 public:
+	StaticModule(const StaticModule&) = delete;
+	StaticModule& operator=(const StaticModule&) = delete;
+	StaticModule(StaticModule&&) = delete;
+	StaticModule& operator=(StaticModule&&) = delete;
+
+	static shared_pointer<T>& get()
+	{
+		static shared_pointer<T> module(new T());
+		return module;
+	}
+
+protected:
 	explicit StaticModule(string&& name)
 		: Module(moveValue(name))
 	{}
@@ -42,10 +54,4 @@ public:
 	explicit StaticModule(const string& name)
 		: Module(name)
 	{}
-
-	static shared_pointer<T>& get()
-	{
-		static shared_pointer<T> module(new T());
-		return module;
-	}
 };
