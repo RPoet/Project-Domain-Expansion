@@ -8,6 +8,15 @@ struct XMLTagData
 	unordered_map<string, string> attributeValueByName = {};
 };
 
+struct XMLWriteElementNode
+{
+	string name = {};
+	string value = {};
+	bool valueAssigned = false;
+	unordered_map<string, string> attributeValueByName = {};
+	vector<unique_pointer<XMLWriteElementNode>> children = {};
+};
+
 using XMLParseCode = XML::ParseCode;
 
 string XML::escapeText(const string& text) const
@@ -53,6 +62,59 @@ string XML::buildPropertyValueText(const char* propertyValue) const
 	return propertyValue != nullptr ? propertyValue : "";
 }
 
+static string unescapeXMLText(const string& text)
+{
+	string unescapedText = {};
+	unescapedText.reserve(text.length());
+	for (size_t characterIndex = 0; characterIndex < text.length(); ++characterIndex)
+	{
+		if (text[characterIndex] != '&')
+		{
+			unescapedText.push_back(text[characterIndex]);
+			continue;
+		}
+
+		if (text.compare(characterIndex, 5, "&amp;") == 0)
+		{
+			unescapedText.push_back('&');
+			characterIndex += 4;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 4, "&lt;") == 0)
+		{
+			unescapedText.push_back('<');
+			characterIndex += 3;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 4, "&gt;") == 0)
+		{
+			unescapedText.push_back('>');
+			characterIndex += 3;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 6, "&quot;") == 0)
+		{
+			unescapedText.push_back('"');
+			characterIndex += 5;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 6, "&apos;") == 0)
+		{
+			unescapedText.push_back('\'');
+			characterIndex += 5;
+			continue;
+		}
+
+		unescapedText.push_back(text[characterIndex]);
+	}
+
+	return unescapedText;
+}
+
 string XML::parsePropertyValueText(const string& propertyValueText) const
 {
 	return propertyValueText;
@@ -85,6 +147,162 @@ void XML::writeCloseTag(OutputFileStream& fileStream, const char* tagName) const
 {
 	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
 	fileStream << "</" << tagName << ">\n";
+}
+
+static bool tryParseXMLIndexedItemName(const string& name, uint32& outIndex)
+{
+	outIndex = 0;
+	if (!name.starts_with("item") || name.length() <= 4)
+	{
+		return false;
+	}
+
+	uint64 parsedIndex = 0;
+	for (size_t characterIndex = 4; characterIndex < name.length(); ++characterIndex)
+	{
+		const char character = name[characterIndex];
+		if (character < '0' || character > '9')
+		{
+			return false;
+		}
+
+		parsedIndex = (parsedIndex * 10ull) + static_cast<uint64>(character - '0');
+		if (parsedIndex > static_cast<uint64>(uint32MaxValue))
+		{
+			return false;
+		}
+	}
+
+	outIndex = static_cast<uint32>(parsedIndex);
+	return true;
+}
+
+static bool splitXMLDocumentKey(
+	const string& key,
+	vector<string>& outPathSegments,
+	string& outAttributeName)
+{
+	outPathSegments.clear();
+	outAttributeName.clear();
+	if (key.empty())
+	{
+		return false;
+	}
+
+	for (size_t segmentBeginIndex = 0; segmentBeginIndex < key.length();)
+	{
+		const size_t segmentEndIndex = key.find('.', segmentBeginIndex);
+		const size_t segmentLength = (segmentEndIndex == string::npos ? key.length() : segmentEndIndex) - segmentBeginIndex;
+		if (segmentLength == 0)
+		{
+			return false;
+		}
+
+		outPathSegments.push_back(key.substr(segmentBeginIndex, segmentLength));
+		if (segmentEndIndex == string::npos)
+		{
+			break;
+		}
+
+		segmentBeginIndex = segmentEndIndex + 1;
+	}
+
+	const string& lastSegment = outPathSegments.back();
+	if (!lastSegment.empty() && lastSegment[0] == '@')
+	{
+		if (outPathSegments.size() == 1 || lastSegment.length() == 1)
+		{
+			return false;
+		}
+
+		outAttributeName = lastSegment.substr(1);
+		outPathSegments.pop_back();
+	}
+
+	return !outPathSegments.empty();
+}
+
+static XMLWriteElementNode* findOrAddXMLWriteChildNode(XMLWriteElementNode& parentNode, const string& childName)
+{
+	for (uint32 childIndex = 0; childIndex < static_cast<uint32>(parentNode.children.size()); ++childIndex)
+	{
+		XMLWriteElementNode* childNode = parentNode.children[childIndex].get();
+		if (childNode != nullptr && childNode->name == childName)
+		{
+			return childNode;
+		}
+	}
+
+	unique_pointer<XMLWriteElementNode> childNode(new XMLWriteElementNode());
+	childNode->name = childName;
+	parentNode.children.push_back(moveValue(childNode));
+	return parentNode.children.back().get();
+}
+
+static bool insertXMLDocumentEntry(XMLWriteElementNode& documentRoot, const string& key, const string& value)
+{
+	vector<string> pathSegments = {};
+	string attributeName = {};
+	if (!splitXMLDocumentKey(key, pathSegments, attributeName))
+	{
+		return false;
+	}
+
+	XMLWriteElementNode* currentNode = &documentRoot;
+	for (uint32 pathSegmentIndex = 0; pathSegmentIndex < static_cast<uint32>(pathSegments.size()); ++pathSegmentIndex)
+	{
+		currentNode = findOrAddXMLWriteChildNode(*currentNode, pathSegments[pathSegmentIndex]);
+		assert(currentNode != nullptr && "[XML][Assert] reason=document_write_node_missing");
+	}
+
+	if (!attributeName.empty())
+	{
+		auto attributeIterator = currentNode->attributeValueByName.find(attributeName);
+		if (attributeIterator != currentNode->attributeValueByName.end())
+		{
+			return attributeIterator->second == value;
+		}
+
+		currentNode->attributeValueByName.emplace(attributeName, value);
+		return true;
+	}
+
+	if (currentNode->valueAssigned)
+	{
+		return currentNode->value == value;
+	}
+
+	currentNode->valueAssigned = true;
+	currentNode->value = value;
+	return true;
+}
+
+static void sortXMLWriteTree(XMLWriteElementNode& node)
+{
+	std::sort(
+		node.children.begin(),
+		node.children.end(),
+		[](const unique_pointer<XMLWriteElementNode>& leftNode, const unique_pointer<XMLWriteElementNode>& rightNode)
+		{
+			assert(leftNode != nullptr && rightNode != nullptr && "[XML][Assert] reason=document_write_child_missing");
+			uint32 leftItemIndex = 0;
+			uint32 rightItemIndex = 0;
+			const bool leftIsIndexedItem = tryParseXMLIndexedItemName(leftNode->name, leftItemIndex);
+			const bool rightIsIndexedItem = tryParseXMLIndexedItemName(rightNode->name, rightItemIndex);
+			if (leftIsIndexedItem && rightIsIndexedItem)
+			{
+				return leftItemIndex < rightItemIndex;
+			}
+
+			return leftNode->name < rightNode->name;
+		});
+
+	for (uint32 childIndex = 0; childIndex < static_cast<uint32>(node.children.size()); ++childIndex)
+	{
+		XMLWriteElementNode* childNode = node.children[childIndex].get();
+		assert(childNode != nullptr && "[XML][Assert] reason=document_write_child_missing");
+		sortXMLWriteTree(*childNode);
+	}
 }
 
 static bool isXMLWhitespace(const char character)
@@ -250,7 +468,7 @@ static XMLParseCode parseXMLAttributeValue(const string& xmlText, size_t& inOutC
 		return XMLParseCode::malformedDocument;
 	}
 
-	outValue = xmlText.substr(valueBeginIndex, inOutCharacterIndex - valueBeginIndex);
+	outValue = unescapeXMLText(xmlText.substr(valueBeginIndex, inOutCharacterIndex - valueBeginIndex));
 	++inOutCharacterIndex;
 	return XMLParseCode::succeeded;
 }
@@ -425,6 +643,7 @@ static XMLParseCode recordXMLTagValue(
 	const string& rawTextValue)
 {
 	const string trimmedTextValue = trimXMLText(rawTextValue);
+	const string elementValue = unescapeXMLText(trimmedTextValue);
 	const string elementPath = buildXMLPath(pathSegments, tagData.name);
 	const auto foundKeyAttribute = tagData.attributeValueByName.find("key");
 	const auto foundNameAttribute = tagData.attributeValueByName.find("name");
@@ -443,7 +662,7 @@ static XMLParseCode recordXMLTagValue(
 	{
 		const string explicitValue = foundValueAttribute != tagData.attributeValueByName.end()
 			? foundValueAttribute->second
-			: trimmedTextValue;
+			: elementValue;
 		return insertXMLKeyValue(document, foundKeyAttribute->second, explicitValue);
 	}
 
@@ -458,12 +677,17 @@ static XMLParseCode recordXMLTagValue(
 		return parseCode;
 	}
 
-	if (hasChildElements || trimmedTextValue.empty())
+	if (hasChildElements)
 	{
 		return XMLParseCode::succeeded;
 	}
 
-	return insertXMLKeyValue(document, elementPath, trimmedTextValue);
+	if (!trimmedTextValue.empty() || tagData.attributeValueByName.empty())
+	{
+		return insertXMLKeyValue(document, elementPath, elementValue);
+	}
+
+	return XMLParseCode::succeeded;
 }
 
 static XMLParseCode parseXMLElement(
@@ -566,6 +790,111 @@ const string* XMLKeyValueDocument::find(const string& key) const
 	return foundValue != valueByKey.end()
 		? &foundValue->second
 		: nullptr;
+}
+
+bool XML::writeDocument(OutputFileStream& fileStream, const XMLKeyValueDocument& document) const
+{
+	if (!fileStream.good() || document.valueByKey.empty())
+	{
+		return false;
+	}
+
+	XMLWriteElementNode documentRoot = {};
+	vector<string> sortedKeys = {};
+	sortedKeys.reserve(document.valueByKey.size());
+	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
+	{
+		sortedKeys.push_back(keyValueIterator->first);
+	}
+
+	std::sort(sortedKeys.begin(), sortedKeys.end());
+	for (uint32 keyIndex = 0; keyIndex < static_cast<uint32>(sortedKeys.size()); ++keyIndex)
+	{
+		const string* value = document.find(sortedKeys[keyIndex]);
+		assert(value != nullptr && "[XML][Assert] reason=document_write_value_missing");
+		if (!insertXMLDocumentEntry(documentRoot, sortedKeys[keyIndex], *value))
+		{
+			return false;
+		}
+	}
+
+	if (documentRoot.children.size() != 1)
+	{
+		return false;
+	}
+
+	XMLWriteElementNode* rootNode = documentRoot.children[0].get();
+	assert(rootNode != nullptr && "[XML][Assert] reason=document_write_root_missing");
+	sortXMLWriteTree(*rootNode);
+
+	fileStream << "<?xml version=\"1.0\"?>\n";
+	const auto writeNode = [&](const auto& self, const XMLWriteElementNode& node, const uint32 indentDepth) -> bool
+	{
+		const string indent(indentDepth * 2, ' ');
+		fileStream << indent << "<" << node.name;
+
+		vector<string> attributeNames = {};
+		attributeNames.reserve(node.attributeValueByName.size());
+		for (auto attributeIterator = node.attributeValueByName.begin();
+			attributeIterator != node.attributeValueByName.end();
+			++attributeIterator)
+		{
+			attributeNames.push_back(attributeIterator->first);
+		}
+
+		std::sort(attributeNames.begin(), attributeNames.end());
+		for (uint32 attributeIndex = 0; attributeIndex < static_cast<uint32>(attributeNames.size()); ++attributeIndex)
+		{
+			const string& attributeName = attributeNames[attributeIndex];
+			const auto attributeIterator = node.attributeValueByName.find(attributeName);
+			assert(attributeIterator != node.attributeValueByName.end() && "[XML][Assert] reason=document_write_attribute_missing");
+			fileStream << " " << attributeName << "=\"" << escapeText(attributeIterator->second) << "\"";
+		}
+
+		if (node.children.empty())
+		{
+			const string valueText = node.valueAssigned ? node.value : "";
+			fileStream << ">" << escapeText(valueText) << "</" << node.name << ">\n";
+			return fileStream.good();
+		}
+
+		assert((!node.valueAssigned || node.value.empty()) && "[XML][Assert] reason=document_write_mixed_content_unsupported");
+		fileStream << ">\n";
+		for (uint32 childIndex = 0; childIndex < static_cast<uint32>(node.children.size()); ++childIndex)
+		{
+			const XMLWriteElementNode* childNode = node.children[childIndex].get();
+			assert(childNode != nullptr && "[XML][Assert] reason=document_write_child_missing");
+			if (!self(self, *childNode, indentDepth + 1))
+			{
+				return false;
+			}
+		}
+
+		fileStream << indent << "</" << node.name << ">\n";
+		return fileStream.good();
+	};
+
+	return writeNode(writeNode, *rootNode, 0) && fileStream.good();
+}
+
+bool XML::writeDocumentFile(const string& filePath, const XMLKeyValueDocument& document) const
+{
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[XML][Assert] reason=disk_loader_module_missing");
+
+	string absoluteFilePath = {};
+	if (!diskLoaderModule->resolveAbsolutePathFromResources(filePath, absoluteFilePath))
+	{
+		return false;
+	}
+
+	OutputFileStream fileStream = {};
+	if (!diskLoaderModule->openOutputFileStream(absoluteFilePath, fileStream, false, true))
+	{
+		return false;
+	}
+
+	return writeDocument(fileStream, document);
 }
 
 XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument& outDocument) const

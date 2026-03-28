@@ -1,10 +1,8 @@
 #include "Engine/Module/CLI/CLIModule.h"
 
-#include "Engine/Framework/Framework.h"
-
 bool CLIModule::init(Framework& framework)
 {
-	frameworkReference = &framework;
+	unused(framework);
 	clearLastCommand();
 	initialized = true;
 	return true;
@@ -20,7 +18,6 @@ void CLIModule::postUpdate()
 
 void CLIModule::shutdown()
 {
-	frameworkReference = nullptr;
 	clearLastCommand();
 	initialized = false;
 }
@@ -56,26 +53,6 @@ int32 CLIModule::getLastExecutionCode() const
 	return lastExecutionCode;
 }
 
-void CLIModule::registerBuiltInCommands()
-{
-	const bool saveActiveWorldRegistered = registerCommandInternal(
-		"Framework.saveActiveWorld",
-		[](const string& parameter1, const string& parameter2, const string& parameter3)
-		{
-			unused(parameter1);
-			unused(parameter2);
-			unused(parameter3);
-			shared_pointer<CLIModule> cliModule = CLIModule::get();
-			Framework* framework = cliModule->frameworkReference;
-			assert(framework != nullptr && "[CLIModule][Assert] reason=framework_missing");
-			return framework->saveActiveWorld()
-				? static_cast<int32>(ExecutionCode::succeeded)
-				: static_cast<int32>(FrameworkExecutionCode::saveActiveWorldFailed);
-		});
-	assert(saveActiveWorldRegistered && "[CLIModule][Assert] reason=save_active_world_command_register_failed");
-	unused(saveActiveWorldRegistered);
-}
-
 bool CLIModule::registerCommandInternal(const string& commandName, const CommandHandler& commandHandler)
 {
 	const bool validRegistration = !commandName.empty()
@@ -88,32 +65,40 @@ bool CLIModule::registerCommandInternal(const string& commandName, const Command
 	return true;
 }
 
+bool CLIModule::parseAndDispatchCommandText(
+	const string& commandText,
+	Command& outCommand,
+	int32& outExecutionCode) const
+{
+	outCommand = {};
+	outExecutionCode = static_cast<int32>(ExecutionCode::succeeded);
+	if (!parseCommandText(commandText, outCommand))
+	{
+		outExecutionCode = static_cast<int32>(ExecutionCode::parseFailed);
+		return false;
+	}
+
+	const auto registeredCommandIterator = registeredCommandByName.find(outCommand.name);
+	if (registeredCommandIterator == registeredCommandByName.end())
+	{
+		outExecutionCode = static_cast<int32>(ExecutionCode::commandNotRegistered);
+		return false;
+	}
+
+	outExecutionCode = registeredCommandIterator->second.handler(outCommand.arguments);
+	return true;
+}
+
 bool CLIModule::executeInternal(const string& commandText)
 {
 	clearLastCommand();
 	lastCommandText = commandText;
 
 	Command parsedCommand = {};
-	if (!parseCommandText(commandText, parsedCommand))
-	{
-		lastExecutionCode = static_cast<int32>(ExecutionCode::parseFailed);
-		return false;
-	}
-
+	lastExecutionCode = static_cast<int32>(ExecutionCode::succeeded);
+	const bool executedCommand = parseAndDispatchCommandText(commandText, parsedCommand, lastExecutionCode);
 	lastCommand = moveValue(parsedCommand);
-	const auto registeredCommandIterator = registeredCommandByName.find(lastCommand.name);
-	if (registeredCommandIterator == registeredCommandByName.end())
-	{
-		lastExecutionCode = static_cast<int32>(ExecutionCode::commandNotRegistered);
-		return false;
-	}
-
-	const RegisteredCommand& registeredCommand = registeredCommandIterator->second;
-	const string parameter1 = lastCommand.arguments.size() > 0 ? lastCommand.arguments[0] : "";
-	const string parameter2 = lastCommand.arguments.size() > 1 ? lastCommand.arguments[1] : "";
-	const string parameter3 = lastCommand.arguments.size() > 2 ? lastCommand.arguments[2] : "";
-	lastExecutionCode = registeredCommand.handler(parameter1, parameter2, parameter3);
-	return true;
+	return executedCommand;
 }
 
 bool CLIModule::parseCommandText(const string& commandText, Command& outCommand) const
@@ -123,24 +108,61 @@ bool CLIModule::parseCommandText(const string& commandText, Command& outCommand)
 	vector<string> tokens = {};
 	string activeToken = {};
 	activeToken.reserve(commandText.length());
-	const auto flushToken = [&tokens, &activeToken]()
+	bool tokenStarted = false;
+	bool quotedText = false;
+	const auto flushToken = [&tokens, &activeToken, &tokenStarted]()
 	{
-		if (activeToken.empty())
+		if (!tokenStarted)
 		{
 			return;
 		}
 
 		tokens.push_back(activeToken);
 		activeToken.clear();
+		tokenStarted = false;
 	};
 
-	bool quotedText = false;
 	for (size_t characterIndex = 0; characterIndex < commandText.length(); ++characterIndex)
 	{
 		const char character = commandText[characterIndex];
+		if (quotedText && character == '\\')
+		{
+			if (characterIndex + 1 >= commandText.length())
+			{
+				return false;
+			}
+
+			const char escapedCharacter = commandText[++characterIndex];
+			switch (escapedCharacter)
+			{
+			case 'n':
+				activeToken.push_back('\n');
+				break;
+			case 'r':
+				activeToken.push_back('\r');
+				break;
+			case 't':
+				activeToken.push_back('\t');
+				break;
+			case '"':
+				activeToken.push_back('"');
+				break;
+			case '\\':
+				activeToken.push_back('\\');
+				break;
+			default:
+				activeToken.push_back(escapedCharacter);
+				break;
+			}
+
+			tokenStarted = true;
+			continue;
+		}
+
 		if (character == '"')
 		{
 			quotedText = !quotedText;
+			tokenStarted = true;
 			continue;
 		}
 
@@ -155,6 +177,7 @@ bool CLIModule::parseCommandText(const string& commandText, Command& outCommand)
 		}
 
 		activeToken.push_back(character);
+		tokenStarted = true;
 	}
 
 	if (quotedText)

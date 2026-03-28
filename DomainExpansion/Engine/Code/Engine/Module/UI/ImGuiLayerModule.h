@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Module/Module.h"
 #include "Engine/Platform/PlatformDefine.h"
@@ -34,6 +35,13 @@ public:
 	void buildAndRender(CommandList* commandList, const float4x4* editorViewProjectionMatrix = nullptr);
 
 private:
+	enum class AnchoredPanelSlot : uint32
+	{
+		left = 0,
+		right = 1,
+		bottom = 2,
+	};
+
 	class Panel
 	{
 	public:
@@ -87,7 +95,7 @@ private:
 		void build(ImGuiLayerModule& owner, World* world) override;
 
 	private:
-		void drawEntityNode(ImGuiLayerModule& owner, const World* world, uint32 entityIndex);
+		void drawEntityNode(ImGuiLayerModule& owner, World* world, uint32 entityIndex, bool immutableTree);
 	};
 
 	class DetailPanel final : public Panel
@@ -105,11 +113,36 @@ private:
 		bool meshAssetPathsLoaded = false;
 	};
 
+	class DeassetViewerPanel final : public Panel
+	{
+	public:
+		void reset() override;
+		void open(const filesystem_path& filePath, const string& displayPathText);
+		void build(ImGuiLayerModule& owner, World* world) override;
+
+	private:
+		static const char* buildParseCodeText(XML::ParseCode parseCode);
+		bool reloadDocument();
+		bool saveDocument();
+		void recordSavedDocumentChanges(ImGuiLayerModule& owner);
+		void rebuildDocumentKeys();
+
+		bool opened = false;
+		bool dirty = false;
+		string absoluteFilePath = {};
+		string displayPathText = {};
+		XMLKeyValueDocument document = {};
+		XMLKeyValueDocument loadedDocument = {};
+		vector<string> documentKeys = {};
+		string statusText = {};
+	};
+
 	class FileSystemPanel final : public Panel
 	{
 	public:
-		explicit FileSystemPanel(ImportPanel& importPanelReference)
+		explicit FileSystemPanel(ImportPanel& importPanelReference, DeassetViewerPanel& deassetViewerPanelReference)
 			: importPanel(importPanelReference)
+			, deassetViewerPanel(deassetViewerPanelReference)
 		{
 		}
 
@@ -121,12 +154,14 @@ private:
 		bool ensureImportSupportedExtensionsLoaded();
 		bool resolveResourcesRootPath();
 		string buildResourceAssetPath(const filesystem_path& filePath) const;
+		bool isDeassetDocumentFile(const filesystem_path& filePath) const;
 		bool isWorldAssetFile(const filesystem_path& filePath) const;
 		void drawDirectoryEntriesRecursive(ImGuiLayerModule& owner, const filesystem_path& directoryPath);
-		void drawFileEntryContextMenu(const filesystem_path& filePath);
+		void drawFileEntryContextMenu(ImGuiLayerModule& owner, const filesystem_path& filePath);
 		bool isImportSupportedFile(const filesystem_path& filePath);
 
 		ImportPanel& importPanel;
+		DeassetViewerPanel& deassetViewerPanel;
 		string resourcesRootPathText = {};
 		bool resourcesRootResolved = false;
 		bool resourcesRootValid = false;
@@ -155,11 +190,15 @@ private:
 	bool initializeContext();
 	void shutdownContext();
 	void updateUiScaleIfNeeded();
+	void applyAnchoredPanelLayout(AnchoredPanelSlot panelSlot) const;
 	float calculateUiScale() const;
 	void renderEditorGrid(CommandList* commandList, const float4x4& editorViewProjectionMatrix);
 	bool resolveEditorGridRenderResources(EditorGridRenderResources& outRenderResources) const;
 	bool tryDeleteSelectedEntity(World* world);
+	bool tryReparentEntity(World* world, uint32 childEntityIndex, uint32 parentEntityIndex);
 	bool saveActiveWorldImmediate();
+	bool recordEditorReplayCommand(const string& commandName, const vector<string>& arguments) const;
+	bool recordEditorReplayCommandText(const string& commandText) const;
 
 	Framework* frameworkReference = nullptr;
 	unique_pointer<BackendBridge> backendBridge;
@@ -173,6 +212,7 @@ private:
 	unique_pointer<ImportPanel> importPanel;
 	unique_pointer<OutlinerPanel> outlinerPanel;
 	unique_pointer<DetailPanel> detailPanel;
+	unique_pointer<DeassetViewerPanel> deassetViewerPanel;
 	unique_pointer<FileSystemPanel> fileSystemPanel;
 	vector<Panel*> panels = {};
 };

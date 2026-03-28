@@ -11,7 +11,7 @@ public:
 		vector<string> arguments = {};
 	};
 
-	using CommandHandler = function<int32(const string&, const string&, const string&)>;
+	using CommandHandler = function<int32(const vector<string>&)>;
 
 	enum class ExecutionCode : int32
 	{
@@ -20,15 +20,9 @@ public:
 		commandNotRegistered = -2,
 	};
 
-	enum class FrameworkExecutionCode : int32
-	{
-		saveActiveWorldFailed = -100,
-	};
-
 	CLIModule()
 		: StaticModule("CLIModule")
 	{
-		registerBuiltInCommands();
 	}
 
 	bool init(Framework& framework) override final;
@@ -50,9 +44,12 @@ private:
 	};
 
 	bool registerCommandInternal(const string& commandName, const CommandHandler& commandHandler);
+	bool parseAndDispatchCommandText(
+		const string& commandText,
+		Command& outCommand,
+		int32& outExecutionCode) const;
 	bool executeInternal(const string& commandText);
 	bool parseCommandText(const string& commandText, Command& outCommand) const;
-	void registerBuiltInCommands();
 	void clearLastCommand();
 
 	Command lastCommand = {};
@@ -60,5 +57,4 @@ private:
 	int32 lastExecutionCode = static_cast<int32>(ExecutionCode::succeeded);
 	unordered_map<string, RegisteredCommand> registeredCommandByName = {};
 	bool initialized = false;
-	Framework* frameworkReference = nullptr;
 };

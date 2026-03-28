@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{5B83279A-4692-4AD4-BEF8-52DEC0F2CCB0}</ProjectGuid>
+    <RootNamespace>EngineTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)Artifacts\Bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(ProjectDir)Artifacts\Intermediate\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>DomainExpansionEngineTests</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\Engine\Code;$(ProjectDir)Code;$(ProjectDir)..\Engine\Code\ThirdParty\ImGui;$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/WHOLEARCHIVE:Engine.lib %(AdditionalOptions)</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)D3D12" mkdir "$(OutDir)D3D12"
+copy /Y "$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\D3D12Core.dll" "$(OutDir)D3D12\D3D12Core.dll"
+copy /Y "$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12SDKLayers.dll" "$(OutDir)D3D12\d3d12SDKLayers.dll"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\Engine\Code;$(ProjectDir)Code;$(ProjectDir)..\Engine\Code\ThirdParty\ImGui;$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/WHOLEARCHIVE:Engine.lib %(AdditionalOptions)</AdditionalOptions>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)D3D12" mkdir "$(OutDir)D3D12"
+copy /Y "$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\D3D12Core.dll" "$(OutDir)D3D12\D3D12Core.dll"
+copy /Y "$(ProjectDir)..\Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12SDKLayers.dll" "$(OutDir)D3D12\d3d12SDKLayers.dll"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Code\EngineTests\Main.cpp" />
+    <ClCompile Include="Code\EngineTests\FrameworkTestRegistration.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\FrameworkBackendTest.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\FrameworkReplayTest.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\FrameworkTest.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\FrameworkTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\EditorReplayRunner.cpp" />
+    <ClCompile Include="Code\EngineTests\Framework\TestFramework.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\EntityTest.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkEntityComponentPropertyTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkCLIModuleTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkInputModuleTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkRenderWorldTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkShaderCompilerTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkShaderPackageTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.cpp" />
+    <ClCompile Include="Code\EngineTests\Tests\FrameworkXMLModuleTestCase.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EngineRuntime\Engine.vcxproj">
+      <Project>{4A21E574-DED8-4252-9782-17B1222BA698}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Engine\Code\Engine\Assets\MeshAsset.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\BaseBridge.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\BridgeHandle.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\Brdige.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\DefaultBridge.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\CameraBridge.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\EntityBridge.h" />
+    <ClInclude Include="..\Engine\Code\Bridge\MeshBridge.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\BackendValidation.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\CameraComponent.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\Component.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\EditorCameraMovementComponent.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\Entity.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\EntityObject.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\FrameworkConstants.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\Framework.h" />
+    <ClInclude Include="Code\EngineTests\Framework\FrameworkTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Framework\FrameworkBackendTest.h" />
+    <ClInclude Include="Code\EngineTests\Framework\FrameworkReplayTest.h" />
+    <ClInclude Include="Code\EngineTests\Framework\FrameworkTest.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\MeshComponent.h" />
+    <ClInclude Include="Code\EngineTests\Framework\EditorReplayRunner.h" />
+    <ClInclude Include="Code\EngineTests\Framework\TestFramework.h" />
+    <ClInclude Include="Code\EngineTests\FrameworkTestRegistration.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\PlaceableEntity.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\Transform.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Framework\World.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Module.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Bridge\BridgeModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\CLI\CLIModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Input\InputModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Common\Singleton.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Render\GPUUploader.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Render\RenderBackendModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\UI\ImGuiLayerModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Timer\Timer.h" />
+    <ClInclude Include="Code\EngineTests\Tests\EmptyComponent.h" />
+    <ClInclude Include="Code\EngineTests\Tests\EntityTest.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkEntityAddRemoveTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkEntityUpdateTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkEntityBridgeTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkEntityBridgeSyncTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkEntityComponentPropertyTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkCLIModuleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkInputModuleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkCameraBridgeTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkRenderWorldTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkBridgeLifecycleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkObjMeshLoaderTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkPipelineStateLifecycleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkRootSignatureLifecycleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkShaderAssetSmokeTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkShaderCompilerTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkShaderPackageTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkWorldSerializationTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\FrameworkXMLModuleTestCase.h" />
+    <ClInclude Include="Code\EngineTests\Tests\UpdateOrderRecordingComponent.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\PlatformDefine.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\PlatformDefineWin32.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\PlatformDefineAndroid.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\PlatformDefineApple.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\InplaceVector.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\Math.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Platform\SIMDMath.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandList.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12Converter.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12DepthStencilView.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12PipelineStateDesc.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12PipelineStateObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12Shader.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12RenderTargetView.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12RootSignatureDesc.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12RootSignatureObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12ResourceObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12SwapChain.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\Dx12\Dx12SyncObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\RenderBackendDefinitions.h" />
+    <ClInclude Include="..\Engine\Code\Render\Backends\RenderBackend.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\MeshParser\FbxBinaryParser.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Settings\SettingsModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\MeshParser\MeshParser.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\MeshParser\ObjMeshParser.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Common\XML\XML.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\Shader\ShaderModule.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.h" />
+    <ClInclude Include="..\Engine\Code\Render\CommandList.h" />
+    <ClInclude Include="..\Engine\Code\Render\CommandQueue.h" />
+    <ClInclude Include="..\Engine\Code\Render\DepthStencilView.h" />
+    <ClInclude Include="..\Engine\Code\Render\RenderCommand.h" />
+    <ClInclude Include="..\Engine\Code\Render\RenderWorld.h" />
+    <ClInclude Include="..\Engine\Code\Render\RenderTargetView.h" />
+    <ClInclude Include="..\Engine\Code\Render\PipelineStateManager.h" />
+    <ClInclude Include="..\Engine\Code\Render\PipelineStateObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\RootSignatureManager.h" />
+    <ClInclude Include="..\Engine\Code\Render\RootSignatureObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\ResourceObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\ResourceState.h" />
+    <ClInclude Include="..\Engine\Code\Render\SyncObject.h" />
+    <ClInclude Include="..\Engine\Code\Render\SwapChain.h" />
+    <ClInclude Include="..\Engine\Code\Render\Screen.h" />
+    <ClInclude Include="..\Engine\Code\Render\Shader.h" />
+    <ClInclude Include="..\Engine\Code\Render\Renderer.h" />
+    <ClInclude Include="..\Engine\Code\Render\RenderTypes.h" />
+    <ClInclude Include="..\Engine\Code\Render\ResourceTypes.h" />
+    <ClInclude Include="..\Engine\Code\Engine\Window\WindowsWindowObject.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imgui.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imgui_internal.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imconfig.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imstb_rectpack.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imstb_textedit.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\imstb_truetype.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\crc32.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\gzguts.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\inflate.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\inffast.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\inftrees.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\inffixed.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\zconf.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\zlib.h" />
+    <ClInclude Include="..\Engine\Code\ThirdParty\Zlib\zutil.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
+

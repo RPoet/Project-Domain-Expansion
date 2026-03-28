@@ -6,6 +6,7 @@
 #include "Engine/Module/Bridge/BridgeModule.h"
 #include "Engine/Module/CLI/CLIModule.h"
 #include "Engine/Module/Input/InputModule.h"
+#include "Engine/Module/Replay/ReplayModule.h"
 #include "Engine/Module/Render/GPUUploader.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/Timer/Timer.h"
@@ -23,6 +24,7 @@ void Framework::registerModule(const FrameworkInitializeOptions& initializeOptio
 	addModule(Timer::get());
 	addModule(InputModule::get());
 	addModule(CLIModule::get());
+	addModule(ReplayModule::get());
 	addModule(MeshStreaming::get());
 	addModule(BridgeModule::get());
 	addModule(RenderBackendModule::get());

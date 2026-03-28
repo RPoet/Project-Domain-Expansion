@@ -59,6 +59,8 @@ public:
 		const char* attributeName,
 		const string& attributeValue) const;
 	void writeCloseTag(OutputFileStream& fileStream, const char* tagName) const;
+	bool writeDocument(OutputFileStream& fileStream, const XMLKeyValueDocument& document) const;
+	bool writeDocumentFile(const string& filePath, const XMLKeyValueDocument& document) const;
 
 	template <typename value_type>
 	inline void writeProperty(

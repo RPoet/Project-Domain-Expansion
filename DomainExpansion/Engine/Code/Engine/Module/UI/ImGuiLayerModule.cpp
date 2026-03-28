@@ -1,6 +1,7 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
 #include "Engine/Assets/AssetLoader.h"
+#include "Engine/Common/EditorCommandReplay.h"
 #include "Engine/Framework/Entity.h"
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/Framework.h"
@@ -26,6 +27,7 @@
 #include <system_error>
 
 static constexpr int32 dx12FrameBufferCountForImGui = 2;
+static constexpr const char* outlinerEntityDragDropPayloadType = "OutlinerEntityIndex";
 extern IMGUI_IMPL_API MessageResult ImGui_ImplWin32_WndProcHandler(
 	HandleWindow windowHandle,
 	MessageIdentifier messageIdentifier,
@@ -95,23 +97,55 @@ static bool isEditorCameraEntity(const World* world, const Entity* entity)
 	return cameraComponent != nullptr && cameraComponent->editorCamera;
 }
 
-static string buildEntityDisplayText(
-	const World* world,
-	const Entity* entity,
-	const uint32 entityIndex)
+static bool isImmutableEntity(const World* world, const Entity* entity)
 {
-	string displayText = entity != nullptr && !entity->getName().empty()
-		? entity->getName()
-		: "Entity";
-	displayText += " [";
-	displayText += std::to_string(entityIndex);
-	displayText += "]";
-	if (isEditorCameraEntity(world, entity))
-	{
-		displayText += " [EditorCamera]";
-	}
+	return isEditorCameraEntity(world, entity);
+}
+
+static string buildEntityDisplayText(const World* world, const Entity* entity)
+{
+	const char* entityTypeText = isEditorCameraEntity(world, entity) ? "EditorCamera" : "Entity";
+	string displayText = entity != nullptr && !entity->getName().empty() ? entity->getName() : entityTypeText;
+	displayText += "(";
+	displayText += entityTypeText;
+	displayText += ")";
 
 	return displayText;
+}
+
+static string buildReplayBooleanArgument(const bool value)
+{
+	return value ? "1" : "0";
+}
+
+static string buildReplayFloatArgument(const float value)
+{
+	return to_string(value);
+}
+
+static string buildReplayUnsignedArgument(const uint32 value)
+{
+	return to_string(value);
+}
+
+static Component* findFirstComponentByType(World* world, Entity* entity, const ComponentType componentType)
+{
+	if (world == nullptr || entity == nullptr || !componentType.isValid())
+	{
+		return nullptr;
+	}
+
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < entity->getComponentCount(); ++componentArrayIndex)
+	{
+		const uint32 componentIndex = entity->getComponentIndex(componentArrayIndex);
+		Component* component = world->getComponentByIndex(componentIndex);
+		if (component != nullptr && component->getComponentType() == componentType)
+		{
+			return component;
+		}
+	}
+
+	return nullptr;
 }
 
 static float clampFloat(const float value, const float minValue, const float maxValue)
@@ -243,12 +277,14 @@ ImGuiLayerModule::ImGuiLayerModule()
 	, importPanel(new ImportPanel())
 	, outlinerPanel(new OutlinerPanel())
 	, detailPanel(new DetailPanel())
-	, fileSystemPanel(new FileSystemPanel(*importPanel))
+	, deassetViewerPanel(new DeassetViewerPanel())
+	, fileSystemPanel(new FileSystemPanel(*importPanel, *deassetViewerPanel))
 {
 	panels.push_back(outlinerPanel.get());
 	panels.push_back(detailPanel.get());
 	panels.push_back(fileSystemPanel.get());
 	panels.push_back(importPanel.get());
+	panels.push_back(deassetViewerPanel.get());
 }
 
 void ImGuiLayerModule::ImportPanel::reset()
@@ -395,6 +431,13 @@ void ImGuiLayerModule::ImportPanel::executeImportCommand()
 	shared_pointer<CLIModule> cliModule = CLIModule::get();
 	processCode = mapProcessCodeFromCLIExecutionCode(cliModule->getLastExecutionCode());
 	processCodeAvailable = true;
+	if (processCode == ProcessCode::succeeded)
+	{
+		if (!EditorCommandReplay::appendCommandText(commandText))
+		{
+			error << "[EditorReplayLog] action=append_failed command=" << commandText << lineBreak;
+		}
+	}
 }
 
 ImGuiLayerModule::~ImGuiLayerModule() = default;
@@ -408,10 +451,11 @@ bool ImGuiLayerModule::init(Framework& framework)
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
 	lastEditorActionStatus.clear();
-	const bool validPanels = panels.size() == 4
+	const bool validPanels = panels.size() == 5
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
+		&& deassetViewerPanel != nullptr
 		&& fileSystemPanel != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
@@ -495,10 +539,11 @@ void ImGuiLayerModule::shutdown()
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
 	lastEditorActionStatus.clear();
-	const bool validPanels = panels.size() == 4
+	const bool validPanels = panels.size() == 5
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
+		&& deassetViewerPanel != nullptr
 		&& fileSystemPanel != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
@@ -583,15 +628,17 @@ void ImGuiLayerModule::buildAndRender(
 	ImGui::NewFrame();
 
 	World* world = frameworkReference->getActiveWorld();
-	const bool validPanels = panels.size() == 4
+	const bool validPanels = panels.size() == 5
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
+		&& deassetViewerPanel != nullptr
 		&& fileSystemPanel != nullptr
 		&& panels[0] != nullptr
 		&& panels[1] != nullptr
 		&& panels[2] != nullptr
-		&& panels[3] != nullptr;
+		&& panels[3] != nullptr
+		&& panels[4] != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
 	{
@@ -786,6 +833,62 @@ void ImGuiLayerModule::updateUiScaleIfNeeded()
 	uiScaleInitialized = true;
 }
 
+void ImGuiLayerModule::applyAnchoredPanelLayout(const AnchoredPanelSlot panelSlot) const
+{
+	const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+	if (mainViewport == nullptr)
+	{
+		return;
+	}
+
+	const float layoutScale = currentUiScale > 0.0f ? currentUiScale : 1.0f;
+	const ImVec2 workPosition = mainViewport->WorkPos;
+	const ImVec2 workSize = mainViewport->WorkSize;
+	const float panelGap = 10.0f * layoutScale;
+	const float minimumViewportWidth = 560.0f * layoutScale;
+	const float minimumTopHeight = 260.0f * layoutScale;
+	float bottomPanelHeight = clampFloat(workSize.y * 0.30f, 260.0f * layoutScale, 380.0f * layoutScale);
+	if (workSize.y - bottomPanelHeight - panelGap < minimumTopHeight)
+	{
+		bottomPanelHeight = std::max(180.0f * layoutScale, workSize.y - minimumTopHeight - panelGap);
+	}
+
+	const float topPanelHeight = std::max(140.0f * layoutScale, workSize.y - bottomPanelHeight - panelGap);
+	float leftPanelWidth = clampFloat(workSize.x * 0.19f, 320.0f * layoutScale, 430.0f * layoutScale);
+	float rightPanelWidth = clampFloat(workSize.x * 0.24f, 380.0f * layoutScale, 560.0f * layoutScale);
+	const float availableSideWidth = std::max(0.0f, workSize.x - minimumViewportWidth);
+	const float desiredSideWidth = leftPanelWidth + rightPanelWidth;
+	if (desiredSideWidth > availableSideWidth && desiredSideWidth > 0.0f)
+	{
+		const float widthScale = availableSideWidth / desiredSideWidth;
+		leftPanelWidth *= widthScale;
+		rightPanelWidth *= widthScale;
+	}
+
+	ImVec2 panelPosition = workPosition;
+	ImVec2 panelSize = workSize;
+	switch (panelSlot)
+	{
+	case AnchoredPanelSlot::left:
+		panelSize = ImVec2(leftPanelWidth, topPanelHeight);
+		break;
+	case AnchoredPanelSlot::right:
+		panelPosition.x = workPosition.x + workSize.x - rightPanelWidth;
+		panelSize = ImVec2(rightPanelWidth, topPanelHeight);
+		break;
+	case AnchoredPanelSlot::bottom:
+		panelPosition.y = workPosition.y + topPanelHeight + panelGap;
+		panelSize = ImVec2(workSize.x, bottomPanelHeight);
+		break;
+	default:
+		assert(false && "[ImGuiLayerModule][Assert] reason=anchored_panel_slot_invalid");
+		return;
+	}
+
+	ImGui::SetNextWindowPos(panelPosition, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(panelSize, ImGuiCond_Always);
+}
+
 float ImGuiLayerModule::calculateUiScale() const
 {
 	float dpiScale = 1.0f;
@@ -814,7 +917,12 @@ float ImGuiLayerModule::calculateUiScale() const
 
 void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* world)
 {
-	ImGui::Begin("Outliner");
+	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::left);
+	if (!ImGui::Begin("Outliner", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+	{
+		ImGui::End();
+		return;
+	}
 
 	if (world == nullptr)
 	{
@@ -849,6 +957,40 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 		owner.tryDeleteSelectedEntity(world);
 	}
 
+	if (ImGui::Button("+AddEntity"))
+	{
+		const uint32 parentEntityIndex = owner.selectedEntityIndex;
+		const Entity* parentEntity = parentEntityIndex != invalidEntityIndex ? world->getEntityByIndex(parentEntityIndex) : nullptr;
+		const string parentEntityAssetPath = parentEntity != nullptr ? parentEntity->getAssetPath() : "";
+		const uint32 newEntityIndex = world->createPlaceableEntity();
+		bool addEntityResult = true;
+		if (parentEntity != nullptr)
+		{
+			addEntityResult = world->addChildEntity(parentEntityIndex, newEntityIndex);
+		}
+
+		owner.selectedEntityIndex = newEntityIndex;
+		if (!addEntityResult)
+		{
+			owner.lastEditorActionStatus = "add_entity_failed";
+		}
+		else if (owner.saveActiveWorldImmediate())
+		{
+			owner.lastEditorActionStatus = "entity_added_and_saved";
+			const Entity* newEntity = world->getEntityByIndex(newEntityIndex);
+			if (newEntity != nullptr)
+			{
+				owner.recordEditorReplayCommand(
+					"Editor.addEntity",
+					{ newEntity->getAssetPath(), parentEntityAssetPath, PlaceableEntity::getStaticAssetTypeName() });
+			}
+		}
+		else
+		{
+			owner.lastEditorActionStatus = "entity_added_save_skipped";
+		}
+	}
+
 	const uint32 entityCount = world->getEntityCount();
 	ImGuiTreeNodeFlags worldTreeNodeFlags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
 	if (owner.selectedEntityIndex == invalidEntityIndex)
@@ -856,50 +998,41 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 		worldTreeNodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
 
-	const bool isWorldNodeOpened = ImGui::TreeNodeEx("World", worldTreeNodeFlags, "%s (World)", worldNameText.c_str());
+	const bool isWorldNodeOpened = ImGui::TreeNodeEx("World", worldTreeNodeFlags, "%s(World)", worldNameText.c_str());
 	if (ImGui::IsItemClicked())
 	{
 		owner.selectedEntityIndex = invalidEntityIndex;
 	}
+	if (ImGui::BeginDragDropTarget())
+	{
+		const ImGuiPayload* dragDropPayload = ImGui::AcceptDragDropPayload(outlinerEntityDragDropPayloadType);
+		if (dragDropPayload != nullptr && dragDropPayload->DataSize == sizeof(uint32) && dragDropPayload->IsDelivery())
+		{
+			const uint32 droppedEntityIndex = *static_cast<const uint32*>(dragDropPayload->Data);
+			owner.tryReparentEntity(world, droppedEntityIndex, invalidEntityIndex);
+		}
+
+		ImGui::EndDragDropTarget();
+	}
 
 	if (isWorldNodeOpened)
 	{
-		if (ImGui::Button("+ AddEntity"))
-		{
-			const uint32 newEntityIndex = world->createPlaceableEntity();
-			bool addEntityResult = true;
-			if (owner.selectedEntityIndex != invalidEntityIndex && world->getEntityByIndex(owner.selectedEntityIndex) != nullptr)
-			{
-				addEntityResult = world->addChildEntity(owner.selectedEntityIndex, newEntityIndex);
-			}
-
-			owner.selectedEntityIndex = newEntityIndex;
-			if (!addEntityResult)
-			{
-				owner.lastEditorActionStatus = "add_entity_failed";
-			}
-			else if (owner.saveActiveWorldImmediate())
-			{
-				owner.lastEditorActionStatus = "entity_added_and_saved";
-			}
-			else
-			{
-				owner.lastEditorActionStatus = "entity_added_save_skipped";
-			}
-		}
-
-		ImGui::Text("Entity Count: %u", entityCount);
-
 		uint32 rootEntityCount = 0;
 		for (uint32 entityIndex = 0; entityIndex < entityCount; ++entityIndex)
 		{
 			const Entity* entity = world->getEntityByIndex(entityIndex);
-			if (entity == nullptr || entity->getParentEntityIndex() != invalidEntityIndex)
+			if (entity == nullptr || isImmutableEntity(world, entity))
 			{
 				continue;
 			}
 
-			drawEntityNode(owner, world, entityIndex);
+			const Entity* parentEntity = world->getEntityByIndex(entity->getParentEntityIndex());
+			if (parentEntity != nullptr && !isImmutableEntity(world, parentEntity))
+			{
+				continue;
+			}
+
+			drawEntityNode(owner, world, entityIndex, false);
 			++rootEntityCount;
 		}
 
@@ -911,6 +1044,50 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 		ImGui::TreePop();
 	}
 
+	uint32 immutableRootEntityCount = 0;
+	for (uint32 entityIndex = 0; entityIndex < entityCount; ++entityIndex)
+	{
+		const Entity* entity = world->getEntityByIndex(entityIndex);
+		if (entity == nullptr || !isImmutableEntity(world, entity))
+		{
+			continue;
+		}
+
+		const Entity* parentEntity = world->getEntityByIndex(entity->getParentEntityIndex());
+		if (parentEntity != nullptr && isImmutableEntity(world, parentEntity))
+		{
+			continue;
+		}
+
+		++immutableRootEntityCount;
+	}
+
+	if (immutableRootEntityCount > 0)
+	{
+		const bool isImmutableTreeOpened = ImGui::TreeNodeEx("Immutable", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick, "%s (Immutable)", worldNameText.c_str());
+		if (isImmutableTreeOpened)
+		{
+			for (uint32 entityIndex = 0; entityIndex < entityCount; ++entityIndex)
+			{
+				const Entity* entity = world->getEntityByIndex(entityIndex);
+				if (entity == nullptr || !isImmutableEntity(world, entity))
+				{
+					continue;
+				}
+
+				const Entity* parentEntity = world->getEntityByIndex(entity->getParentEntityIndex());
+				if (parentEntity != nullptr && isImmutableEntity(world, parentEntity))
+				{
+					continue;
+				}
+
+				drawEntityNode(owner, world, entityIndex, true);
+			}
+
+			ImGui::TreePop();
+		}
+	}
+
 	if (!owner.lastEditorActionStatus.empty())
 	{
 		ImGui::Separator();
@@ -920,7 +1097,11 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 	ImGui::End();
 }
 
-void ImGuiLayerModule::OutlinerPanel::drawEntityNode(ImGuiLayerModule& owner, const World* world, const uint32 entityIndex)
+void ImGuiLayerModule::OutlinerPanel::drawEntityNode(
+	ImGuiLayerModule& owner,
+	World* world,
+	const uint32 entityIndex,
+	const bool immutableTree)
 {
 	if (world == nullptr)
 	{
@@ -933,16 +1114,44 @@ void ImGuiLayerModule::OutlinerPanel::drawEntityNode(ImGuiLayerModule& owner, co
 		return;
 	}
 
-	const bool editorCameraEntity = isEditorCameraEntity(world, entity);
+	const bool immutableEntity = isImmutableEntity(world, entity);
+	if (immutableEntity != immutableTree)
+	{
+		return;
+	}
 
 	ImGui::PushID(static_cast<int32>(entityIndex));
+	const string entityDisplayText = buildEntityDisplayText(world, entity);
 
 	ImGuiTreeNodeFlags treeNodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-	if (owner.selectedEntityIndex == entityIndex && !editorCameraEntity)
+	if (owner.selectedEntityIndex == entityIndex && !immutableEntity)
 	{
 		treeNodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
-	if (entity->getFirstChildEntityIndex() == invalidEntityIndex)
+
+	bool hasVisibleChildEntity = false;
+	uint32 childEntityIndex = entity->getFirstChildEntityIndex();
+	uint32 childGuardCount = 0;
+	const uint32 maxChildGuardCount = world->getEntityCount();
+	while (childEntityIndex != invalidEntityIndex && childGuardCount < maxChildGuardCount)
+	{
+		const Entity* childEntity = world->getEntityByIndex(childEntityIndex);
+		if (childEntity == nullptr)
+		{
+			break;
+		}
+
+		if (isImmutableEntity(world, childEntity) == immutableTree)
+		{
+			hasVisibleChildEntity = true;
+			break;
+		}
+
+		childEntityIndex = childEntity->getNextSiblingEntityIndex();
+		++childGuardCount;
+	}
+
+	if (!hasVisibleChildEntity)
 	{
 		treeNodeFlags |= ImGuiTreeNodeFlags_Leaf;
 	}
@@ -951,27 +1160,48 @@ void ImGuiLayerModule::OutlinerPanel::drawEntityNode(ImGuiLayerModule& owner, co
 		"Entity",
 		treeNodeFlags,
 		"%s",
-		buildEntityDisplayText(world, entity, entityIndex).c_str());
-	if (ImGui::IsItemClicked() && !editorCameraEntity)
+		entityDisplayText.c_str());
+	if (ImGui::IsItemClicked() && !immutableEntity)
 	{
 		owner.selectedEntityIndex = entityIndex;
+	}
+	if (!immutableEntity && ImGui::BeginDragDropSource())
+	{
+		ImGui::SetDragDropPayload(outlinerEntityDragDropPayloadType, &entityIndex, sizeof(entityIndex));
+		ImGui::Text("%s", entityDisplayText.c_str());
+		ImGui::EndDragDropSource();
+	}
+	if (!immutableEntity && ImGui::BeginDragDropTarget())
+	{
+		const ImGuiPayload* dragDropPayload = ImGui::AcceptDragDropPayload(outlinerEntityDragDropPayloadType);
+		if (dragDropPayload != nullptr && dragDropPayload->DataSize == sizeof(uint32) && dragDropPayload->IsDelivery())
+		{
+			const uint32 droppedEntityIndex = *static_cast<const uint32*>(dragDropPayload->Data);
+			owner.tryReparentEntity(world, droppedEntityIndex, entityIndex);
+		}
+
+		ImGui::EndDragDropTarget();
 	}
 
 	if (isNodeOpened)
 	{
-		uint32 childEntityIndex = entity->getFirstChildEntityIndex();
-		uint32 childGuardCount = 0;
-		const uint32 maxChildGuardCount = world->getEntityCount();
+		childEntityIndex = entity->getFirstChildEntityIndex();
+		childGuardCount = 0;
 		while (childEntityIndex != invalidEntityIndex && childGuardCount < maxChildGuardCount)
 		{
-			drawEntityNode(owner, world, childEntityIndex);
 			const Entity* childEntity = world->getEntityByIndex(childEntityIndex);
 			if (childEntity == nullptr)
 			{
 				break;
 			}
 
-			childEntityIndex = childEntity->getNextSiblingEntityIndex();
+			const uint32 nextChildEntityIndex = childEntity->getNextSiblingEntityIndex();
+			if (isImmutableEntity(world, childEntity) == immutableTree)
+			{
+				drawEntityNode(owner, world, childEntityIndex, immutableTree);
+			}
+
+			childEntityIndex = nextChildEntityIndex;
 			++childGuardCount;
 		}
 
@@ -1040,7 +1270,12 @@ void ImGuiLayerModule::DetailPanel::collectMeshAssetPaths(const filesystem_path&
 
 void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 {
-	ImGui::Begin("Detail");
+	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::right);
+	if (!ImGui::Begin("Detail", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+	{
+		ImGui::End();
+		return;
+	}
 
 	if (world == nullptr)
 	{
@@ -1072,15 +1307,21 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		return;
 	}
 
-	const string selectedEntityDisplayText = buildEntityDisplayText(world, selectedEntity, owner.selectedEntityIndex);
+	const string selectedEntityDisplayText = buildEntityDisplayText(world, selectedEntity);
 	ImGui::Text("%s", selectedEntityDisplayText.c_str());
 	string entityName = selectedEntity->getName();
 	if (ImGui::InputText("Name", &entityName))
 	{
 		selectedEntity->setName(entityName);
-		owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-			? "entity_name_updated_and_saved"
-			: "entity_name_updated_save_skipped";
+		if (owner.saveActiveWorldImmediate())
+		{
+			owner.lastEditorActionStatus = "entity_name_updated_and_saved";
+			owner.recordEditorReplayCommand("Editor.setEntityName", { selectedEntity->getAssetPath(), entityName });
+		}
+		else
+		{
+			owner.lastEditorActionStatus = "entity_name_updated_save_skipped";
+		}
 	}
 	ImGui::Text("Active: %s", selectedEntity->isActive() ? "true" : "false");
 	if (selectedEntity->getParentEntityIndex() == invalidEntityIndex)
@@ -1176,9 +1417,22 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			unique_pointer<MeshComponent> newMeshComponent(new MeshComponent());
 			if (selectedEntity->addComponent(moveValue(newMeshComponent)))
 			{
-				owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-					? "mesh_component_added_and_saved"
-					: "mesh_component_added_save_skipped";
+				if (owner.saveActiveWorldImmediate())
+				{
+					owner.lastEditorActionStatus = "mesh_component_added_and_saved";
+					MeshComponent* savedMeshComponent = componentCast<MeshComponent>(
+						findFirstComponentByType(world, selectedEntity, MeshComponent::staticComponentType));
+					if (savedMeshComponent != nullptr)
+					{
+						owner.recordEditorReplayCommand(
+							"Editor.addComponent",
+							{ selectedEntity->getAssetPath(), MeshComponent::getStaticAssetTypeName(), savedMeshComponent->getAssetPath() });
+					}
+				}
+				else
+				{
+					owner.lastEditorActionStatus = "mesh_component_added_save_skipped";
+				}
 			}
 			else
 			{
@@ -1193,9 +1447,22 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			unique_pointer<CameraComponent> newCameraComponent(new CameraComponent());
 			if (selectedEntity->addComponent(moveValue(newCameraComponent)))
 			{
-				owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-					? "camera_component_added_and_saved"
-					: "camera_component_added_save_skipped";
+				if (owner.saveActiveWorldImmediate())
+				{
+					owner.lastEditorActionStatus = "camera_component_added_and_saved";
+					CameraComponent* savedCameraComponent = componentCast<CameraComponent>(
+						findFirstComponentByType(world, selectedEntity, CameraComponent::staticComponentType));
+					if (savedCameraComponent != nullptr)
+					{
+						owner.recordEditorReplayCommand(
+							"Editor.addComponent",
+							{ selectedEntity->getAssetPath(), CameraComponent::getStaticAssetTypeName(), savedCameraComponent->getAssetPath() });
+					}
+				}
+				else
+				{
+					owner.lastEditorActionStatus = "camera_component_added_save_skipped";
+				}
 			}
 			else
 			{
@@ -1299,9 +1566,22 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 					meshComponent->lodLevel);
 			}
 
-			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-				? "mesh_component_updated_and_saved"
-				: "mesh_component_updated_save_skipped";
+			if (owner.saveActiveWorldImmediate())
+			{
+				owner.lastEditorActionStatus = "mesh_component_updated_and_saved";
+				owner.recordEditorReplayCommand(
+					"Editor.setMeshComponent",
+					{
+						meshComponent->getAssetPath(),
+						meshComponent->meshAssetPath,
+						buildReplayUnsignedArgument(meshComponent->lodLevel),
+						buildReplayBooleanArgument(meshComponent->visible)
+					});
+			}
+			else
+			{
+				owner.lastEditorActionStatus = "mesh_component_updated_save_skipped";
+			}
 		}
 	}
 
@@ -1347,9 +1627,23 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			cameraComponent->nearPlane = nearPlane;
 			cameraComponent->farPlane = farPlane;
 
-			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-				? "camera_component_updated_and_saved"
-				: "camera_component_updated_save_skipped";
+			if (owner.saveActiveWorldImmediate())
+			{
+				owner.lastEditorActionStatus = "camera_component_updated_and_saved";
+				owner.recordEditorReplayCommand(
+					"Editor.setCameraComponent",
+					{
+						cameraComponent->getAssetPath(),
+						buildReplayBooleanArgument(cameraComponent->primary),
+						buildReplayFloatArgument(cameraComponent->fieldOfViewYDegrees),
+						buildReplayFloatArgument(cameraComponent->nearPlane),
+						buildReplayFloatArgument(cameraComponent->farPlane)
+					});
+			}
+			else
+			{
+				owner.lastEditorActionStatus = "camera_component_updated_save_skipped";
+			}
 		}
 	}
 
@@ -1399,9 +1693,28 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		if (transformChanged)
 		{
 			placeableEntity->transform = updatedTransform;
-			owner.lastEditorActionStatus = owner.saveActiveWorldImmediate()
-				? "entity_transform_updated_and_saved"
-				: "entity_transform_updated_save_skipped";
+			if (owner.saveActiveWorldImmediate())
+			{
+				owner.lastEditorActionStatus = "entity_transform_updated_and_saved";
+				owner.recordEditorReplayCommand(
+					"Editor.setTransform",
+					{
+						placeableEntity->getAssetPath(),
+						buildReplayFloatArgument(placeableEntity->transform.positionX),
+						buildReplayFloatArgument(placeableEntity->transform.positionY),
+						buildReplayFloatArgument(placeableEntity->transform.positionZ),
+						buildReplayFloatArgument(placeableEntity->transform.rotationPitch),
+						buildReplayFloatArgument(placeableEntity->transform.rotationYaw),
+						buildReplayFloatArgument(placeableEntity->transform.rotationRoll),
+						buildReplayFloatArgument(placeableEntity->transform.scaleX),
+						buildReplayFloatArgument(placeableEntity->transform.scaleY),
+						buildReplayFloatArgument(placeableEntity->transform.scaleZ)
+					});
+			}
+			else
+			{
+				owner.lastEditorActionStatus = "entity_transform_updated_save_skipped";
+			}
 		}
 	}
 
@@ -1431,6 +1744,7 @@ bool ImGuiLayerModule::tryDeleteSelectedEntity(World* world)
 	}
 
 	const uint32 entityIndexToDelete = selectedEntityIndex;
+	const string deletedEntityAssetPath = selectedEntity->getAssetPath();
 	if (!world->removeEntity(entityIndexToDelete))
 	{
 		lastEditorActionStatus = "entity_delete_failed";
@@ -1438,10 +1752,341 @@ bool ImGuiLayerModule::tryDeleteSelectedEntity(World* world)
 	}
 
 	selectedEntityIndex = invalidEntityIndex;
-	lastEditorActionStatus = saveActiveWorldImmediate()
-		? "entity_deleted_and_saved"
-		: "entity_deleted_save_skipped";
+	if (saveActiveWorldImmediate())
+	{
+		lastEditorActionStatus = "entity_deleted_and_saved";
+		recordEditorReplayCommand("Editor.deleteEntity", { deletedEntityAssetPath });
+	}
+	else
+	{
+		lastEditorActionStatus = "entity_deleted_save_skipped";
+	}
 	return true;
+}
+
+bool ImGuiLayerModule::tryReparentEntity(World* world, const uint32 childEntityIndex, const uint32 parentEntityIndex)
+{
+	if (world == nullptr)
+	{
+		return false;
+	}
+
+	if (childEntityIndex == parentEntityIndex)
+	{
+		lastEditorActionStatus = "entity_reparent_self_blocked";
+		return false;
+	}
+
+	const Entity* childEntity = world->getEntityByIndex(childEntityIndex);
+	if (childEntity == nullptr)
+	{
+		lastEditorActionStatus = "entity_reparent_invalid_selection";
+		return false;
+	}
+
+	if (isEditorCameraEntity(world, childEntity))
+	{
+		lastEditorActionStatus = "editor_camera_entity_reparent_blocked";
+		return false;
+	}
+
+	if (parentEntityIndex != invalidEntityIndex)
+	{
+		const Entity* parentEntity = world->getEntityByIndex(parentEntityIndex);
+		if (parentEntity == nullptr)
+		{
+			lastEditorActionStatus = "entity_reparent_invalid_parent";
+			return false;
+		}
+
+		if (isEditorCameraEntity(world, parentEntity))
+		{
+			lastEditorActionStatus = "editor_camera_entity_parent_blocked";
+			return false;
+		}
+	}
+
+	selectedEntityIndex = childEntityIndex;
+	if (childEntity->getParentEntityIndex() == parentEntityIndex)
+	{
+		lastEditorActionStatus = "entity_parent_unchanged";
+		return true;
+	}
+
+	const string childEntityAssetPath = childEntity->getAssetPath();
+	const string parentEntityAssetPath = parentEntityIndex != invalidEntityIndex
+		? world->getEntityByIndex(parentEntityIndex)->getAssetPath()
+		: "";
+
+	if (!world->reparentEntity(childEntityIndex, parentEntityIndex))
+	{
+		lastEditorActionStatus = "entity_reparent_failed";
+		return false;
+	}
+
+	if (saveActiveWorldImmediate())
+	{
+		lastEditorActionStatus = "entity_reparented_and_saved";
+		recordEditorReplayCommand("Editor.reparentEntity", { childEntityAssetPath, parentEntityAssetPath });
+	}
+	else
+	{
+		lastEditorActionStatus = "entity_reparented_save_skipped";
+	}
+	return true;
+}
+
+void ImGuiLayerModule::DeassetViewerPanel::reset()
+{
+	opened = false;
+	dirty = false;
+	absoluteFilePath.clear();
+	displayPathText.clear();
+	document.clear();
+	loadedDocument.clear();
+	documentKeys.clear();
+	statusText.clear();
+}
+
+void ImGuiLayerModule::DeassetViewerPanel::open(const filesystem_path& filePath, const string& displayPath)
+{
+	reset();
+
+	opened = true;
+	absoluteFilePath = filePath.lexically_normal().string();
+	displayPathText = displayPath.empty() ? absoluteFilePath : displayPath;
+	reloadDocument();
+}
+
+const char* ImGuiLayerModule::DeassetViewerPanel::buildParseCodeText(const XML::ParseCode parseCode)
+{
+	switch (parseCode)
+	{
+	case XML::ParseCode::succeeded:
+		return "succeeded";
+	case XML::ParseCode::fileOpenFailed:
+		return "file_open_failed";
+	case XML::ParseCode::malformedDocument:
+		return "malformed_document";
+	case XML::ParseCode::duplicateKey:
+		return "duplicate_key";
+	default:
+		return "unknown";
+	}
+}
+
+bool ImGuiLayerModule::DeassetViewerPanel::reloadDocument()
+{
+	document.clear();
+	documentKeys.clear();
+	dirty = false;
+	statusText.clear();
+	if (absoluteFilePath.empty())
+	{
+		statusText = "reload_failed: file_path_missing";
+		return false;
+	}
+
+	const XML::ParseCode parseCode = XML::get().readDocumentFile(absoluteFilePath, document);
+	if (parseCode != XML::ParseCode::succeeded)
+	{
+		statusText = string("reload_failed: ") + buildParseCodeText(parseCode);
+		return false;
+	}
+
+	loadedDocument = document;
+	rebuildDocumentKeys();
+	statusText = "loaded";
+	return true;
+}
+
+bool ImGuiLayerModule::DeassetViewerPanel::saveDocument()
+{
+	if (absoluteFilePath.empty())
+	{
+		statusText = "save_failed: file_path_missing";
+		return false;
+	}
+
+	if (!XML::get().writeDocumentFile(absoluteFilePath, document))
+	{
+		statusText = "save_failed";
+		return false;
+	}
+
+	dirty = false;
+	statusText = "saved";
+	return true;
+}
+
+void ImGuiLayerModule::DeassetViewerPanel::recordSavedDocumentChanges(ImGuiLayerModule& owner)
+{
+	vector<string> changedKeys = {};
+	changedKeys.reserve(document.valueByKey.size() + loadedDocument.valueByKey.size());
+	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
+	{
+		const string* loadedValue = loadedDocument.find(keyValueIterator->first);
+		if (loadedValue != nullptr && *loadedValue == keyValueIterator->second)
+		{
+			continue;
+		}
+
+		changedKeys.push_back(keyValueIterator->first);
+	}
+
+	for (auto keyValueIterator = loadedDocument.valueByKey.begin(); keyValueIterator != loadedDocument.valueByKey.end(); ++keyValueIterator)
+	{
+		if (document.find(keyValueIterator->first) != nullptr)
+		{
+			continue;
+		}
+
+		changedKeys.push_back(keyValueIterator->first);
+	}
+
+	std::sort(changedKeys.begin(), changedKeys.end());
+	changedKeys.erase(std::unique(changedKeys.begin(), changedKeys.end()), changedKeys.end());
+	const string replayAssetPath = displayPathText.empty() ? absoluteFilePath : displayPathText;
+	for (uint32 changedKeyIndex = 0; changedKeyIndex < static_cast<uint32>(changedKeys.size()); ++changedKeyIndex)
+	{
+		const string& changedKey = changedKeys[changedKeyIndex];
+		const string* changedValue = document.find(changedKey);
+		owner.recordEditorReplayCommand(
+			"Editor.setDeassetProperty",
+			{ replayAssetPath, changedKey, changedValue != nullptr ? *changedValue : "" });
+	}
+
+	loadedDocument = document;
+}
+
+void ImGuiLayerModule::DeassetViewerPanel::rebuildDocumentKeys()
+{
+	documentKeys.clear();
+	documentKeys.reserve(document.valueByKey.size());
+	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
+	{
+		documentKeys.push_back(keyValueIterator->first);
+	}
+
+	std::sort(documentKeys.begin(), documentKeys.end());
+}
+
+void ImGuiLayerModule::DeassetViewerPanel::build(ImGuiLayerModule& owner, World* world)
+{
+	unused(world);
+
+	if (!opened)
+	{
+		return;
+	}
+
+	const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+	const float windowWidth = clampFloat(
+		mainViewport != nullptr ? mainViewport->Size.x * 0.34f : 720.0f,
+		520.0f,
+		960.0f);
+	const float windowHeight = clampFloat(
+		mainViewport != nullptr ? mainViewport->Size.y * 0.62f : 720.0f,
+		420.0f,
+		960.0f);
+	ImGui::SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_FirstUseEver);
+
+	const char* windowTitle = dirty
+		? "Deasset Viewer*###DeassetViewer"
+		: "Deasset Viewer###DeassetViewer";
+	if (!ImGui::Begin(windowTitle, &opened))
+	{
+		ImGui::End();
+		if (!opened)
+		{
+			reset();
+		}
+		return;
+	}
+
+	const string* assetType = document.find("deasset.@type");
+	ImGui::Text("Path: %s", displayPathText.empty() ? absoluteFilePath.c_str() : displayPathText.c_str());
+	ImGui::Text("Type: %s", assetType != nullptr ? assetType->c_str() : "(unknown)");
+	ImGui::Text("Property Count: %u", static_cast<uint32>(documentKeys.size()));
+	if (!statusText.empty())
+	{
+		ImGui::Text("Status: %s", statusText.c_str());
+	}
+
+	if (ImGui::Button("Reload"))
+	{
+		if (reloadDocument())
+		{
+			owner.lastEditorActionStatus = "deasset_reloaded";
+		}
+		else
+		{
+			owner.lastEditorActionStatus = "deasset_reload_failed";
+		}
+	}
+
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!dirty);
+	if (ImGui::Button("Save"))
+	{
+		if (saveDocument())
+		{
+			recordSavedDocumentChanges(owner);
+			owner.lastEditorActionStatus = "deasset_saved";
+		}
+		else
+		{
+			owner.lastEditorActionStatus = "deasset_save_failed";
+		}
+	}
+	ImGui::EndDisabled();
+
+	ImGui::Separator();
+	if (ImGui::BeginChild("DeassetPropertyList", ImVec2(0.0f, 0.0f), false))
+	{
+		const ImGuiTableFlags tableFlags =
+			ImGuiTableFlags_RowBg
+			| ImGuiTableFlags_BordersInnerV
+			| ImGuiTableFlags_Resizable
+			| ImGuiTableFlags_SizingStretchProp;
+		if (ImGui::BeginTable("DeassetProperties", 2, tableFlags))
+		{
+			ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.44f);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.56f);
+			ImGui::TableHeadersRow();
+
+			for (uint32 propertyIndex = 0; propertyIndex < static_cast<uint32>(documentKeys.size()); ++propertyIndex)
+			{
+				const string& propertyKey = documentKeys[propertyIndex];
+				auto propertyIterator = document.valueByKey.find(propertyKey);
+				assert(propertyIterator != document.valueByKey.end() && "[ImGuiLayerModule][Assert] reason=deasset_property_missing");
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::TextUnformatted(propertyKey.c_str());
+
+				ImGui::TableSetColumnIndex(1);
+				ImGui::PushID(propertyKey.c_str());
+				ImGui::SetNextItemWidth(-1.0f);
+				if (ImGui::InputText("##Value", &propertyIterator->second))
+				{
+					dirty = true;
+					statusText = "modified";
+					owner.lastEditorActionStatus = "deasset_modified";
+				}
+				ImGui::PopID();
+			}
+
+			ImGui::EndTable();
+		}
+	}
+	ImGui::EndChild();
+
+	ImGui::End();
+	if (!opened)
+	{
+		reset();
+	}
 }
 
 void ImGuiLayerModule::FileSystemPanel::reset()
@@ -1455,11 +2100,23 @@ void ImGuiLayerModule::FileSystemPanel::reset()
 	supportedImportExtensionsLoaded = false;
 }
 
+bool ImGuiLayerModule::FileSystemPanel::isDeassetDocumentFile(const filesystem_path& filePath) const
+{
+	string extension = filePath.extension().string();
+	tolower(extension);
+	return extension == ".deasset";
+}
+
 void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* world)
 {
 	unused(world);
 
-	ImGui::Begin("FileSystem");
+	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::bottom);
+	if (!ImGui::Begin("FileSystem", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+	{
+		ImGui::End();
+		return;
+	}
 
 	if (!resolveResourcesRootPath())
 	{
@@ -1509,6 +2166,11 @@ void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* wo
 					lastOpenedWorldPath = createdWorldPath;
 					owner.lastEditorActionStatus = "world_created_loaded_and_saved";
 					owner.selectedEntityIndex = invalidEntityIndex;
+					World* createdWorld = owner.frameworkReference->getActiveWorld();
+					if (createdWorld != nullptr)
+					{
+						owner.recordEditorReplayCommand("Editor.createWorld", { createdWorld->getName(), createdWorldPath });
+					}
 				}
 				else
 				{
@@ -1612,10 +2274,12 @@ void ImGuiLayerModule::FileSystemPanel::drawDirectoryEntriesRecursive(
 
 		ImGui::PushID(directoryEntry.path().string().c_str());
 		ImGui::Selectable(displayName.c_str(), false);
-		drawFileEntryContextMenu(directoryEntry.path());
+		drawFileEntryContextMenu(owner, directoryEntry.path());
+		const bool deassetDocumentFile = isDeassetDocumentFile(directoryEntry.path());
 		const bool worldFileDoubleClicked =
 			ImGui::IsItemHovered()
 			&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+			&& deassetDocumentFile
 			&& isWorldAssetFile(directoryEntry.path());
 		if (worldFileDoubleClicked)
 		{
@@ -1626,11 +2290,20 @@ void ImGuiLayerModule::FileSystemPanel::drawDirectoryEntriesRecursive(
 				lastOpenedWorldPath = worldAssetPath;
 				owner.selectedEntityIndex = invalidEntityIndex;
 				owner.lastEditorActionStatus = "world_loaded";
+				owner.recordEditorReplayCommand("Editor.loadWorld", { worldAssetPath });
 			}
 			else
 			{
 				owner.lastEditorActionStatus = "world_load_failed";
 			}
+		}
+		else if (ImGui::IsItemHovered()
+			&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+			&& deassetDocumentFile)
+		{
+			const string assetPath = buildResourceAssetPath(directoryEntry.path());
+			deassetViewerPanel.open(directoryEntry.path(), assetPath);
+			owner.lastEditorActionStatus = "deasset_viewer_opened";
 		}
 
 		ImGui::PopID();
@@ -1708,11 +2381,20 @@ bool ImGuiLayerModule::FileSystemPanel::isImportSupportedFile(const filesystem_p
 	return false;
 }
 
-void ImGuiLayerModule::FileSystemPanel::drawFileEntryContextMenu(const filesystem_path& filePath)
+void ImGuiLayerModule::FileSystemPanel::drawFileEntryContextMenu(
+	ImGuiLayerModule& owner,
+	const filesystem_path& filePath)
 {
 	if (!ImGui::BeginPopupContextItem("FileContextMenu"))
 	{
 		return;
+	}
+
+	if (isDeassetDocumentFile(filePath) && ImGui::MenuItem("View Deasset"))
+	{
+		const string assetPath = buildResourceAssetPath(filePath);
+		deassetViewerPanel.open(filePath, assetPath);
+		owner.lastEditorActionStatus = "deasset_viewer_opened";
 	}
 
 	const bool importSupported = isImportSupportedFile(filePath);
@@ -1777,6 +2459,28 @@ bool ImGuiLayerModule::saveActiveWorldImmediate()
 	return CLIModule::get()->getLastExecutionCode() == static_cast<int32>(CLIModule::ExecutionCode::succeeded);
 }
 
+bool ImGuiLayerModule::recordEditorReplayCommand(const string& commandName, const vector<string>& arguments) const
+{
+	const bool appendedCommand = EditorCommandReplay::appendCommand(commandName, arguments);
+	if (!appendedCommand)
+	{
+		error << "[EditorReplayLog] action=append_failed command=" << commandName << lineBreak;
+	}
+
+	return appendedCommand;
+}
+
+bool ImGuiLayerModule::recordEditorReplayCommandText(const string& commandText) const
+{
+	const bool appendedCommand = EditorCommandReplay::appendCommandText(commandText);
+	if (!appendedCommand)
+	{
+		error << "[EditorReplayLog] action=append_failed command=" << commandText << lineBreak;
+	}
+
+	return appendedCommand;
+}
+
 string ImGuiLayerModule::FileSystemPanel::buildResourceAssetPath(const filesystem_path& filePath) const
 {
 	if (resourcesRootPathText.empty())
@@ -1796,7 +2500,7 @@ string ImGuiLayerModule::FileSystemPanel::buildResourceAssetPath(const filesyste
 
 bool ImGuiLayerModule::FileSystemPanel::isWorldAssetFile(const filesystem_path& filePath) const
 {
-	if (filePath.extension() != ".deasset")
+	if (!isDeassetDocumentFile(filePath))
 	{
 		return false;
 	}

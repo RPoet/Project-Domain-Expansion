@@ -25,21 +25,19 @@ static int32 getMeshParserImportExecutionCode(const string& errorText)
 	return static_cast<int32>(MeshParser::ImportCLIExecutionCode::parseFailed);
 }
 
-static int32 meshParserImportCLICommand(const string& parameter1, const string& parameter2, const string& parameter3)
+static int32 meshParserImportCLICommand(const vector<string>& arguments)
 {
-	unused(parameter2);
-	unused(parameter3);
-	if (parameter1.empty())
+	if (arguments.size() != 1 || arguments[0].empty())
 	{
 		return static_cast<int32>(MeshParser::ImportCLIExecutionCode::missingPath);
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	const string meshAssetPath = diskLoaderModule->resolveAssetPath(parameter1, DiskLoaderModule::AssetFileType::document);
+	const string meshAssetPath = diskLoaderModule->resolveAssetPath(arguments[0], DiskLoaderModule::AssetFileType::document);
 
 	MeshAsset meshAsset = {};
 	string errorText = {};
-	if (!MeshParser::get().importFromFile(parameter1, 0, meshAssetPath, meshAsset, errorText))
+	if (!MeshParser::get().importFromFile(arguments[0], 0, meshAssetPath, meshAsset, errorText))
 	{
 		return getMeshParserImportExecutionCode(errorText);
 	}
