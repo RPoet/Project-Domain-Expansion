@@ -410,7 +410,6 @@ void ImGuiLayerModule::ImportPanel::executeImportCommand()
 	commandText = "MeshParser.import \"" + sourceFilePathText + "\"";
 	CLIModule::execute(commandText);
 	shared_pointer<CLIModule> cliModule = CLIModule::get();
-	assert(cliModule != nullptr && "[ImGuiLayerModule][Assert] reason=cli_module_missing");
 	processCode = mapProcessCodeFromCLIExecutionCode(cliModule->getLastExecutionCode());
 	processCodeAvailable = true;
 }
@@ -675,9 +674,8 @@ bool ImGuiLayerModule::resolveEditorGridRenderResources(EditorGridRenderResource
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
 	shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
-	const bool validModules = renderBackendModule != nullptr
-		&& shaderPackageModule != nullptr
-		&& renderBackendModule->isBackendCreated();
+	unused(shaderPackageModule);
+	const bool validModules = renderBackendModule->isBackendCreated();
 	assert(validModules && "[ImGuiLayerModule][Assert] reason=editor_grid_module_missing");
 
 	RenderBackend* renderBackend = renderBackendModule->getBackend();
@@ -758,7 +756,6 @@ bool ImGuiLayerModule::initializeContext()
 	ImGuiIO& imguiIo = ImGui::GetIO();
 	imguiIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[ImGuiLayerModule][Assert] reason=disk_loader_module_missing");
 	if (diskLoaderModule->TEMP_resolveImGuiIniFilePath(imguiIniFilePath))
 	{
 		imguiIo.IniFilename = imguiIniFilePath.c_str();
@@ -1167,17 +1164,27 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		ImGui::Separator();
 		ImGui::TextUnformatted("MeshComponent");
 
-		string meshPath = meshComponent->meshRelativePath;
+		string meshPath = meshComponent->meshAssetPath;
 		int32 lodLevel = static_cast<int32>(meshComponent->lodLevel);
 		bool visible = meshComponent->visible;
 		bool meshComponentChanged = false;
 
-		if (ImGui::InputText("Mesh Path", &meshPath))
+		if (ImGui::InputText("Mesh Asset Path", &meshPath))
 		{
-			meshComponent->meshRelativePath = meshPath;
+			meshComponent->meshAssetPath = meshPath;
+			meshComponent->meshAsset.reset();
+			if (!meshPath.empty())
+			{
+				const XMLKeyValueDocument document = XML::get().readDocumentFile(meshPath);
+				MeshAsset meshAsset = {};
+				meshAsset.setAssetPath(meshPath);
+				meshAsset.readProperty(document);
+				meshComponent->meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(meshAsset)));
+			}
+
 			meshComponentChanged = true;
 		}
-		ImGui::TextDisabled("Example: Meshes/Plane.obj");
+		ImGui::TextDisabled("Example: Meshes/Plane.deasset");
 
 		if (ImGui::InputInt("LOD", &lodLevel))
 		{
@@ -1198,10 +1205,10 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 
 		if (meshComponentChanged)
 		{
-			if (!meshComponent->meshRelativePath.empty())
+			if (meshComponent->meshAsset != nullptr)
 			{
 				MeshStreaming::get()->requestMesh(
-					meshComponent->meshRelativePath,
+					meshComponent->meshAsset,
 					meshComponent->lodLevel);
 			}
 
@@ -1552,9 +1559,7 @@ bool ImGuiLayerModule::FileSystemPanel::ensureImportSupportedExtensionsLoaded()
 	const string importConfigFilePath = (filesystem_path(resourcesRootPathText) / "Config" / "ImportExtensions.xml")
 		.lexically_normal()
 		.string();
-	XMLKeyValueDocument importDocument = {};
-	const XML::ParseCode parseCode = xml.readDocumentFile(importConfigFilePath, importDocument);
-	assert(parseCode == XML::ParseCode::succeeded && "[ImGuiLayerModule][Assert] reason=import_extension_config_load_failed");
+	const XMLKeyValueDocument importDocument = xml.readDocumentFile(importConfigFilePath);
 
 	supportedImportExtensions.clear();
 	supportedImportExtensions.reserve(importDocument.valueByKey.size());

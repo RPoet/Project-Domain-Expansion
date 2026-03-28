@@ -90,7 +90,6 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 	assert(resolvedBinaryAbsolutePath && "[ShaderModule][Assert] reason=shader_binary_path_resolve_failed");
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
 
 	vector<char> shaderByteCode = {};
 	const bool loadedShaderByteCode = diskLoaderModule->loadBinaryFile(shaderBinaryAbsolutePath, shaderByteCode);
@@ -168,6 +167,5 @@ bool ShaderModule::resolveShaderBinaryAbsolutePath(
 {
 	outAbsolutePath.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
 	return diskLoaderModule->resolvePathFromResources(binaryRelativePath, outAbsolutePath);
 }

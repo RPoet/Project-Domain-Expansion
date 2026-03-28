@@ -61,6 +61,7 @@ using std::filesystem::create_directories;
 using std::filesystem::current_path;
 using std::filesystem::exists;
 using std::filesystem::is_directory;
+using std::filesystem::remove_all;
 using std::getline;
 using std::terminate;
 using std::tolower;

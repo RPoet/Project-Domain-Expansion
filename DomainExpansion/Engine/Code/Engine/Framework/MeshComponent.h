@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Assets/MeshAsset.h"
 #include "Bridge/MeshBridge.h"
 #include "Engine/Framework/Component.h"
 
@@ -7,8 +8,10 @@ class MeshComponent final : public Component
 {
 public:
 	DECLARE_COMPONENT(MeshComponent);
+	void clear() override;
 
-	string meshRelativePath = {};
+	string meshAssetPath = {};
+	shared_pointer<MeshAsset> meshAsset = nullptr;
 	uint32 lodLevel = 0;
 	bool visible = true;
 	BridgeHandle getMeshHandle() const;
@@ -17,6 +20,8 @@ public:
 
 protected:
 	void initComponent() override;
+	void writeAssetProperty(OutputFileStream& fileStream) const override;
+	void readAssetProperty(const XMLKeyValueDocument& document) override;
 
 private:
 	MeshBridge::HandleReference meshHandleReference = {};

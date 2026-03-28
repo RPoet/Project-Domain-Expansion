@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Bridge/BridgeHandle.h"
+#include "Engine/Assets/Asset.h"
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Platform/PlatformDefine.h"
 
 class World;
-class Component;
 
 struct ComponentType
 {
@@ -41,11 +41,13 @@ public: \
 	const ComponentTypeMetadata& getComponentTypeMetadata() const override \
 	{ \
 		return getStaticComponentTypeMetadata(); \
-	}
+	} \
+	DECLARE_ASSET(componentClassName);
 
-class Component
+class Component : public Asset
 {
 public:
+	DECLARE_ASSET(Component);
 	virtual ~Component() = default;
 	static constexpr ComponentType staticComponentType = {};
 	static const ComponentTypeMetadata& getStaticComponentTypeMetadata()
@@ -63,6 +65,7 @@ public:
 	{
 		return getStaticComponentTypeMetadata();
 	}
+	void clear() override;
 
 	World* getOwnerWorld()
 	{
@@ -89,6 +92,16 @@ public:
 		return ownerEntityHandle;
 	}
 
+	const string& getOwnerEntityAssetPath() const
+	{
+		return ownerEntityAssetPath;
+	}
+
+	void setOwnerEntityAssetPath(const string& ownerEntityAssetPath)
+	{
+		this->ownerEntityAssetPath = ownerEntityAssetPath;
+	}
+
 	virtual void tick(float deltaTimeSeconds)
 	{
 		unused(deltaTimeSeconds);
@@ -112,6 +125,10 @@ protected:
 	{
 	}
 
+	void writeAssetProperty(OutputFileStream& fileStream) const override;
+	void readAssetProperty(const XMLKeyValueDocument& document) override;
+
+	string ownerEntityAssetPath = {};
 	World* ownerWorld = nullptr;
 	uint32 ownerEntityIndex = invalidEntityIndex;
 	uint32 ownerComponentIndex = invalidComponentIndex;

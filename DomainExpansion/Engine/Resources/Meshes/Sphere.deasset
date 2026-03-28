@@ -1,0 +1,7 @@
+<deasset type="MeshAsset">
+  <guid></guid>
+  <name>Sphere</name>
+  <hasBinary>1</hasBinary>
+  <version>1</version>
+  <source>Meshes/Sphere.obj</source>
+</deasset>

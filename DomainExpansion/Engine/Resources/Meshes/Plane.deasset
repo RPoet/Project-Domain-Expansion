@@ -1,0 +1,7 @@
+<deasset type="MeshAsset">
+  <guid></guid>
+  <name>Plane</name>
+  <hasBinary>1</hasBinary>
+  <version>1</version>
+  <source>Meshes/Plane.obj</source>
+</deasset>

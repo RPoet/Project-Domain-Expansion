@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Engine/Assets/MeshAsset.h"
-#include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Module.h"
 #include "Engine/Platform/PlatformDefine.h"
 #include "Render/ResourceObject.h"
@@ -58,7 +57,7 @@ inline constexpr uint32 getMeshBufferSignatureFlag(const MeshBufferSignature sig
 
 struct MeshAssetHandle
 {
-	string meshRelativePath = {};
+	string meshAssetPath = {};
 	uint32 lodLevel = 0;
 	MeshAssetHandleState state = MeshAssetHandleState::pending;
 	MeshAssetGpuState gpuState = MeshAssetGpuState::none;
@@ -135,7 +134,7 @@ public:
 	void shutdown() override final;
 
 	shared_pointer<MeshAssetHandle> requestMesh(
-		const string& meshRelativePath,
+		const shared_pointer<MeshAsset>& meshAsset,
 		uint32 lodLevel = 0);
 	void flushGpuRequests(RenderBackend& renderBackend);
 	void clear();
@@ -146,10 +145,8 @@ private:
 	bool uploadMeshHandleToGpu(
 		RenderBackend& renderBackend,
 		MeshAssetHandle& handle) const;
-	string getMeshCacheKey(const string& meshRelativePath, uint32 lodLevel) const;
-	bool resolveMeshAbsolutePath(const string& meshRelativePath, string& outAbsolutePath) const;
+	string getMeshCacheKey(const string& meshAssetPath, uint32 lodLevel) const;
 
 	unordered_map<string, shared_pointer<MeshAssetHandle>> handleCache;
-	vector<shared_pointer<MeshAssetHandle>> pendingHandles;
 	vector<shared_pointer<MeshAssetHandle>> pendingGpuUploadHandles;
 };

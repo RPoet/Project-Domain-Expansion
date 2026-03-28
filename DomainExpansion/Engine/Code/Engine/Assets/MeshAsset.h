@@ -21,6 +21,7 @@ struct RawMeshData
 class MeshAsset : public Asset
 {
 public:
+	DECLARE_ASSET(MeshAsset);
 	constexpr static uint32 version = 1;
 
 	MeshAsset()
@@ -45,7 +46,6 @@ public:
 	void deserialize(InputFileStream& fileStream) override;
 
 private:
-	DECLAR_ASSET(MeshAsset);
 	void writeAssetProperty(OutputFileStream& fileStream) const override;
 	void readAssetProperty(const XMLKeyValueDocument& document) override;
 

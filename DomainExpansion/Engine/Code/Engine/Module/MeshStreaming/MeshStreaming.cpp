@@ -60,10 +60,15 @@ void MeshStreaming::postUpdate()
 }
 
 shared_pointer<MeshAssetHandle> MeshStreaming::requestMesh(
-	const string& meshRelativePath,
+	const shared_pointer<MeshAsset>& meshAsset,
 	const uint32 lodLevel)
 {
-	const string cacheKey = getMeshCacheKey(meshRelativePath, lodLevel);
+	assert(meshAsset != nullptr && "[MeshStreaming][Assert] reason=mesh_asset_missing");
+	const string& meshAssetPath = meshAsset->getAssetPath();
+	assert(!meshAssetPath.empty() && "[MeshStreaming][Assert] reason=mesh_asset_path_missing");
+	assert(lodLevel < meshAsset->getLODCount() && "[MeshStreaming][Assert] reason=mesh_asset_lod_out_of_range");
+
+	const string cacheKey = getMeshCacheKey(meshAssetPath, lodLevel);
 	auto foundHandle = handleCache.find(cacheKey);
 	if (foundHandle != handleCache.end())
 	{
@@ -71,12 +76,14 @@ shared_pointer<MeshAssetHandle> MeshStreaming::requestMesh(
 	}
 
 	shared_pointer<MeshAssetHandle> handle(new MeshAssetHandle());
-	handle->meshRelativePath = meshRelativePath;
+	handle->meshAssetPath = meshAssetPath;
+	handle->meshAsset = meshAsset;
 	handle->lodLevel = lodLevel;
-	handle->state = MeshAssetHandleState::pending;
+	handle->state = MeshAssetHandleState::ready;
+	handle->gpuState = MeshAssetGpuState::pending;
 	initializeMeshAssetHandleVertexBuffers(*handle);
 	handleCache.emplace(cacheKey, handle);
-	pendingHandles.push_back(handle);
+	pendingGpuUploadHandles.push_back(handle);
 	return handle;
 }
 
@@ -87,68 +94,24 @@ void MeshStreaming::shutdown()
 
 void MeshStreaming::flushCpuRequests()
 {
-	if (!pendingHandles.empty())
-	{
-		vector<shared_pointer<MeshAssetHandle>> processingHandles;
-		processingHandles.swap(pendingHandles);
-
-		for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
-		{
-			shared_pointer<MeshAssetHandle>& handle = processingHandles[handleIndex];
-			if (handle == nullptr || handle->state != MeshAssetHandleState::pending)
-			{
-				continue;
-			}
-
-			string resolvedMeshPath = {};
-			const bool resolvedMeshPathResult = resolveMeshAbsolutePath(handle->meshRelativePath, resolvedMeshPath);
-			assert(resolvedMeshPathResult && "[MeshStreaming][Assert] reason=mesh_path_resolve_failed");
-
-			MeshAsset meshAsset = {};
-			string errorText = {};
-			const bool parsedMeshAsset =
-				MeshParser::get().parseFromFile(resolvedMeshPath, handle->lodLevel, meshAsset, errorText);
-			assert(parsedMeshAsset && "[MeshStreaming][Assert] reason=mesh_load_failed");
-
-			handle->meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(meshAsset)));
-			handle->state = MeshAssetHandleState::ready;
-			handle->gpuState = MeshAssetGpuState::pending;
-			pendingGpuUploadHandles.push_back(handle);
-			output << "[MeshStreaming][Ready] mesh=" << handle->meshRelativePath
-				   << " lod=" << handle->lodLevel
-				   << " vertexCount=" << handle->meshAsset->getVertexCount()
-				   << " indexCount=" << handle->meshAsset->getIndexCount() << lineBreak;
-		}
-	}
 }
 
 void MeshStreaming::clear()
 {
 	handleCache.clear();
-	pendingHandles.clear();
 	pendingGpuUploadHandles.clear();
 }
 
 uint32 MeshStreaming::getPendingRequestCount() const
 {
-	return static_cast<uint32>(pendingHandles.size() + pendingGpuUploadHandles.size());
+	return static_cast<uint32>(pendingGpuUploadHandles.size());
 }
 
 string MeshStreaming::getMeshCacheKey(
-	const string& meshRelativePath,
+	const string& meshAssetPath,
 	const uint32 lodLevel) const
 {
-	return meshRelativePath + "|LOD" + std::to_string(lodLevel);
-}
-
-bool MeshStreaming::resolveMeshAbsolutePath(
-	const string& meshRelativePath,
-	string& outAbsolutePath) const
-{
-	outAbsolutePath.clear();
-	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[MeshStreaming][Assert] reason=disk_loader_module_missing");
-	return diskLoaderModule->resolvePathFromResources(meshRelativePath, outAbsolutePath);
+	return meshAssetPath + "|LOD" + std::to_string(lodLevel);
 }
 
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
@@ -213,7 +176,7 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		}
 
 		handle->gpuState = MeshAssetGpuState::ready;
-		output << "[MeshStreaming][GpuReady] mesh=" << handle->meshRelativePath
+		output << "[MeshStreaming][GpuReady] mesh=" << handle->meshAssetPath
 			   << " lod=" << handle->lodLevel
 			   << " positionBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::position)
 			   << " normalBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::normal)
@@ -241,7 +204,7 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
-	const RawMeshData& rawMeshData = meshAsset.getRawMeshData();
+	const RawMeshData& rawMeshData = meshAsset.getRawMeshData(handle.lodLevel);
 	const uint32 vertexCount = static_cast<uint32>(rawMeshData.positionVertices.size());
 	const uint64 indexBufferBytes = static_cast<uint64>(rawMeshData.indices.size()) * sizeof(uint32);
 	uint64 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};

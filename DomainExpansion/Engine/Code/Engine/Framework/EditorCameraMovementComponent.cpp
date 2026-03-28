@@ -1,5 +1,6 @@
 #include "Engine/Framework/EditorCameraMovementComponent.h"
 
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
@@ -99,9 +100,37 @@ CameraComponent* EditorCameraMovementComponent::getOwnerEditorCameraComponent()
 	return nullptr;
 }
 
+void EditorCameraMovementComponent::clear()
+{
+	Component::clear();
+	movementSpeed = 4.0f;
+}
+
 void EditorCameraMovementComponent::setMovementSpeed(const float movementSpeed)
 {
 	this->movementSpeed = clampEditorCameraMovementSpeed(movementSpeed);
+}
+
+void EditorCameraMovementComponent::writeAssetProperty(OutputFileStream& fileStream) const
+{
+	Component::writeAssetProperty(fileStream);
+
+	XML& xml = XML::get();
+	xml.writeProperty(fileStream, "movementSpeed", movementSpeed);
+}
+
+void EditorCameraMovementComponent::readAssetProperty(const XMLKeyValueDocument& document)
+{
+	Component::readAssetProperty(document);
+
+	float readMovementSpeed = movementSpeed;
+	XML& xml = XML::get();
+	if (!xml.readProperty(document, "deasset.movementSpeed", readMovementSpeed))
+	{
+		return;
+	}
+
+	setMovementSpeed(readMovementSpeed);
 }
 
 void EditorCameraMovementComponent::tick(const float deltaTimeSeconds)

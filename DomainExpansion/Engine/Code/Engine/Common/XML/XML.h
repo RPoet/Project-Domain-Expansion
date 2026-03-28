@@ -67,14 +67,13 @@ public:
 		const value_type& propertyValue) const
 	{
 		assert(propertyName != nullptr && "[XML][Assert] reason=property_name_missing");
-
-		fileStream << string("  <")
-				   << string(propertyName)
-				   << string(">")
+		fileStream << "  <"
+				   << propertyName
+				   << ">"
 				   << escapeText(buildPropertyValueText(propertyValue))
-				   << string("</")
-				   << string(propertyName)
-				   << string(">\n");
+				   << "</"
+				   << propertyName
+				   << ">\n";
 	}
 
 	template <typename value_type>
@@ -104,4 +103,7 @@ public:
 	ParseCode readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const;
 	ParseCode readDocumentFile(const string& filePath, XMLKeyValueDocument& outDocument) const;
 	ParseCode readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const;
+	XMLKeyValueDocument readDocument(InputFileStream& fileStream) const;
+	XMLKeyValueDocument readDocumentFile(const string& filePath) const;
+	XMLKeyValueDocument readDocumentText(const string& xmlText) const;
 };

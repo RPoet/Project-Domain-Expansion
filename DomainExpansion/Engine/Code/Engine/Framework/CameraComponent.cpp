@@ -1,5 +1,6 @@
 #include "Engine/Framework/CameraComponent.h"
 
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
 
@@ -21,6 +22,17 @@ BridgeHandle CameraComponent::getCameraHandle() const
 	return cameraHandleReference.getPackedHandle();
 }
 
+void CameraComponent::clear()
+{
+	Component::clear();
+	editorCamera = false;
+	primary = false;
+	fieldOfViewYDegrees = 60.0f;
+	nearPlane = 0.1f;
+	farPlane = 100.0f;
+	cameraHandleReference.reset();
+}
+
 void CameraComponent::tick(const float deltaTimeSeconds)
 {
 	unused(deltaTimeSeconds);
@@ -30,6 +42,30 @@ void CameraComponent::tick(const float deltaTimeSeconds)
 void CameraComponent::initComponent()
 {
 	generateCameraBridgeHandle();
+}
+
+void CameraComponent::writeAssetProperty(OutputFileStream& fileStream) const
+{
+	Component::writeAssetProperty(fileStream);
+
+	XML& xml = XML::get();
+	xml.writeProperty(fileStream, "editorCamera", editorCamera);
+	xml.writeProperty(fileStream, "primary", primary);
+	xml.writeProperty(fileStream, "fieldOfViewYDegrees", fieldOfViewYDegrees);
+	xml.writeProperty(fileStream, "nearPlane", nearPlane);
+	xml.writeProperty(fileStream, "farPlane", farPlane);
+}
+
+void CameraComponent::readAssetProperty(const XMLKeyValueDocument& document)
+{
+	Component::readAssetProperty(document);
+
+	XML& xml = XML::get();
+	xml.readProperty(document, "deasset.editorCamera", editorCamera);
+	xml.readProperty(document, "deasset.primary", primary);
+	xml.readProperty(document, "deasset.fieldOfViewYDegrees", fieldOfViewYDegrees);
+	xml.readProperty(document, "deasset.nearPlane", nearPlane);
+	xml.readProperty(document, "deasset.farPlane", farPlane);
 }
 
 void CameraComponent::generateCameraBridgeHandle()

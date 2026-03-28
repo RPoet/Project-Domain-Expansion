@@ -1,7 +1,7 @@
 #pragma once
 #include "Engine/Platform/PlatformDefine.h"
 
-#define DECLAR_ASSET(asset_type_name) \
+#define DECLARE_ASSET(asset_type_name) \
 	const char* getAssetTypeName() const override { return #asset_type_name; }
 
 struct XMLKeyValueDocument;

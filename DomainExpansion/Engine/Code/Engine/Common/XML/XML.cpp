@@ -61,7 +61,7 @@ string XML::parsePropertyValueText(const string& propertyValueText) const
 void XML::writeOpenTag(OutputFileStream& fileStream, const char* tagName) const
 {
 	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
-	fileStream << string("<") << string(tagName) << string(">\n");
+	fileStream << "<" << tagName << ">\n";
 }
 
 void XML::writeOpenTag(
@@ -72,19 +72,19 @@ void XML::writeOpenTag(
 {
 	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
 	assert(attributeName != nullptr && "[XML][Assert] reason=attribute_name_missing");
-	fileStream << string("<")
-			   << string(tagName)
-			   << string(" ")
-			   << string(attributeName)
-			   << string("=\"")
+	fileStream << "<"
+			   << tagName
+			   << " "
+			   << attributeName
+			   << "=\""
 			   << escapeText(attributeValue)
-			   << string("\">\n");
+			   << "\">\n";
 }
 
 void XML::writeCloseTag(OutputFileStream& fileStream, const char* tagName) const
 {
 	assert(tagName != nullptr && "[XML][Assert] reason=tag_name_missing");
-	fileStream << string("</") << string(tagName) << string(">\n");
+	fileStream << "</" << tagName << ">\n";
 }
 
 static bool isXMLWhitespace(const char character)
@@ -572,8 +572,6 @@ XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument
 {
 	outDocument.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[XML][Assert] reason=disk_loader_module_missing");
-
 	string absoluteFilePath = {};
 	if (!diskLoaderModule->resolvePathFromResources(filePath, absoluteFilePath))
 	{
@@ -587,6 +585,14 @@ XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument
 	}
 
 	return readDocument(fileStream, outDocument);
+}
+
+XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
+{
+	XMLKeyValueDocument document = {};
+	const ParseCode parseCode = readDocumentFile(filePath, document);
+	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_file_read_failed");
+	return document;
 }
 
 XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
@@ -614,6 +620,14 @@ XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocumen
 	}
 
 	return readDocumentText(xmlText, outDocument);
+}
+
+XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
+{
+	XMLKeyValueDocument document = {};
+	const ParseCode parseCode = readDocument(fileStream, document);
+	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_read_failed");
+	return document;
 }
 
 XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
@@ -653,4 +667,12 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 	return characterIndex == xmlText.length()
 		? ParseCode::succeeded
 		: ParseCode::malformedDocument;
+}
+
+XMLKeyValueDocument XML::readDocumentText(const string& xmlText) const
+{
+	XMLKeyValueDocument document = {};
+	const ParseCode parseCode = readDocumentText(xmlText, document);
+	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_text_read_failed");
+	return document;
 }

@@ -578,7 +578,6 @@ bool ShaderPackageModule::resolvePackageAbsolutePath(
 {
 	outAbsolutePath.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[ShaderPackageModule][Assert] reason=disk_loader_module_missing");
 	return diskLoaderModule->resolvePathFromResources(packageRelativePath, outAbsolutePath);
 }
 

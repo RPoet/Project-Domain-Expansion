@@ -75,7 +75,6 @@ static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
 {
 	outIniFilePath.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[DiskLoaderModule][Assert] reason=module_missing");
 	string solutionRootPath = {};
 	if (!diskLoaderModule->TEMP_resolveSolutionRootPath(solutionRootPath))
 	{
@@ -128,6 +127,14 @@ bool DiskLoaderModule::openInputFileStream(
 	return outFileStream.is_open() && outFileStream.good();
 }
 
+InputFileStream DiskLoaderModule::openInputFileStream(const string& filePath, const bool binary) const
+{
+	InputFileStream fileStream = {};
+	const bool openedFileStream = openInputFileStream(filePath, fileStream, binary);
+	assert(openedFileStream && "[DiskLoaderModule][Assert] reason=input_file_open_failed");
+	return fileStream;
+}
+
 bool DiskLoaderModule::openOutputFileStream(
 	const string& filePath,
 	OutputFileStream& outFileStream,
@@ -156,18 +163,38 @@ bool DiskLoaderModule::openOutputFileStream(
 	return outFileStream.is_open() && outFileStream.good();
 }
 
+OutputFileStream DiskLoaderModule::openOutputFileStream(
+	const string& filePath,
+	const bool binary,
+	const bool truncate) const
+{
+	OutputFileStream fileStream = {};
+	const bool openedFileStream = openOutputFileStream(filePath, fileStream, binary, truncate);
+	assert(openedFileStream && "[DiskLoaderModule][Assert] reason=output_file_open_failed");
+	return fileStream;
+}
+
 bool DiskLoaderModule::openBinaryAssetInputFileStream(
 	const string& assetPath,
 	InputFileStream& outFileStream) const
 {
-	string binaryAssetPath = {};
-	const bool validBinaryAssetPath = resolveBinaryAssetPathFromAssetPath(assetPath, binaryAssetPath);
-	if (!validBinaryAssetPath)
+	const string binaryAssetPath = resolveAssetPath(assetPath, AssetFileType::binary);
+	string binaryAbsolutePath = {};
+	const bool validBinaryAbsolutePath = resolveAbsolutePathFromResources(binaryAssetPath, binaryAbsolutePath);
+	if (!validBinaryAbsolutePath)
 	{
 		return false;
 	}
 
-	return openInputFileStream(binaryAssetPath, outFileStream, true);
+	return openInputFileStream(binaryAbsolutePath, outFileStream, true);
+}
+
+InputFileStream DiskLoaderModule::openBinaryAssetInputFileStream(const string& assetPath) const
+{
+	InputFileStream fileStream = {};
+	const bool openedFileStream = openBinaryAssetInputFileStream(assetPath, fileStream);
+	assert(openedFileStream && "[DiskLoaderModule][Assert] reason=binary_asset_input_file_open_failed");
+	return fileStream;
 }
 
 bool DiskLoaderModule::openBinaryAssetOutputFileStream(
@@ -175,14 +202,25 @@ bool DiskLoaderModule::openBinaryAssetOutputFileStream(
 	OutputFileStream& outFileStream,
 	const bool truncate) const
 {
-	string binaryAssetPath = {};
-	const bool validBinaryAssetPath = resolveBinaryAssetPathFromAssetPath(assetPath, binaryAssetPath);
-	if (!validBinaryAssetPath)
+	const string binaryAssetPath = resolveAssetPath(assetPath, AssetFileType::binary);
+	string binaryAbsolutePath = {};
+	const bool validBinaryAbsolutePath = resolveAbsolutePathFromResources(binaryAssetPath, binaryAbsolutePath);
+	if (!validBinaryAbsolutePath)
 	{
 		return false;
 	}
 
-	return openOutputFileStream(binaryAssetPath, outFileStream, true, truncate);
+	return openOutputFileStream(binaryAbsolutePath, outFileStream, true, truncate);
+}
+
+OutputFileStream DiskLoaderModule::openBinaryAssetOutputFileStream(
+	const string& assetPath,
+	const bool truncate) const
+{
+	OutputFileStream fileStream = {};
+	const bool openedFileStream = openBinaryAssetOutputFileStream(assetPath, fileStream, truncate);
+	assert(openedFileStream && "[DiskLoaderModule][Assert] reason=binary_asset_output_file_open_failed");
+	return fileStream;
 }
 
 bool DiskLoaderModule::ensureParentDirectory(const string& filePath) const
@@ -237,20 +275,15 @@ bool DiskLoaderModule::TEMP_resolveImGuiIniFilePath(string& outIniFilePath) cons
 	return true;
 }
 
-bool DiskLoaderModule::resolveBinaryAssetPathFromAssetPath(
-	const string& assetPath,
-	string& outBinaryFilePath) const
+string DiskLoaderModule::resolveAssetPath(
+	const string& path,
+	const AssetFileType assetFileType) const
 {
-	outBinaryFilePath.clear();
-	if (assetPath.empty())
-	{
-		return false;
-	}
+	assert(!path.empty() && "[DiskLoaderModule][Assert] reason=asset_path_missing");
 
-	filesystem_path binaryAssetPath(assetPath);
-	binaryAssetPath.replace_extension(".de");
-	outBinaryFilePath = binaryAssetPath.lexically_normal().string();
-	return true;
+	filesystem_path assetPath(path);
+	assetPath.replace_extension(assetFileType == AssetFileType::document ? ".deasset" : ".de");
+	return assetPath.lexically_normal().string();
 }
 
 bool DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText, string& outAbsolutePath) const
@@ -278,6 +311,14 @@ bool DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText, 
 	const filesystem_path resourcesRoot(resourcesRootPath);
 	outAbsolutePath = (resourcesRoot / inputPath).lexically_normal().string();
 	return true;
+}
+
+string DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText) const
+{
+	string absolutePath = {};
+	const bool validAbsolutePath = resolveAbsolutePathFromResources(pathText, absolutePath);
+	assert(validAbsolutePath && "[DiskLoaderModule][Assert] reason=absolute_path_resolve_failed");
+	return absolutePath;
 }
 
 bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& outAbsolutePath) const
@@ -324,6 +365,14 @@ bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& 
 	}
 
 	return false;
+}
+
+string DiskLoaderModule::resolvePathFromResources(const string& pathText) const
+{
+	string absolutePath = {};
+	const bool validAbsolutePath = resolvePathFromResources(pathText, absolutePath);
+	assert(validAbsolutePath && "[DiskLoaderModule][Assert] reason=resource_path_resolve_failed");
+	return absolutePath;
 }
 
 bool DiskLoaderModule::TEMP_loadRuntimeWindowResolution(uint32& outClientWidth, uint32& outClientHeight) const

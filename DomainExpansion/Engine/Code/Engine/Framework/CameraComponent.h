@@ -7,6 +7,7 @@ class CameraComponent final : public Component
 {
 public:
 	DECLARE_COMPONENT(CameraComponent);
+	void clear() override;
 
 	bool editorCamera = false;
 	bool primary = false;
@@ -20,6 +21,8 @@ public:
 
 protected:
 	void initComponent() override;
+	void writeAssetProperty(OutputFileStream& fileStream) const override;
+	void readAssetProperty(const XMLKeyValueDocument& document) override;
 
 private:
 	CameraBridge::HandleReference cameraHandleReference = {};

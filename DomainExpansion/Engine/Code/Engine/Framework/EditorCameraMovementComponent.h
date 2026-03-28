@@ -8,6 +8,7 @@ class EditorCameraMovementComponent final : public Component
 {
 public:
 	DECLARE_COMPONENT(EditorCameraMovementComponent);
+	void clear() override;
 
 	float getMovementSpeed() const
 	{
@@ -16,6 +17,8 @@ public:
 
 	void setMovementSpeed(float movementSpeed);
 	void tick(float deltaTimeSeconds) override;
+	void writeAssetProperty(OutputFileStream& fileStream) const override;
+	void readAssetProperty(const XMLKeyValueDocument& document) override;
 
 private:
 	CameraComponent* getOwnerEditorCameraComponent();

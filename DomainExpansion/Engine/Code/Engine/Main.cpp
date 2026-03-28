@@ -191,7 +191,6 @@ int WINAPI wWinMain(
 	windowCreateOptions.startVisible = true;
 	windowCreateOptions.startBorderlessFullscreen = false;
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[Main][Assert] reason=disk_loader_module_missing");
 	uint32 runtimeWindowWidth = 0;
 	uint32 runtimeWindowHeight = 0;
 	if (diskLoaderModule->TEMP_loadRuntimeWindowResolution(runtimeWindowWidth, runtimeWindowHeight))

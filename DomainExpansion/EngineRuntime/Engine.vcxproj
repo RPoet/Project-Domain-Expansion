@@ -76,6 +76,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Assets\Asset.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Assets\MeshAsset.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\BackendValidation.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Framework\Component.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\Entity.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\Framework.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\FrameworkBackend.cpp" />

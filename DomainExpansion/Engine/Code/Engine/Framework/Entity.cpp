@@ -1,5 +1,6 @@
 #include "Engine/Framework/Entity.h"
 
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/Component.h"
 #include "Engine/Framework/World.h"
 
@@ -16,6 +17,13 @@ static bool isSameEntityBridgeDynamicData(
 Entity::Entity(memory_resource* componentIndexMemoryResource)
 	: componentIndices(componentIndexMemoryResource != nullptr ? componentIndexMemoryResource : getDefaultMemoryResource())
 {
+}
+
+void Entity::clear()
+{
+	Asset::clear();
+	parentEntityAssetPath.clear();
+	active = true;
 }
 
 void Entity::initEntity()
@@ -50,6 +58,30 @@ void Entity::buildEntityBridgeDynamicData(EntityBridge::DynamicData& dynamicData
 	{
 		return;
 	}
+}
+
+void Entity::writeAssetProperty(OutputFileStream& fileStream) const
+{
+	XML& xml = XML::get();
+	xml.writeProperty(fileStream, "active", active);
+
+	string serializedParentEntityAssetPath = parentEntityAssetPath;
+	if (ownerWorld != nullptr && parentEntityIndex != invalidEntityIndex)
+	{
+		const Entity* parentEntity = ownerWorld->getEntityByIndex(parentEntityIndex);
+		assert(parentEntity != nullptr && "[Entity][Assert] reason=parent_entity_missing");
+		assert(!parentEntity->getAssetPath().empty() && "[Entity][Assert] reason=parent_entity_asset_path_missing");
+		serializedParentEntityAssetPath = parentEntity->getAssetPath();
+	}
+
+	xml.writeProperty(fileStream, "parentAssetPath", serializedParentEntityAssetPath);
+}
+
+void Entity::readAssetProperty(const XMLKeyValueDocument& document)
+{
+	XML& xml = XML::get();
+	xml.readProperty(document, "deasset.active", active);
+	xml.readProperty(document, "deasset.parentAssetPath", parentEntityAssetPath);
 }
 
 void Entity::requestEntityBridgeUpdate()
@@ -152,16 +184,6 @@ uint32 Entity::getComponentIndex(const uint32 componentArrayIndex) const
 	return componentIndices[componentArrayIndex];
 }
 
-const string& Entity::getName() const
-{
-	return name;
-}
-
-void Entity::setName(const string& name)
-{
-	this->name = name;
-}
-
 uint32 Entity::getParentEntityIndex() const
 {
 	return parentEntityIndex;
@@ -175,6 +197,11 @@ uint32 Entity::getFirstChildEntityIndex() const
 uint32 Entity::getNextSiblingEntityIndex() const
 {
 	return nextSiblingEntityIndex;
+}
+
+const string& Entity::getParentEntityAssetPath() const
+{
+	return parentEntityAssetPath;
 }
 
 bool Entity::isActive() const

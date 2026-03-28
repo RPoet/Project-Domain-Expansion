@@ -43,6 +43,20 @@ public:
 	static shared_pointer<T>& get()
 	{
 		static shared_pointer<T> module(new T());
+		const bool validModule = module != nullptr
+			&& !module->getName().empty();
+		if (!validModule)
+		{
+			error << "[StaticModule][Assert] reason=module_missing_or_name_missing";
+			if (module != nullptr)
+			{
+				error << " module=" << module->getName();
+			}
+
+			error << lineBreak;
+			platformAssertFailFast("module != nullptr && !module->getName().empty()", __FILE__, static_cast<int32>(__LINE__), __func__);
+		}
+
 		return module;
 	}
 

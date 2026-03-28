@@ -16,11 +16,7 @@ void Asset::writeProperty(OutputFileStream& fileStream) const
 	if (hasBinary)
 	{
 		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-		assert(diskLoaderModule != nullptr && "[Asset][Assert] reason=disk_loader_module_missing");
-
-		OutputFileStream binaryFileStream = {};
-		const bool openedBinaryFileStream = diskLoaderModule->openBinaryAssetOutputFileStream(assetPath, binaryFileStream, true);
-		assert(openedBinaryFileStream && "[Asset][Assert] reason=de_file_open_failed");
+		OutputFileStream binaryFileStream = diskLoaderModule->openBinaryAssetOutputFileStream(assetPath, true);
 		serialize(binaryFileStream);
 	}
 }
@@ -43,11 +39,7 @@ void Asset::readProperty(const XMLKeyValueDocument& document)
 	if (hasBinary)
 	{
 		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-		assert(diskLoaderModule != nullptr && "[Asset][Assert] reason=disk_loader_module_missing");
-
-		InputFileStream binaryFileStream = {};
-		const bool openedBinaryFileStream = diskLoaderModule->openBinaryAssetInputFileStream(assetPath, binaryFileStream);
-		assert(openedBinaryFileStream && "[Asset][Assert] reason=de_file_open_failed");
+		InputFileStream binaryFileStream = diskLoaderModule->openBinaryAssetInputFileStream(assetPath);
 		deserialize(binaryFileStream);
 	}
 }

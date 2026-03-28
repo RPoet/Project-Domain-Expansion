@@ -16,8 +16,6 @@ bool GPUUploader::init(Framework& framework)
 	uploadSyncObject.reset();
 
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	const bool validRenderBackendModule = renderBackendModule != nullptr;
-	assert(validRenderBackendModule && "[GPUUploader][Assert] reason=render_backend_module_missing");
 	if (renderBackendModule->isBackendCreated())
 	{
 		RenderBackend* renderBackend = renderBackendModule->getBackend();

@@ -34,18 +34,12 @@ static int32 meshParserImportCLICommand(const string& parameter1, const string& 
 		return static_cast<int32>(MeshParser::ImportCLIExecutionCode::missingPath);
 	}
 
-	string meshFilePath = parameter1;
-	string resolvedMeshFilePath = {};
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[MeshParser][Assert] reason=disk_loader_module_missing");
-	if (diskLoaderModule->resolvePathFromResources(meshFilePath, resolvedMeshFilePath))
-	{
-		meshFilePath = resolvedMeshFilePath;
-	}
+	const string meshAssetPath = diskLoaderModule->resolveAssetPath(parameter1, DiskLoaderModule::AssetFileType::document);
 
 	MeshAsset meshAsset = {};
 	string errorText = {};
-	if (!MeshParser::get().parseFromFile(meshFilePath, 0, meshAsset, errorText))
+	if (!MeshParser::get().importFromFile(parameter1, 0, meshAssetPath, meshAsset, errorText))
 	{
 		return getMeshParserImportExecutionCode(errorText);
 	}
@@ -74,18 +68,53 @@ bool MeshParser::parseFromFile(
 	outMeshAsset = {};
 	outErrorText.clear();
 
-	const filesystem_path meshPath(meshFilePath);
+	string resolvedMeshFilePath = meshFilePath;
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	string absoluteMeshFilePath = {};
+	if (diskLoaderModule->resolvePathFromResources(meshFilePath, absoluteMeshFilePath))
+	{
+		resolvedMeshFilePath = absoluteMeshFilePath;
+	}
+
+	const filesystem_path meshPath(resolvedMeshFilePath);
 	const string extension = meshPath.extension().string();
 	if (extension == ".obj" || extension == ".OBJ")
 	{
-		return objMeshParser.parse(meshFilePath, lodLevel, outMeshAsset, outErrorText);
+		return objMeshParser.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
 	}
 
 	if (extension == ".fbx" || extension == ".FBX")
 	{
-		return fbxMeshParserStub.parse(meshFilePath, lodLevel, outMeshAsset, outErrorText);
+		return fbxMeshParserStub.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
 	}
 
 	outErrorText = "unsupported_extension";
 	assert(false && "[MeshParser][Assert] reason=unsupported_extension");
+}
+
+bool MeshParser::importFromFile(
+	const string& meshFilePath,
+	const uint32 lodLevel,
+	const string& meshAssetPath,
+	MeshAsset& outMeshAsset,
+	string& outErrorText) const
+{
+	outMeshAsset = {};
+	outErrorText.clear();
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+
+	if (!parseFromFile(meshFilePath, lodLevel, outMeshAsset, outErrorText))
+	{
+		return false;
+	}
+
+	outMeshAsset.setName(filesystem_path(meshAssetPath).stem().string());
+	outMeshAsset.setSource(meshFilePath);
+	outMeshAsset.setAssetPath(meshAssetPath);
+
+	const string meshAssetAbsolutePath = diskLoaderModule->resolveAbsolutePathFromResources(meshAssetPath);
+	OutputFileStream meshAssetFileStream = diskLoaderModule->openOutputFileStream(meshAssetAbsolutePath, false, true);
+
+	outMeshAsset.writeProperty(meshAssetFileStream);
+	return true;
 }

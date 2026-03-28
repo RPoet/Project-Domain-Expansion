@@ -23,6 +23,12 @@ public:
 		uint32 lodLevel,
 		MeshAsset& outMeshAsset,
 		string& outErrorText) const;
+	bool importFromFile(
+		const string& meshFilePath,
+		uint32 lodLevel,
+		const string& meshAssetPath,
+		MeshAsset& outMeshAsset,
+		string& outErrorText) const;
 
 private:
 	friend class Singleton<MeshParser>;

@@ -82,7 +82,6 @@ bool Framework::initialize(
 	windowEventCallbacks.onResize = [this](const uint32 width, const uint32 height)
 	{
 		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-		assert(diskLoaderModule != nullptr && "[Framework][Assert] reason=disk_loader_module_missing");
 		diskLoaderModule->TEMP_saveRuntimeWindowResolution(width, height);
 		onWindowResize(width, height);
 	};

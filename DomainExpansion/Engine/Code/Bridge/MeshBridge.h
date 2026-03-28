@@ -10,7 +10,7 @@ struct MeshBridgeObject
 	struct StaticProperty
 	{
 		BridgeHandle entityHandle = invalidBridgeHandle;
-		string meshRelativePath = {};
+		string meshAssetPath = {};
 		uint32 lodLevel = 0;
 		shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;
 	};

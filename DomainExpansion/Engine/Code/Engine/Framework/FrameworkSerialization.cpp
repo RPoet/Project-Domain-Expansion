@@ -5,8 +5,8 @@
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
-#include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 #include <fstream>
 #include <sstream>
@@ -26,7 +26,7 @@ struct Temp_EntityRecord
 	bool active = true;
 	int32 parentId = -1;
 	Transform transform = {};
-	string meshPath = {};
+	string meshAssetPath = {};
 	uint32 lodLevel = 0;
 	bool visible = true;
 	bool hasCameraComponent = false;
@@ -384,7 +384,7 @@ bool frameworkSerializationLoadWorldFromFile(
 
 		if (key == "mesh")
 		{
-			currentRecord.meshPath = value;
+			currentRecord.meshAssetPath = value;
 			continue;
 		}
 
@@ -570,7 +570,7 @@ bool frameworkSerializationLoadWorldFromFile(
 	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
 	{
 		const Temp_EntityRecord& record = entityRecords[recordIndex];
-		if (record.meshPath.empty())
+		if (record.meshAssetPath.empty())
 		{
 			continue;
 		}
@@ -585,11 +585,16 @@ bool frameworkSerializationLoadWorldFromFile(
 		}
 
 		unique_pointer<MeshComponent> meshComponent(new MeshComponent());
-		meshComponent->meshRelativePath = record.meshPath;
+		meshComponent->meshAssetPath = record.meshAssetPath;
+		const XMLKeyValueDocument document = XML::get().readDocumentFile(record.meshAssetPath);
+
+		MeshAsset meshAsset = {};
+		meshAsset.setAssetPath(record.meshAssetPath);
+		meshAsset.readProperty(document);
+		meshComponent->meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(meshAsset)));
 		meshComponent->lodLevel = record.lodLevel;
 		meshComponent->visible = record.visible;
 		loadedWorld->attachComponent(entityIt->second, moveValue(meshComponent));
-		MeshStreaming::get()->requestMesh(record.meshPath, record.lodLevel);
 	}
 
 	for (uint32 recordIndex = 0; recordIndex < static_cast<uint32>(entityRecords.size()); ++recordIndex)
@@ -652,7 +657,6 @@ bool frameworkSerializationSaveWorldToFile(
 	outErrorText.clear();
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	assert(diskLoaderModule != nullptr && "[FrameworkSerialization][Assert] reason=disk_loader_module_missing");
 	const bool validParentDirectory = diskLoaderModule->ensureParentDirectory(worldFilePath);
 	assert(validParentDirectory && "[FrameworkSerialization][Assert] reason=parent_directory_create_failed");
 
@@ -727,7 +731,7 @@ bool frameworkSerializationSaveWorldToFile(
 
 		if (meshComponent != nullptr)
 		{
-			fileStream << "mesh=" << meshComponent->meshRelativePath << '\n';
+			fileStream << "mesh=" << meshComponent->meshAssetPath << '\n';
 			fileStream << "lod=" << meshComponent->lodLevel << '\n';
 			fileStream << "visible=" << (meshComponent->visible ? 1 : 0) << '\n';
 		}
