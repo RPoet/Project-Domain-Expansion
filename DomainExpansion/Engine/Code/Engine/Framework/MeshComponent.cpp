@@ -1,6 +1,6 @@
 #include "Engine/Framework/MeshComponent.h"
 
-#include "Engine/Common/XML/XML.h"
+#include "Engine/Assets/AssetLoader.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 BridgeHandle MeshComponent::getMeshHandle() const
@@ -13,6 +13,7 @@ void MeshComponent::clear()
 	Component::clear();
 	meshAssetPath.clear();
 	meshAsset.reset();
+	meshAssetHandle.reset();
 	lodLevel = 0;
 	visible = true;
 	meshHandleReference.reset();
@@ -24,7 +25,7 @@ void MeshComponent::tick(const float deltaTimeSeconds)
 	generateMeshBridgeHandle();
 }
 
-void MeshComponent::initComponent()
+void MeshComponent::initialize()
 {
 	generateMeshBridgeHandle();
 }
@@ -32,12 +33,6 @@ void MeshComponent::initComponent()
 void MeshComponent::writeAssetProperty(OutputFileStream& fileStream) const
 {
 	Component::writeAssetProperty(fileStream);
-
-	if (!meshAssetPath.empty())
-	{
-		assert(meshAsset != nullptr && "[MeshComponent][Assert] reason=mesh_asset_missing");
-		assert(meshAsset->getAssetPath() == meshAssetPath && "[MeshComponent][Assert] reason=mesh_asset_path_mismatch");
-	}
 
 	XML& xml = XML::get();
 	xml.writeProperty(fileStream, "meshAssetPath", meshAssetPath);
@@ -55,35 +50,33 @@ void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
 	xml.readProperty(document, "deasset.visible", visible);
 
 	meshAsset.reset();
+	meshAssetHandle.reset();
 	if (meshAssetPath.empty())
 	{
 		return;
 	}
 
-	const XMLKeyValueDocument meshAssetDocument = XML::get().readDocumentFile(meshAssetPath);
-	MeshAsset loadedMeshAsset = {};
-	loadedMeshAsset.setAssetPath(meshAssetPath);
-	loadedMeshAsset.readProperty(meshAssetDocument);
-	meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(loadedMeshAsset)));
+	meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
 }
 
 void MeshComponent::generateMeshBridgeHandle()
 {
-	const bool needsMeshBridge = !meshAssetPath.empty();
+	const bool needsMeshBridge = !meshAssetPath.empty() && meshAsset != nullptr;
 	if (!needsMeshBridge)
 	{
 		meshAsset.reset();
+		meshAssetHandle.reset();
 		meshHandleReference.reset();
 		return;
 	}
 
-	assert(meshAsset != nullptr && "[MeshComponent][Assert] reason=mesh_asset_missing");
-	assert(meshAsset->getAssetPath() == meshAssetPath && "[MeshComponent][Assert] reason=mesh_asset_path_mismatch");
-
 	const BridgeHandle entityHandle = getOwnerEntityHandle();
 	assert(entityHandle != invalidBridgeHandle);
 
-	shared_pointer<MeshAssetHandle> meshAssetHandle = MeshStreaming::get()->requestMesh(meshAsset, lodLevel);
+	if (meshAssetHandle == nullptr || meshAssetHandle->meshAsset != meshAsset || meshAssetHandle->lodLevel != lodLevel)
+	{
+		meshAssetHandle = MeshStreaming::get()->requestMesh(meshAsset, lodLevel);
+	}
 	assert(meshAssetHandle != nullptr);
 
 	bool recreateMeshBridge = !meshHandleReference.isValid();

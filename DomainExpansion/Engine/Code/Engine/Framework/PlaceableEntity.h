@@ -6,7 +6,7 @@
 class PlaceableEntity : public Entity
 {
 public:
-	DECLARE_ASSET(PlaceableEntity);
+	DECLARE_ENTITY(PlaceableEntity);
 	void clear() override;
 
 	EntityType getEntityType() const override

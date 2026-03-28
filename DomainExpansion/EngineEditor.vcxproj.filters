@@ -52,12 +52,6 @@
     <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkFileSystem.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkSerialization.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Framework\Component.h">
       <Filter>Header Files</Filter>
     </ClInclude>

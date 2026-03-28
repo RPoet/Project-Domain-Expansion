@@ -17,10 +17,10 @@ public:
 
 	BridgeHandle getCameraHandle() const;
 	void generateCameraBridgeHandle();
+	void initialize() override;
 	void tick(float deltaTimeSeconds) override;
 
 protected:
-	void initComponent() override;
 	void writeAssetProperty(OutputFileStream& fileStream) const override;
 	void readAssetProperty(const XMLKeyValueDocument& document) override;
 

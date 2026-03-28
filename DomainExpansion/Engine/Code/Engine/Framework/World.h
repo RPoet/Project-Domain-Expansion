@@ -1,31 +1,34 @@
 #pragma once
 
+#include "Engine/Assets/Asset.h"
 #include "Engine/Framework/Component.h"
 #include "Engine/Framework/Entity.h"
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Framework/PlaceableEntity.h"
 
-class World
+class AssetLoader;
+
+class World : public Asset
 {
 public:
-	explicit World(const wstring& worldName = L"");
+	DECLARE_ASSET(World);
+	explicit World(const string& worldName = "");
 	World(const World&) = delete;
 	World& operator=(const World&) = delete;
 	World(World&&) = delete;
 	World& operator=(World&&) = delete;
 	~World() = default;
 
-	const wstring& getWorldName() const;
-	void setWorldName(const wstring& worldName);
+	void clear() override;
 
 	uint32 createEntity();
 	uint32 createPlaceableEntity();
 	bool addChildEntity(uint32 parentEntityIndex, uint32 childEntityIndex);
+	bool reparentEntity(uint32 childEntityIndex, uint32 parentEntityIndex);
 	bool attachComponent(uint32 entityIndex, unique_pointer<Component> component);
 	bool removeEntity(uint32 entityIndex);
 	bool removeComponent(uint32 entityIndex, uint32 componentIndex);
 	void tick(float deltaTimeSeconds);
-	void clear();
 
 	uint32 getEntityCount() const;
 	uint32 getComponentCount() const;
@@ -35,14 +38,21 @@ public:
 	const Component* getComponentByIndex(uint32 componentIndex) const;
 
 private:
-	uint32 addEntityObject(unique_pointer<Entity> entity);
+	friend class AssetLoader;
+	void initializeRuntimeObjects();
+	void writeAssetProperty(OutputFileStream& fileStream) const override;
+	void readAssetProperty(const XMLKeyValueDocument& document) override;
+	uint32 createEntity(bool initializeEntity);
+	uint32 createPlaceableEntity(bool initializeEntity);
+	bool attachComponent(uint32 entityIndex, unique_pointer<Component> component, bool initializeComponent);
+
+	uint32 addEntityObject(unique_pointer<Entity> entity, bool initializeEntity);
 	bool isValidEntityIndex(uint32 entityIndex) const;
 	Entity* getEntity(uint32 entityIndex);
 	const Entity* getEntity(uint32 entityIndex) const;
 	bool removeComponentIndexFromEntity(Entity& entity, uint32 componentIndex);
 	bool replaceComponentIndexInEntity(Entity& entity, uint32 fromComponentIndex, uint32 toComponentIndex);
 
-	wstring worldName;
 	unsynchronized_pool_resource componentIndexPoolResource;
 	vector<unique_pointer<Component>> componentStorage;
 	vector<uint32> componentOwnerIndices;

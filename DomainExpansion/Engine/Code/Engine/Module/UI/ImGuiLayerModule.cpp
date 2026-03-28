@@ -1,10 +1,9 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
+#include "Engine/Assets/AssetLoader.h"
 #include "Engine/Framework/Entity.h"
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/Framework.h"
-#include "Engine/Framework/FrameworkFileSystem.h"
-#include "Engine/Framework/FrameworkSerialization.h"
 #include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
@@ -14,7 +13,6 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
-#include "Engine/Common/XML/XML.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -129,21 +127,6 @@ static float clampFloat(const float value, const float minValue, const float max
 	}
 
 	return value;
-}
-
-static string toNarrowText(const wstring& text)
-{
-	string result = {};
-	result.reserve(text.length());
-	for (size_t index = 0; index < text.length(); ++index)
-	{
-		const wide_character character = text[index];
-		result.push_back(character >= 0 && character <= 127
-			? static_cast<char>(character)
-			: '?');
-	}
-
-	return result;
 }
 
 struct EditorGridPushConstantData
@@ -849,36 +832,10 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 		}
 	}
 
-	string worldNameText = toNarrowText(world->getWorldName());
+	string worldNameText = world->getName();
 	if (worldNameText.empty())
 	{
 		worldNameText = "(unnamed)";
-	}
-	ImGui::Text("World: %s", worldNameText.c_str());
-
-	if (ImGui::Button("+ AddEntity"))
-	{
-		const uint32 newEntityIndex = world->createPlaceableEntity();
-		bool addEntityResult = true;
-		if (owner.selectedEntityIndex != invalidEntityIndex
-			&& world->getEntityByIndex(owner.selectedEntityIndex) != nullptr)
-		{
-			addEntityResult = world->addChildEntity(owner.selectedEntityIndex, newEntityIndex);
-		}
-
-		owner.selectedEntityIndex = newEntityIndex;
-		if (!addEntityResult)
-		{
-			owner.lastEditorActionStatus = "add_entity_failed";
-		}
-		else if (owner.saveActiveWorldImmediate())
-		{
-			owner.lastEditorActionStatus = "entity_added_and_saved";
-		}
-		else
-		{
-			owner.lastEditorActionStatus = "entity_added_save_skipped";
-		}
 	}
 
 	const bool deleteShortcutPressed = owner.selectedEntityIndex != invalidEntityIndex
@@ -893,25 +850,65 @@ void ImGuiLayerModule::OutlinerPanel::build(ImGuiLayerModule& owner, World* worl
 	}
 
 	const uint32 entityCount = world->getEntityCount();
-	ImGui::Text("Entity Count: %u", entityCount);
-
-	uint32 rootEntityCount = 0;
-	for (uint32 entityIndex = 0; entityIndex < entityCount; ++entityIndex)
+	ImGuiTreeNodeFlags worldTreeNodeFlags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+	if (owner.selectedEntityIndex == invalidEntityIndex)
 	{
-		const Entity* entity = world->getEntityByIndex(entityIndex);
-		if (entity == nullptr
-			|| entity->getParentEntityIndex() != invalidEntityIndex)
-		{
-			continue;
-		}
-
-		drawEntityNode(owner, world, entityIndex);
-		++rootEntityCount;
+		worldTreeNodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
 
-	if (rootEntityCount == 0)
+	const bool isWorldNodeOpened = ImGui::TreeNodeEx("World", worldTreeNodeFlags, "%s (World)", worldNameText.c_str());
+	if (ImGui::IsItemClicked())
 	{
-		ImGui::TextUnformatted("No root entities.");
+		owner.selectedEntityIndex = invalidEntityIndex;
+	}
+
+	if (isWorldNodeOpened)
+	{
+		if (ImGui::Button("+ AddEntity"))
+		{
+			const uint32 newEntityIndex = world->createPlaceableEntity();
+			bool addEntityResult = true;
+			if (owner.selectedEntityIndex != invalidEntityIndex && world->getEntityByIndex(owner.selectedEntityIndex) != nullptr)
+			{
+				addEntityResult = world->addChildEntity(owner.selectedEntityIndex, newEntityIndex);
+			}
+
+			owner.selectedEntityIndex = newEntityIndex;
+			if (!addEntityResult)
+			{
+				owner.lastEditorActionStatus = "add_entity_failed";
+			}
+			else if (owner.saveActiveWorldImmediate())
+			{
+				owner.lastEditorActionStatus = "entity_added_and_saved";
+			}
+			else
+			{
+				owner.lastEditorActionStatus = "entity_added_save_skipped";
+			}
+		}
+
+		ImGui::Text("Entity Count: %u", entityCount);
+
+		uint32 rootEntityCount = 0;
+		for (uint32 entityIndex = 0; entityIndex < entityCount; ++entityIndex)
+		{
+			const Entity* entity = world->getEntityByIndex(entityIndex);
+			if (entity == nullptr || entity->getParentEntityIndex() != invalidEntityIndex)
+			{
+				continue;
+			}
+
+			drawEntityNode(owner, world, entityIndex);
+			++rootEntityCount;
+		}
+
+		if (rootEntityCount == 0)
+		{
+			ImGui::TextUnformatted("No root entities.");
+		}
+
+		ImGui::TreePop();
 	}
 
 	if (!owner.lastEditorActionStatus.empty())
@@ -982,6 +979,63 @@ void ImGuiLayerModule::OutlinerPanel::drawEntityNode(ImGuiLayerModule& owner, co
 	}
 
 	ImGui::PopID();
+}
+
+void ImGuiLayerModule::DetailPanel::reset()
+{
+	meshAssetRootPath.clear();
+	meshAssetPaths.clear();
+	meshAssetPathsLoaded = false;
+}
+
+bool ImGuiLayerModule::DetailPanel::ensureMeshAssetPathsLoaded()
+{
+	if (meshAssetPathsLoaded)
+	{
+		return !meshAssetRootPath.empty();
+	}
+
+	meshAssetRootPath = DiskLoaderModule::get()->resolveAbsolutePathFromResources("Meshes");
+	meshAssetPaths.clear();
+	collectMeshAssetPaths(meshAssetRootPath);
+	meshAssetPathsLoaded = true;
+	return true;
+}
+
+void ImGuiLayerModule::DetailPanel::collectMeshAssetPaths(const filesystem_path& directoryPath)
+{
+	error_code directoryErrorCode;
+	vector<filesystem_directory_entry> directoryEntries = {};
+	for (const filesystem_directory_entry& directoryEntry : filesystem_directory_iterator(directoryPath, filesystem_directory_options::skip_permission_denied, directoryErrorCode))
+	{
+		if (directoryErrorCode)
+		{
+			break;
+		}
+
+		directoryEntries.push_back(directoryEntry);
+	}
+
+	sortDirectoryEntries(directoryEntries);
+	for (uint32 directoryEntryIndex = 0; directoryEntryIndex < static_cast<uint32>(directoryEntries.size()); ++directoryEntryIndex)
+	{
+		const filesystem_directory_entry& directoryEntry = directoryEntries[directoryEntryIndex];
+		if (isDirectoryEntry(directoryEntry))
+		{
+			collectMeshAssetPaths(directoryEntry.path());
+			continue;
+		}
+
+		string extension = directoryEntry.path().extension().string();
+		tolower(extension);
+		if (extension != ".deasset")
+		{
+			continue;
+		}
+
+		const filesystem_path relativePath = directoryEntry.path().lexically_normal().lexically_relative(meshAssetRootPath);
+		meshAssetPaths.push_back((filesystem_path("Meshes") / relativePath).lexically_normal().string());
+	}
 }
 
 void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
@@ -1164,27 +1218,60 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		ImGui::Separator();
 		ImGui::TextUnformatted("MeshComponent");
 
-		string meshPath = meshComponent->meshAssetPath;
 		int32 lodLevel = static_cast<int32>(meshComponent->lodLevel);
 		bool visible = meshComponent->visible;
 		bool meshComponentChanged = false;
+		const char* meshAssetPathText = meshComponent->meshAssetPath.empty() ? "(none)" : meshComponent->meshAssetPath.c_str();
 
-		if (ImGui::InputText("Mesh Asset Path", &meshPath))
+		ImGui::Text("Mesh Asset: %s", meshAssetPathText);
+		if (ImGui::Button("Select Mesh Asset"))
 		{
-			meshComponent->meshAssetPath = meshPath;
+			meshAssetPathsLoaded = false;
+			ImGui::OpenPopup("Select Mesh Asset");
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Clear Mesh Asset"))
+		{
+			meshComponent->meshAssetPath.clear();
 			meshComponent->meshAsset.reset();
-			if (!meshPath.empty())
-			{
-				const XMLKeyValueDocument document = XML::get().readDocumentFile(meshPath);
-				MeshAsset meshAsset = {};
-				meshAsset.setAssetPath(meshPath);
-				meshAsset.readProperty(document);
-				meshComponent->meshAsset = shared_pointer<MeshAsset>(new MeshAsset(moveValue(meshAsset)));
-			}
-
 			meshComponentChanged = true;
 		}
-		ImGui::TextDisabled("Example: Meshes/Plane.deasset");
+
+		if (ImGui::BeginPopupModal("Select Mesh Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			if (!ensureMeshAssetPathsLoaded())
+			{
+				ImGui::TextDisabled("Meshes directory not found.");
+			}
+			else if (meshAssetPaths.empty())
+			{
+				ImGui::TextDisabled("No mesh assets found.");
+			}
+			else
+			{
+				for (uint32 meshAssetPathIndex = 0; meshAssetPathIndex < static_cast<uint32>(meshAssetPaths.size()); ++meshAssetPathIndex)
+				{
+					const string& meshAssetPath = meshAssetPaths[meshAssetPathIndex];
+					if (!ImGui::Selectable(meshAssetPath.c_str(), meshComponent->meshAssetPath == meshAssetPath))
+					{
+						continue;
+					}
+
+					meshComponent->meshAssetPath = meshAssetPath;
+					meshComponent->meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
+					meshComponentChanged = true;
+					ImGui::CloseCurrentPopup();
+					break;
+				}
+			}
+
+			if (ImGui::Button("Close"))
+			{
+				ImGui::CloseCurrentPopup();
+			}
+
+			ImGui::EndPopup();
+		}
 
 		if (ImGui::InputInt("LOD", &lodLevel))
 		{
@@ -1414,15 +1501,13 @@ void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* wo
 		if (ImGui::Button("Create"))
 		{
 			string createdWorldPath = {};
-			if (createWorldFile(createWorldNameText, createdWorldPath))
+			if (createWorldFile(owner, createWorldNameText, createdWorldPath))
 			{
 				if (owner.frameworkReference != nullptr
-					&& owner.frameworkReference->loadWorldFromFile(createdWorldPath))
+					&& owner.frameworkReference->loadWorld(createdWorldPath) != nullptr)
 				{
 					lastOpenedWorldPath = createdWorldPath;
-					owner.lastEditorActionStatus = owner.frameworkReference->saveActiveWorldToFile()
-						? "world_created_loaded_and_saved"
-						: "world_created_loaded_save_skipped";
+					owner.lastEditorActionStatus = "world_created_loaded_and_saved";
 					owner.selectedEntityIndex = invalidEntityIndex;
 				}
 				else
@@ -1518,19 +1603,27 @@ void ImGuiLayerModule::FileSystemPanel::drawDirectoryEntriesRecursive(
 			continue;
 		}
 
+		string extension = directoryEntry.path().extension().string();
+		tolower(extension);
+		if (extension != ".deasset" && extension != ".de")
+		{
+			continue;
+		}
+
 		ImGui::PushID(directoryEntry.path().string().c_str());
 		ImGui::Selectable(displayName.c_str(), false);
 		drawFileEntryContextMenu(directoryEntry.path());
 		const bool worldFileDoubleClicked =
 			ImGui::IsItemHovered()
 			&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
-			&& directoryEntry.path().extension() == ".world";
+			&& isWorldAssetFile(directoryEntry.path());
 		if (worldFileDoubleClicked)
 		{
+			const string worldAssetPath = buildResourceAssetPath(directoryEntry.path());
 			if (owner.frameworkReference != nullptr
-				&& owner.frameworkReference->loadWorldFromFile(directoryEntry.path().string()))
+				&& owner.frameworkReference->loadWorld(worldAssetPath) != nullptr)
 			{
-				lastOpenedWorldPath = directoryEntry.path().lexically_normal().string();
+				lastOpenedWorldPath = worldAssetPath;
 				owner.selectedEntityIndex = invalidEntityIndex;
 				owner.lastEditorActionStatus = "world_loaded";
 			}
@@ -1632,76 +1725,85 @@ void ImGuiLayerModule::FileSystemPanel::drawFileEntryContextMenu(const filesyste
 }
 
 bool ImGuiLayerModule::FileSystemPanel::createWorldFile(
+	ImGuiLayerModule& owner,
 	const string& requestedWorldName,
 	string& outWorldFilePath)
 {
 	outWorldFilePath.clear();
-	if (!resolveResourcesRootPath())
+	if (!resolveResourcesRootPath() || owner.frameworkReference == nullptr)
 	{
 		return false;
 	}
 
-	const string worldName = frameworkFileSystemSanitizeFileName(requestedWorldName, "NewWorld");
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	const string worldName = diskLoaderModule->sanitizeFileName(requestedWorldName, "NewWorld");
 	const string worldDirectoryPath = (filesystem_path(resourcesRootPathText) / "Scenes")
 		.lexically_normal()
 		.string();
 	string targetWorldPath = {};
-	if (!frameworkFileSystemResolveUniqueFilePath(
+	if (!diskLoaderModule->resolveUniqueFilePath(
 		worldDirectoryPath,
 		worldName,
-		".world",
+		".deasset",
 		targetWorldPath))
 	{
 		return false;
 	}
 
-	wstring worldNameWide = {};
-	worldNameWide.reserve(worldName.length());
-	for (size_t characterIndex = 0; characterIndex < worldName.length(); ++characterIndex)
-	{
-		worldNameWide.push_back(static_cast<wide_character>(static_cast<unsigned char>(worldName[characterIndex])));
-	}
-
-	string editorWorldTemplatePath = {};
-	if (!frameworkFileSystemResolveEditorWorldTemplateFilePath(editorWorldTemplatePath))
+	World* world = owner.frameworkReference->createWorld(worldName);
+	if (world == nullptr)
 	{
 		return false;
 	}
 
-	unique_pointer<World> newWorld = nullptr;
-	string loadErrorText = {};
-	if (!frameworkSerializationLoadWorldFromFile(editorWorldTemplatePath, newWorld, loadErrorText)
-		|| newWorld == nullptr)
+	const string worldAssetPath = buildResourceAssetPath(targetWorldPath);
+	world->setAssetPath(worldAssetPath);
+	if (!owner.saveActiveWorldImmediate())
 	{
-		unused(loadErrorText);
 		return false;
 	}
 
-	newWorld->setWorldName(worldNameWide);
-	string saveErrorText = {};
-	if (!frameworkSerializationSaveWorldToFile(*newWorld, targetWorldPath, saveErrorText))
-	{
-		unused(saveErrorText);
-		return false;
-	}
-
-	outWorldFilePath = filesystem_path(targetWorldPath).lexically_normal().string();
+	outWorldFilePath = worldAssetPath;
 	return true;
 }
 
 bool ImGuiLayerModule::saveActiveWorldImmediate()
 {
-	if (frameworkReference == nullptr)
+	if (!CLIModule::execute("Framework.saveActiveWorld"))
 	{
 		return false;
 	}
 
-	if (frameworkReference->getActiveWorldFilePath().empty())
+	return CLIModule::get()->getLastExecutionCode() == static_cast<int32>(CLIModule::ExecutionCode::succeeded);
+}
+
+string ImGuiLayerModule::FileSystemPanel::buildResourceAssetPath(const filesystem_path& filePath) const
+{
+	if (resourcesRootPathText.empty())
+	{
+		return filePath.lexically_normal().string();
+	}
+
+	const filesystem_path relativePath = filePath.lexically_relative(filesystem_path(resourcesRootPathText));
+	const string relativePathText = relativePath.lexically_normal().string();
+	if (!relativePathText.empty() && !relativePathText.starts_with(".."))
+	{
+		return relativePathText;
+	}
+
+	return filePath.lexically_normal().string();
+}
+
+bool ImGuiLayerModule::FileSystemPanel::isWorldAssetFile(const filesystem_path& filePath) const
+{
+	if (filePath.extension() != ".deasset")
 	{
 		return false;
 	}
 
-	return frameworkReference->saveActiveWorldToFile();
+	const XMLKeyValueDocument document = XML::get().readDocumentFile(buildResourceAssetPath(filePath));
+	const string* assetTypeName = document.find("deasset.@type");
+	return assetTypeName != nullptr && *assetTypeName == "World";
 }
 
 bool ImGuiLayerModule::FileSystemPanel::resolveResourcesRootPath()
@@ -1713,7 +1815,7 @@ bool ImGuiLayerModule::FileSystemPanel::resolveResourcesRootPath()
 
 	resourcesRootResolved = true;
 	resourcesRootPathText.clear();
-	resourcesRootValid = frameworkFileSystemResolveResourcesRootPath(resourcesRootPathText);
+	resourcesRootValid = DiskLoaderModule::get()->resolveResourcesRootPath(resourcesRootPathText);
 	if (!resourcesRootValid)
 	{
 		resourcesRootPathText.clear();

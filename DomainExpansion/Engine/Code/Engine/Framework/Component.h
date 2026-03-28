@@ -6,6 +6,14 @@
 #include "Engine/Platform/PlatformDefine.h"
 
 class World;
+class Component;
+
+using ComponentFactoryFunction = unique_pointer<Component>(*)();
+
+struct ComponentFactoryRegistration
+{
+	ComponentFactoryRegistration(const char* assetTypeName, ComponentFactoryFunction createFactory);
+};
 
 struct ComponentType
 {
@@ -27,7 +35,10 @@ struct ComponentTypeMetadata
 
 #define DECLARE_COMPONENT(componentClassName) \
 public: \
+	DECLARE_ASSET(componentClassName); \
+	static unique_pointer<Component> createFactoryInstance() { return unique_pointer<Component>(new componentClassName()); } \
 	inline static const int componentTypeTagValue = 0; \
+	inline static const ComponentFactoryRegistration componentFactoryRegistration = {componentClassName::getStaticAssetTypeName(), &componentClassName::createFactoryInstance}; \
 	static constexpr ComponentType staticComponentType = {&componentTypeTagValue}; \
 	static const ComponentTypeMetadata& getStaticComponentTypeMetadata() \
 	{ \
@@ -41,14 +52,14 @@ public: \
 	const ComponentTypeMetadata& getComponentTypeMetadata() const override \
 	{ \
 		return getStaticComponentTypeMetadata(); \
-	} \
-	DECLARE_ASSET(componentClassName);
+	}
 
 class Component : public Asset
 {
 public:
 	DECLARE_ASSET(Component);
 	virtual ~Component() = default;
+	static unique_pointer<Component> createByAssetTypeName(const string& assetTypeName);
 	static constexpr ComponentType staticComponentType = {};
 	static const ComponentTypeMetadata& getStaticComponentTypeMetadata()
 	{
@@ -102,6 +113,10 @@ public:
 		this->ownerEntityAssetPath = ownerEntityAssetPath;
 	}
 
+	virtual void initialize()
+	{
+	}
+
 	virtual void tick(float deltaTimeSeconds)
 	{
 		unused(deltaTimeSeconds);
@@ -119,10 +134,6 @@ protected:
 		this->ownerEntityIndex = ownerEntityIndex;
 		this->ownerComponentIndex = ownerComponentIndex;
 		this->ownerEntityHandle = ownerEntityHandle;
-	}
-
-	virtual void initComponent()
-	{
 	}
 
 	void writeAssetProperty(OutputFileStream& fileStream) const override;

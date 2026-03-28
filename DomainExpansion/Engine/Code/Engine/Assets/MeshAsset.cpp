@@ -1,7 +1,6 @@
 #include "Engine/Assets/MeshAsset.h"
 #include "Engine/Common/FileStream.h"
 #include "Engine/Common/Container/Vector.h"
-#include "Engine/Common/XML/XML.h"
 
 void RawMeshData::empty()
 {

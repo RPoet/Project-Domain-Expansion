@@ -1,6 +1,5 @@
 #include "Engine/Framework/CameraComponent.h"
 
-#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
 
@@ -39,7 +38,7 @@ void CameraComponent::tick(const float deltaTimeSeconds)
 	generateCameraBridgeHandle();
 }
 
-void CameraComponent::initComponent()
+void CameraComponent::initialize()
 {
 	generateCameraBridgeHandle();
 }

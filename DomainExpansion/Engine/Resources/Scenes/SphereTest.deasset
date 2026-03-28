@@ -1,0 +1,15 @@
+<deasset type="World">
+  <guid></guid>
+  <name>SphereTest</name>
+  <hasBinary>0</hasBinary>
+<Entities>
+  <item0>Scenes/SphereTest/Entity0.deasset</item0>
+  <item1>Scenes/SphereTest/Entity1.deasset</item1>
+  <item2>Scenes/SphereTest/Entity2.deasset</item2>
+</Entities>
+<Components>
+  <item0>Scenes/SphereTest/Entity0_MeshComponent0.deasset</item0>
+  <item1>Scenes/SphereTest/Entity1_CameraComponent0.deasset</item1>
+  <item2>Scenes/SphereTest/Entity1_EditorCameraMovementComponent1.deasset</item2>
+</Components>
+</deasset>

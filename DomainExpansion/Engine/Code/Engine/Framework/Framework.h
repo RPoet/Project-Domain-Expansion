@@ -42,19 +42,13 @@ public:
 	bool initialize(WindowsWindowObject& windowsWindowObject, const FrameworkInitializeOptions& initializeOptions);
 	void shutdown();
 
-	uint32 createWorld(const wstring& worldName);
-	bool loadWorld(uint32 worldIndex);
-	bool changeWorld(uint32 worldIndex);
-	bool unloadWorld(uint32 worldIndex);
-	bool loadWorldFromFile(const string& worldFilePath);
-	bool saveActiveWorldToFile();
-	const string& getActiveWorldFilePath() const;
+	World* createWorld(const string& worldName);
+	World* loadWorld(const string& worldAssetPath);
+	bool unloadWorld();
+	bool saveActiveWorld();
 
-	World* getWorld(uint32 worldIndex);
-	const World* getWorld(uint32 worldIndex) const;
 	World* getActiveWorld();
 	const World* getActiveWorld() const;
-	uint32 getActiveWorldIndex() const;
 
 	bool update();
 	FrameworkRuntimeExitCode getRuntimeExitCode() const;
@@ -74,16 +68,13 @@ private:
 	void preUpdateModules();
 	void postUpdateModules();
 	void shutdownModules();
-	bool isValidWorldIndex(uint32 worldIndex) const;
 	void completeExecution(FrameworkRuntimeExitCode exitCode);
 
-	vector<unique_pointer<World>> worldStorage;
 	vector<shared_pointer<Module>> moduleStorage;
-	uint32 activeWorldIndex = invalidWorldIndex;
+	unique_pointer<World> activeWorld = nullptr;
 
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
-	string activeWorldFilePath = {};
 	uint64 worldUpdateSerial = 0;
 
 	bool moduleRegistrationCompleted = false;

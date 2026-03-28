@@ -77,6 +77,27 @@ public:
 	}
 
 	template <typename value_type>
+	inline void writePropertyArray(
+		OutputFileStream& fileStream,
+		const char* propertyName,
+		const vector<value_type>& propertyValues) const
+	{
+		assert(propertyName != nullptr && "[XML][Assert] reason=property_name_missing");
+		if (propertyValues.empty())
+		{
+			return;
+		}
+
+		writeOpenTag(fileStream, propertyName);
+		for (uint32 propertyValueIndex = 0; propertyValueIndex < static_cast<uint32>(propertyValues.size()); ++propertyValueIndex)
+		{
+			const string itemPropertyName = "item" + to_string(propertyValueIndex);
+			writeProperty(fileStream, itemPropertyName.c_str(), propertyValues[propertyValueIndex]);
+		}
+		writeCloseTag(fileStream, propertyName);
+	}
+
+	template <typename value_type>
 	inline bool readProperty(
 		const XMLKeyValueDocument& document,
 		const char* propertyName,
@@ -98,6 +119,28 @@ public:
 			outPropertyValue = parsePropertyValueText<value_type>(*propertyValueText);
 		}
 		return true;
+	}
+
+	template <typename value_type>
+	inline void readPropertyArray(
+		const XMLKeyValueDocument& document,
+		const char* propertyName,
+		vector<value_type>& outPropertyValues) const
+	{
+		assert(propertyName != nullptr && "[XML][Assert] reason=property_name_missing");
+		outPropertyValues.clear();
+
+		for (uint32 propertyValueIndex = 0;; ++propertyValueIndex)
+		{
+			value_type propertyValue = {};
+			const string indexedPropertyPath = string(propertyName) + ".item" + to_string(propertyValueIndex);
+			if (!readProperty(document, indexedPropertyPath.c_str(), propertyValue))
+			{
+				break;
+			}
+
+			outPropertyValues.push_back(propertyValue);
+		}
 	}
 
 	ParseCode readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const;

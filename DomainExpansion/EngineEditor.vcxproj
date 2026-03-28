@@ -60,6 +60,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/WHOLEARCHIVE:Engine.lib %(AdditionalOptions)</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
@@ -84,6 +85,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/WHOLEARCHIVE:Engine.lib %(AdditionalOptions)</AdditionalOptions>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -119,8 +121,6 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Engine\Framework\EntityObject.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\FrameworkConstants.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Framework.h" />
-    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkFileSystem.h" />
-    <ClInclude Include="Engine\Code\Engine\Framework\FrameworkSerialization.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\MeshComponent.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\PlaceableEntity.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\Transform.h" />

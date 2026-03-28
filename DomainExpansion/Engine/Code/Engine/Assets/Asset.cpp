@@ -1,6 +1,5 @@
 #include "Engine/Assets/Asset.h"
 
-#include "Engine/Common/XML/XML.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
 void Asset::writeProperty(OutputFileStream& fileStream) const

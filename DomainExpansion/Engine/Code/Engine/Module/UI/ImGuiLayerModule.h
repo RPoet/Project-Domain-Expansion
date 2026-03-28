@@ -93,7 +93,16 @@ private:
 	class DetailPanel final : public Panel
 	{
 	public:
+		void reset() override;
 		void build(ImGuiLayerModule& owner, World* world) override;
+
+	private:
+		bool ensureMeshAssetPathsLoaded();
+		void collectMeshAssetPaths(const filesystem_path& directoryPath);
+
+		string meshAssetRootPath = {};
+		vector<string> meshAssetPaths = {};
+		bool meshAssetPathsLoaded = false;
 	};
 
 	class FileSystemPanel final : public Panel
@@ -108,9 +117,11 @@ private:
 		void build(ImGuiLayerModule& owner, World* world) override;
 
 	private:
-		bool createWorldFile(const string& requestedWorldName, string& outWorldFilePath);
+		bool createWorldFile(ImGuiLayerModule& owner, const string& requestedWorldName, string& outWorldFilePath);
 		bool ensureImportSupportedExtensionsLoaded();
 		bool resolveResourcesRootPath();
+		string buildResourceAssetPath(const filesystem_path& filePath) const;
+		bool isWorldAssetFile(const filesystem_path& filePath) const;
 		void drawDirectoryEntriesRecursive(ImGuiLayerModule& owner, const filesystem_path& directoryPath);
 		void drawFileEntryContextMenu(const filesystem_path& filePath);
 		bool isImportSupportedFile(const filesystem_path& filePath);

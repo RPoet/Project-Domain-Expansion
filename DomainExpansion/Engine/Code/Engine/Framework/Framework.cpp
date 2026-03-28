@@ -1,6 +1,6 @@
 #include "Engine/Framework/Framework.h"
-#include "Engine/Framework/FrameworkFileSystem.h"
-#include "Engine/Framework/FrameworkSerialization.h"
+
+#include "Engine/Assets/AssetLoader.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/Timer/Timer.h"
@@ -19,22 +19,6 @@ static const char* getFrameworkBackendTypeText(const RenderBackendType backendTy
 	default:
 		return "unknown";
 	}
-}
-
-static bool loadEditorWorldTemplate(unique_pointer<World>& outWorld, string& outErrorText)
-{
-	outWorld.reset();
-	outErrorText.clear();
-
-	string editorWorldTemplatePath = {};
-	if (!frameworkFileSystemResolveEditorWorldTemplateFilePath(editorWorldTemplatePath))
-	{
-		outErrorText = "editor_world_template_path_resolve_failed";
-		return false;
-	}
-
-	return frameworkSerializationLoadWorldFromFile(editorWorldTemplatePath, outWorld, outErrorText)
-		&& outWorld != nullptr;
 }
 
 bool Framework::initialize(
@@ -57,13 +41,11 @@ bool Framework::initialize(
 		moduleInitializationCompleted = false;
 	}
 
-	worldStorage.clear();
-	activeWorldIndex = invalidWorldIndex;
+	activeWorld.reset();
 	editorUIEnabled = initializeOptions.editorUIEnabled;
 	backendOptions = initializeOptions.backendOptions;
 	windowsWindowObject = &inWindowsWindowObject;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
-	activeWorldFilePath.clear();
 	worldUpdateSerial = 0;
 
 	if (backendOptions.createBackend)
@@ -90,7 +72,6 @@ bool Framework::initialize(
 		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
 	};
 
-	// TO DO : refactor this hook, very ugly.
 	windowEventCallbacks.onNativeMessage = [](
 		const HandleWindow windowHandle,
 		const MessageIdentifier messageIdentifier,
@@ -128,18 +109,14 @@ bool Framework::initialize(
 
 	if (initializeOptions.bootstrapWorld && getActiveWorld() == nullptr)
 	{
-		string defaultWorldPath = {};
-		const bool defaultWorldLoaded =
-			frameworkFileSystemResolveDefaultWorldFilePath(defaultWorldPath)
-			&& loadWorldFromFile(defaultWorldPath);
+		const bool defaultWorldLoaded = loadWorld("Scenes/SphereTest.deasset") != nullptr;
 		if (defaultWorldLoaded)
 		{
 			return true;
 		}
 
-		const uint32 editorWorldIndex = createWorld(L"EditorWorld");
-		const bool loadedEditorWorld = loadWorld(editorWorldIndex);
-		assert(loadedEditorWorld && "[Framework][Assert] reason=editor_world_load_failed");
+		World* editorWorld = createWorld("EditorWorld");
+		assert(editorWorld != nullptr && "[Framework][Assert] reason=editor_world_create_failed");
 	}
 
 	return true;
@@ -148,153 +125,72 @@ bool Framework::initialize(
 void Framework::shutdown()
 {
 	shutdownModules();
-	worldStorage.clear();
-	activeWorldIndex = invalidWorldIndex;
+	activeWorld.reset();
 	backendOptions = {};
 	windowsWindowObject = nullptr;
-	activeWorldFilePath.clear();
 	worldUpdateSerial = 0;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	editorUIEnabled = true;
 }
 
-uint32 Framework::createWorld(const wstring& worldName)
+World* Framework::createWorld(const string& worldName)
 {
-	unique_pointer<World> worldInstance = nullptr;
-	string errorText = {};
-	const bool loadedEditorWorldTemplate =
-		loadEditorWorldTemplate(worldInstance, errorText)
-		&& worldInstance != nullptr;
-	assert(loadedEditorWorldTemplate && "[Framework][Assert] reason=create_world_editor_template_load_failed");
-
-	worldInstance->setWorldName(worldName);
-	worldStorage.push_back(moveValue(worldInstance));
-	return static_cast<uint32>(worldStorage.size() - 1);
+	unique_pointer<World> worldInstance = AssetLoader::get().loadUniqueAsset<World>("Scenes/EditorWorldTemplate.deasset");
+	assert(worldInstance != nullptr && "[Framework][Assert] reason=create_world_editor_template_load_failed");
+	worldInstance->setName(worldName);
+	worldInstance->setAssetPath("");
+	activeWorld = moveValue(worldInstance);
+	return activeWorld.get();
 }
 
-bool Framework::loadWorld(const uint32 worldIndex)
+World* Framework::loadWorld(const string& worldAssetPath)
 {
-	if (!isValidWorldIndex(worldIndex))
+	activeWorld = AssetLoader::get().loadUniqueAsset<World>(worldAssetPath);
+	assert(activeWorld != nullptr && "[Framework][Assert] reason=world_load_failed");
+	return activeWorld.get();
+}
+
+bool Framework::unloadWorld()
+{
+	if (activeWorld == nullptr)
 	{
 		return false;
 	}
 
-	if (worldStorage[worldIndex] == nullptr)
-	{
-		return false;
-	}
-
-	activeWorldIndex = worldIndex;
-	activeWorldFilePath.clear();
+	activeWorld.reset();
 	return true;
 }
 
-bool Framework::changeWorld(const uint32 worldIndex)
+bool Framework::saveActiveWorld()
 {
-	return loadWorld(worldIndex);
-}
-
-bool Framework::unloadWorld(const uint32 worldIndex)
-{
-	if (!isValidWorldIndex(worldIndex))
+	World* loadedActiveWorld = getActiveWorld();
+	if (loadedActiveWorld == nullptr || loadedActiveWorld->getAssetPath().empty())
 	{
 		return false;
 	}
 
-	worldStorage[worldIndex].reset();
-	if (activeWorldIndex == worldIndex)
-	{
-		activeWorldIndex = invalidWorldIndex;
-		activeWorldFilePath.clear();
-	}
-
+	AssetLoader::get().saveWorld(*loadedActiveWorld);
 	return true;
-}
-
-bool Framework::loadWorldFromFile(const string& worldFilePath)
-{
-	unique_pointer<World> loadedWorld = nullptr;
-	string errorText = {};
-	const bool loadedWorldFromFile =
-		frameworkSerializationLoadWorldFromFile(worldFilePath, loadedWorld, errorText)
-		&& loadedWorld != nullptr;
-	assert(loadedWorldFromFile && "[Framework][Assert] reason=load_world_from_file_failed");
-
-	worldStorage.push_back(moveValue(loadedWorld));
-	const uint32 worldIndex = static_cast<uint32>(worldStorage.size() - 1);
-	if (!loadWorld(worldIndex))
-	{
-		return false;
-	}
-
-	activeWorldFilePath = worldFilePath;
-	return true;
-}
-
-bool Framework::saveActiveWorldToFile()
-{
-	const World* activeWorld = getActiveWorld();
-	if (activeWorld == nullptr || activeWorldFilePath.empty())
-	{
-		return false;
-	}
-
-	string errorText = {};
-	const bool savedActiveWorld =
-		frameworkSerializationSaveWorldToFile(*activeWorld, activeWorldFilePath, errorText);
-	assert(savedActiveWorld && "[Framework][Assert] reason=save_active_world_to_file_failed");
-
-	return true;
-}
-
-const string& Framework::getActiveWorldFilePath() const
-{
-	return activeWorldFilePath;
-}
-
-World* Framework::getWorld(const uint32 worldIndex)
-{
-	if (!isValidWorldIndex(worldIndex))
-	{
-		return nullptr;
-	}
-
-	return worldStorage[worldIndex].get();
-}
-
-const World* Framework::getWorld(const uint32 worldIndex) const
-{
-	if (!isValidWorldIndex(worldIndex))
-	{
-		return nullptr;
-	}
-
-	return worldStorage[worldIndex].get();
 }
 
 World* Framework::getActiveWorld()
 {
-	return getWorld(activeWorldIndex);
+	return activeWorld.get();
 }
 
 const World* Framework::getActiveWorld() const
 {
-	return getWorld(activeWorldIndex);
-}
-
-uint32 Framework::getActiveWorldIndex() const
-{
-	return activeWorldIndex;
+	return activeWorld.get();
 }
 
 bool Framework::update()
 {
 	preUpdateModules();
 
-	const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 	World* activeWorldObject = getActiveWorld();
 	if (activeWorldObject != nullptr)
 	{
+		const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 		activeWorldObject->tick(deltaTimeSeconds);
 	}
 
@@ -342,9 +238,4 @@ bool Framework::isEditorUIEnabled() const
 void Framework::completeExecution(const FrameworkRuntimeExitCode exitCode)
 {
 	runtimeExitCode = exitCode;
-}
-
-bool Framework::isValidWorldIndex(const uint32 worldIndex) const
-{
-	return worldIndex < static_cast<uint32>(worldStorage.size());
 }

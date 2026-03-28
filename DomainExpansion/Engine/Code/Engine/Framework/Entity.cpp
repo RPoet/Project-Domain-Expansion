@@ -1,8 +1,13 @@
 #include "Engine/Framework/Entity.h"
 
-#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/Component.h"
 #include "Engine/Framework/World.h"
+
+static unordered_map<string, EntityFactoryFunction>& getEntityFactoryByTypeName()
+{
+	static unordered_map<string, EntityFactoryFunction> entityFactoryByTypeName = {};
+	return entityFactoryByTypeName;
+}
 
 static bool isSameEntityBridgeDynamicData(
 	const EntityBridge::DynamicData& left,
@@ -12,6 +17,20 @@ static bool isSameEntityBridgeDynamicData(
 		&& left.active == right.active
 		&& left.hasTransform == right.hasTransform
 		&& left.transform == right.transform;
+}
+
+EntityFactoryRegistration::EntityFactoryRegistration(const char* assetTypeName, const EntityFactoryFunction createFactory)
+{
+	assert(assetTypeName != nullptr && "[Entity][Assert] reason=entity_factory_asset_type_name_missing");
+	assert(createFactory != nullptr && "[Entity][Assert] reason=entity_factory_create_function_missing");
+	getEntityFactoryByTypeName().emplace(assetTypeName, createFactory);
+}
+
+unique_pointer<Entity> Entity::createByAssetTypeName(const string& assetTypeName)
+{
+	const auto foundFactory = getEntityFactoryByTypeName().find(assetTypeName);
+	assert(foundFactory != getEntityFactoryByTypeName().end() && "[Entity][Assert] reason=entity_factory_missing");
+	return foundFactory->second();
 }
 
 Entity::Entity(memory_resource* componentIndexMemoryResource)
@@ -26,7 +45,7 @@ void Entity::clear()
 	active = true;
 }
 
-void Entity::initEntity()
+void Entity::initialize()
 {
 	EntityBridge::DynamicData dynamicData = {};
 	buildEntityBridgeDynamicData(dynamicData);

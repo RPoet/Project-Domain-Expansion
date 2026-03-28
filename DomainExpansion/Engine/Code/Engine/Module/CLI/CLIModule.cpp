@@ -4,7 +4,7 @@
 
 bool CLIModule::init(Framework& framework)
 {
-	unused(framework);
+	frameworkReference = &framework;
 	clearLastCommand();
 	initialized = true;
 	return true;
@@ -20,6 +20,7 @@ void CLIModule::postUpdate()
 
 void CLIModule::shutdown()
 {
+	frameworkReference = nullptr;
 	clearLastCommand();
 	initialized = false;
 }
@@ -53,6 +54,26 @@ const string& CLIModule::getLastCommandText() const
 int32 CLIModule::getLastExecutionCode() const
 {
 	return lastExecutionCode;
+}
+
+void CLIModule::registerBuiltInCommands()
+{
+	const bool saveActiveWorldRegistered = registerCommandInternal(
+		"Framework.saveActiveWorld",
+		[](const string& parameter1, const string& parameter2, const string& parameter3)
+		{
+			unused(parameter1);
+			unused(parameter2);
+			unused(parameter3);
+			shared_pointer<CLIModule> cliModule = CLIModule::get();
+			Framework* framework = cliModule->frameworkReference;
+			assert(framework != nullptr && "[CLIModule][Assert] reason=framework_missing");
+			return framework->saveActiveWorld()
+				? static_cast<int32>(ExecutionCode::succeeded)
+				: static_cast<int32>(FrameworkExecutionCode::saveActiveWorldFailed);
+		});
+	assert(saveActiveWorldRegistered && "[CLIModule][Assert] reason=save_active_world_command_register_failed");
+	unused(saveActiveWorldRegistered);
 }
 
 bool CLIModule::registerCommandInternal(const string& commandName, const CommandHandler& commandHandler)

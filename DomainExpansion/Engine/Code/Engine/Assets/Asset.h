@@ -1,10 +1,10 @@
 #pragma once
+#include "Engine/Common/XML/XML.h"
 #include "Engine/Platform/PlatformDefine.h"
 
-#define DECLARE_ASSET(asset_type_name) \
-	const char* getAssetTypeName() const override { return #asset_type_name; }
-
-struct XMLKeyValueDocument;
+#define DECLARE_ASSET(assetTypeName) \
+	static const char* getStaticAssetTypeName() { return #assetTypeName; } \
+	const char* getAssetTypeName() const override { return getStaticAssetTypeName(); }
 
 // Representation of engine file that can be converted runtime data.
 // Document data is stored in `.deasset` XML and binary payload is stored separately in `.de`.

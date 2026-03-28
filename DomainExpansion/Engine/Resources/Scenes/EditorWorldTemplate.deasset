@@ -1,0 +1,14 @@
+<deasset type="World">
+  <guid></guid>
+  <name>EditorWorldTemplate</name>
+  <hasBinary>0</hasBinary>
+<Entities>
+  <item0>Scenes/EditorWorldTemplate/Entity0.deasset</item0>
+  <item1>Scenes/EditorWorldTemplate/Entity1.deasset</item1>
+</Entities>
+<Components>
+  <item0>Scenes/EditorWorldTemplate/Entity0_CameraComponent0.deasset</item0>
+  <item1>Scenes/EditorWorldTemplate/Entity0_EditorCameraMovementComponent1.deasset</item1>
+  <item2>Scenes/EditorWorldTemplate/Entity1_MeshComponent2.deasset</item2>
+</Components>
+</deasset>

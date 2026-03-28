@@ -42,6 +42,13 @@ public:
 		const string& assetPath,
 		const bool truncate) const;
 	bool ensureParentDirectory(const string& filePath) const;
+	bool resolveResourcesRootPath(string& outResourcesRootPath) const;
+	string sanitizeFileName(const string& fileNameText, const string& fallbackName = "NewWorld") const;
+	bool resolveUniqueFilePath(
+		const string& directoryPath,
+		const string& fileStem,
+		const string& extensionWithDot,
+		string& outFilePath) const;
 	bool TEMP_resolveSolutionRootPath(string& outSolutionRootPath) const;
 	bool TEMP_resolveImGuiIniFilePath(string& outIniFilePath) const;
 	string resolveAssetPath(const string& path, AssetFileType assetFileType) const;

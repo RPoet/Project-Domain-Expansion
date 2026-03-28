@@ -1,7 +1,5 @@
 #include "Engine/Framework/PlaceableEntity.h"
 
-#include "Engine/Common/XML/XML.h"
-
 PlaceableEntity::PlaceableEntity(memory_resource* componentIndexMemoryResource)
 	: Entity(componentIndexMemoryResource)
 {

@@ -1,6 +1,5 @@
 #include "Engine/Framework/EditorCameraMovementComponent.h"
 
-#include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
