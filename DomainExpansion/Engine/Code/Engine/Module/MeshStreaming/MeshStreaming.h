@@ -7,6 +7,7 @@
 #include "Render/ResourceTypes.h"
 
 class RenderBackend;
+class CommandList;
 
 enum class MeshAssetHandleState : uint32
 {
@@ -141,12 +142,20 @@ public:
 	uint32 getPendingRequestCount() const;
 
 private:
+	struct InFlightUploadSubmission
+	{
+		CommandList* commandList = nullptr;
+		uint64 syncValue = 0;
+	};
+
 	void flushCpuRequests();
 	bool uploadMeshHandleToGpu(
 		RenderBackend& renderBackend,
 		MeshAssetHandle& handle) const;
+	void releaseCompletedUploadSubmissions(RenderBackend& renderBackend, uint64 completedUploadSyncValue);
 	string getMeshCacheKey(const string& meshAssetPath, uint32 lodLevel) const;
 
 	unordered_map<string, shared_pointer<MeshAssetHandle>> handleCache;
 	vector<shared_pointer<MeshAssetHandle>> pendingGpuUploadHandles;
+	vector<InFlightUploadSubmission> inFlightUploadSubmissions;
 };

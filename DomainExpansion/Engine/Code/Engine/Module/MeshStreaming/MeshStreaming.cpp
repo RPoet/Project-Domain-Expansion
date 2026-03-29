@@ -2,6 +2,7 @@
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/Render/GPUUploader.h"
+#include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/RenderBackend.h"
 
 [[noreturn]] static void failUpload(const char* reason)
@@ -98,8 +99,25 @@ void MeshStreaming::flushCpuRequests()
 
 void MeshStreaming::clear()
 {
+	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
+	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+	if (gpuUploader != nullptr && !inFlightUploadSubmissions.empty())
+	{
+		gpuUploader->waitForUploadCompletion();
+		gpuUploader->refreshCompletedSyncValue();
+		if (renderBackendModule != nullptr && renderBackendModule->isBackendCreated())
+		{
+			RenderBackend* renderBackend = renderBackendModule->getBackend();
+			if (renderBackend != nullptr)
+			{
+				releaseCompletedUploadSubmissions(*renderBackend, gpuUploader->getCompletedUploadSyncValue());
+			}
+		}
+	}
+
 	handleCache.clear();
 	pendingGpuUploadHandles.clear();
+	inFlightUploadSubmissions.clear();
 }
 
 uint32 MeshStreaming::getPendingRequestCount() const
@@ -114,12 +132,35 @@ string MeshStreaming::getMeshCacheKey(
 	return meshAssetPath + "|LOD" + std::to_string(lodLevel);
 }
 
+void MeshStreaming::releaseCompletedUploadSubmissions(
+	RenderBackend& renderBackend,
+	const uint64 completedUploadSyncValue)
+{
+	if (inFlightUploadSubmissions.empty())
+	{
+		return;
+	}
+
+	for (int32 submissionIndex = static_cast<int32>(inFlightUploadSubmissions.size()) - 1; submissionIndex >= 0; --submissionIndex)
+	{
+		const InFlightUploadSubmission& uploadSubmission = inFlightUploadSubmissions[static_cast<uint32>(submissionIndex)];
+		if (uploadSubmission.commandList == nullptr || uploadSubmission.syncValue > completedUploadSyncValue)
+		{
+			continue;
+		}
+
+		renderBackend.releaseCommandList(uploadSubmission.commandList);
+		inFlightUploadSubmissions.erase(inFlightUploadSubmissions.begin() + submissionIndex);
+	}
+}
+
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 {
 	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
 	assert(gpuUploader != nullptr && "[MeshStreaming][Assert] reason=gpu_uploader_missing");
 
 	gpuUploader->refreshCompletedSyncValue();
+	releaseCompletedUploadSubmissions(renderBackend, gpuUploader->getCompletedUploadSyncValue());
 
 	if (pendingGpuUploadHandles.empty() && !gpuUploader->hasQueuedUploadRequests())
 	{
@@ -154,13 +195,18 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 
 	if (gpuUploader->hasQueuedUploadRequests())
 	{
+		CommandQueue* commandQueue = renderBackend.getCommandQueue();
+		assert(commandQueue != nullptr && "[MeshStreaming][Assert] reason=gpu_upload_command_queue_missing");
+
 		uploadCommandList->reset();
 		gpuUploader->uploadQueuedBuffers(*uploadCommandList);
 		uploadCommandList->close();
-		renderBackend.queueCommandList(uploadCommandList);
-		renderBackend.executeQueuedCommandLists();
-		gpuUploader->signalUploadSync();
-		renderBackend.finalizeQueuedSubmissions();
+		commandQueue->execute(uploadCommandList);
+
+		InFlightUploadSubmission uploadSubmission = {};
+		uploadSubmission.commandList = uploadCommandList;
+		uploadSubmission.syncValue = gpuUploader->signalUploadSync();
+		inFlightUploadSubmissions.push_back(uploadSubmission);
 	}
 	else
 	{

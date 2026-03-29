@@ -29,6 +29,11 @@ bool GPUUploader::init(Framework& framework)
 
 void GPUUploader::preUpdate()
 {
+	if (uploadSyncObject != nullptr)
+	{
+		refreshCompletedSyncValue();
+	}
+
 	resetFrameAllocations();
 }
 
@@ -108,7 +113,7 @@ void GPUUploader::refreshCompletedSyncValue()
 	completedUploadSyncValue = uploadSyncObject->getCompletedSyncValue();
 }
 
-void GPUUploader::signalUploadSync()
+uint64 GPUUploader::signalUploadSync()
 {
 	assert(uploadSyncObject != nullptr && "[GPUUploader][Assert] reason=upload_sync_object_missing");
 	const uint64 submittedSyncValue = uploadSyncObject->signal();
@@ -126,6 +131,20 @@ void GPUUploader::signalUploadSync()
 		block.lastUsedSyncValue = submittedSyncValue;
 		block.pendingSubmission = false;
 	}
+
+	return submittedSyncValue;
+}
+
+uint64 GPUUploader::getCompletedUploadSyncValue() const
+{
+	return completedUploadSyncValue;
+}
+
+void GPUUploader::waitForUploadCompletion()
+{
+	assert(uploadSyncObject != nullptr && "[GPUUploader][Assert] reason=upload_sync_object_missing");
+	uploadSyncObject->wait();
+	completedUploadSyncValue = uploadSyncObject->getCompletedSyncValue();
 }
 
 void GPUUploader::uploadQueuedBuffers(CommandList& commandList)
@@ -292,7 +311,14 @@ void GPUUploader::resetFrameAllocations()
 {
 	for (uint32 blockIndex = 0; blockIndex < static_cast<uint32>(uploadBufferPoolBlocks.size()); ++blockIndex)
 	{
-		uploadBufferPoolBlocks[blockIndex].usedInBytes = 0;
+		UploadBufferPoolBlock& block = uploadBufferPoolBlocks[blockIndex];
+		if (block.pendingSubmission
+			|| (block.lastUsedSyncValue != 0 && block.lastUsedSyncValue > completedUploadSyncValue))
+		{
+			continue;
+		}
+
+		block.usedInBytes = 0;
 	}
 }
 

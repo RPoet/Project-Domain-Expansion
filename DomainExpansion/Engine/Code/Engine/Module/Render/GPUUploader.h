@@ -39,7 +39,9 @@ public:
 		const BufferObjectCreateOptions& createOptions,
 		const BufferUploadRequestOptions& uploadRequestOptions);
 	void refreshCompletedSyncValue();
-	void signalUploadSync();
+	uint64 signalUploadSync();
+	uint64 getCompletedUploadSyncValue() const;
+	void waitForUploadCompletion();
 	void uploadQueuedBuffers(CommandList& commandList);
 	bool hasQueuedUploadRequests() const;
 

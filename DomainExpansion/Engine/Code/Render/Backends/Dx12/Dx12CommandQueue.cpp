@@ -43,6 +43,7 @@ void Dx12CommandQueue::executeQueued()
 	commandQueue->ExecuteCommandLists(
 		static_cast<uint32>(queuedCommandLists.size()),
 		queuedCommandLists.data());
+	queuedCommandLists.clear();
 }
 
 void Dx12CommandQueue::clearQueued()
