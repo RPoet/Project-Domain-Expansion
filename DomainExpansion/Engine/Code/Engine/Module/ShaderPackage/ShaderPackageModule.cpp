@@ -91,11 +91,11 @@ static string getDefaultShaderBinaryProfileText(
 	switch (shaderStage)
 	{
 	case ShaderStage::vertex:
-		return "vs_6_9";
+		return "vs_6_8";
 	case ShaderStage::pixel:
-		return "ps_6_9";
+		return "ps_6_8";
 	case ShaderStage::compute:
-		return "cs_6_9";
+		return "cs_6_8";
 	default:
 		return {};
 	}

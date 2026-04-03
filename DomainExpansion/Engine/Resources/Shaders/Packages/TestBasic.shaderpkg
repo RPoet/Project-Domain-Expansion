@@ -4,25 +4,28 @@ name=TestBasic
 [Shader]
 id=VS_Graphics
 stage=vertex
+source=Shaders/Test/TestBasic.hlsl
 file=Shaders/Test/TestBasicVS.bin
-entry=main
-profile=vs_6_9
+entry=mainVS
+profile=vs_6_8
 definesHash=0
 
 [Shader]
 id=PS_Graphics
 stage=pixel
+source=Shaders/Test/TestBasic.hlsl
 file=Shaders/Test/TestBasicPS.bin
-entry=main
-profile=ps_6_9
+entry=mainPS
+profile=ps_6_8
 definesHash=0
 
 [Shader]
 id=CS_Compute
 stage=compute
+source=Shaders/Test/TestBasic.hlsl
 file=Shaders/Test/TestBasicCS.bin
-entry=main
-profile=cs_6_9
+entry=mainCS
+profile=cs_6_8
 definesHash=0
 
 [Variant]
