@@ -32,8 +32,8 @@ public:
 	constexpr static uint32 version = 3;
 
 	MeshAsset()
+		: Asset(true)
 	{
-		hasBinary = true;
 	}
 
 	void empty();

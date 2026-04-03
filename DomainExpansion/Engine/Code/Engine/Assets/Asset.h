@@ -11,7 +11,38 @@
 class Asset
 {
 public:
-	Asset() = default;
+	constexpr explicit Asset(const bool inHasBinary = false)
+		: hasBinary(inHasBinary)
+	{
+	}
+	Asset(const Asset&) = default;
+	Asset(Asset&&) = default;
+	Asset& operator=(const Asset& other)
+	{
+		if (this == &other)
+		{
+			return *this;
+		}
+
+		assert(hasBinary == other.hasBinary && "[Asset][Assert] reason=asset_binary_layout_assignment_mismatch");
+		assetPath = other.assetPath;
+		name = other.name;
+		guid = other.guid;
+		return *this;
+	}
+	Asset& operator=(Asset&& other)
+	{
+		if (this == &other)
+		{
+			return *this;
+		}
+
+		assert(hasBinary == other.hasBinary && "[Asset][Assert] reason=asset_binary_layout_assignment_mismatch");
+		assetPath = moveValue(other.assetPath);
+		name = moveValue(other.name);
+		guid = moveValue(other.guid);
+		return *this;
+	}
 
 	const string& getAssetPath() const { return assetPath; }
 	const string& getName() const { return name; }
@@ -41,5 +72,5 @@ protected:
 	string name = "";
 	string guid = "";
 
-	bool hasBinary = false;
+	const bool hasBinary = false;
 };

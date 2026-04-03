@@ -9,8 +9,8 @@ public:
 	constexpr static uint32 version = 1;
 
 	TextureAsset()
+		: Asset(true)
 	{
-		hasBinary = true;
 	}
 
 	void clear() override;
