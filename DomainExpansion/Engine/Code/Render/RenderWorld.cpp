@@ -2,6 +2,7 @@
 
 #include "Bridge/CameraBridge.h"
 #include "Bridge/EntityBridge.h"
+#include "Bridge/MaterialBridge.h"
 #include "Bridge/MeshBridge.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
@@ -162,6 +163,7 @@ public:
 
 			RenderWorldMeshDrawData meshDrawData = {};
 			meshDrawData.meshAssetHandle = meshStaticData->meshAssetHandle;
+			meshDrawData.materialHandles = meshStaticData->materialHandles;
 			meshDrawData.transform = entityDynamicData->transform;
 			buildResult.meshDrawData.push_back(meshDrawData);
 		}
@@ -184,35 +186,6 @@ public:
 			return moveValue(drawPrepareResult);
 		}
 
-		shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage("Shaders/Packages/GeometryBaseColor.shaderpkg");
-		if (shaderPackage == nullptr || shaderPackage->state != ShaderPackageState::ready)
-		{
-			return moveValue(drawPrepareResult);
-		}
-
-		const ShaderPackageVariant* shaderVariant = nullptr;
-		for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackage->variants.size()); ++variantIndex)
-		{
-			const ShaderPackageVariant& currentVariant = shaderPackage->variants[variantIndex];
-			if (currentVariant.name == "GeometryDefault")
-			{
-				shaderVariant = &currentVariant;
-				break;
-			}
-		}
-
-		if (shaderVariant == nullptr)
-		{
-			return moveValue(drawPrepareResult);
-		}
-
-		shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
-		shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
-		if (vertexShader == nullptr || pixelShader == nullptr)
-		{
-			return moveValue(drawPrepareResult);
-		}
-
 		for (uint32 meshDrawDataIndex = 0; meshDrawDataIndex < static_cast<uint32>(buildResult.meshDrawData.size()); ++meshDrawDataIndex)
 		{
 			const RenderWorldMeshDrawData& meshDrawData = buildResult.meshDrawData[meshDrawDataIndex];
@@ -228,8 +201,6 @@ public:
 			baseMeshDrawCommand.meshAssetHandle = meshAssetHandle;
 			baseMeshDrawCommand.transform = meshDrawData.transform;
 			baseMeshDrawCommand.pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
-			baseMeshDrawCommand.pipelineStateDesc.vertexShader = vertexShader;
-			baseMeshDrawCommand.pipelineStateDesc.pixelShader = pixelShader;
 			PushConstantRange pushConstantRange = {};
 			pushConstantRange.offsetInBytes = 0;
 			pushConstantRange.sizeInBytes = static_cast<uint32>(sizeof(float) * 20);
@@ -343,6 +314,33 @@ public:
 				}
 
 				RenderWorldMeshDrawCommand meshDrawCommand = baseMeshDrawCommand;
+				const BridgeHandle materialHandle =
+					sectionIndex < meshDrawData.materialHandles.size() ? meshDrawData.materialHandles[sectionIndex] : invalidBridgeHandle;
+				if (materialHandle != invalidBridgeHandle)
+				{
+					const MaterialBridge::StaticData* materialStaticData = MaterialBridge::get().getStaticData(materialHandle);
+					meshDrawCommand.materialAsset = materialStaticData != nullptr ? materialStaticData->materialAsset : nullptr;
+				}
+				shared_pointer<ShaderObject> vertexShader = nullptr;
+				shared_pointer<ShaderObject> pixelShader = nullptr;
+				if (!MaterialAsset::resolveEffectiveShaders(
+					*shaderPackageModule,
+					meshDrawCommand.materialAsset,
+					ShaderTargetPlatform::dx12, // TODO: Remove the hardcoded DX12 target and resolve this from the active render backend or platform-neutral shader selection path.
+					vertexShader,
+					pixelShader))
+				{
+					continue;
+				}
+
+				meshDrawCommand.pipelineStateDesc.vertexShader = vertexShader;
+				meshDrawCommand.pipelineStateDesc.pixelShader = pixelShader;
+				if (meshDrawCommand.pipelineStateDesc.vertexShader == nullptr
+					|| meshDrawCommand.pipelineStateDesc.pixelShader == nullptr)
+				{
+					continue;
+				}
+
 				buildRenderWorldSectionDebugColor(meshDrawDataIndex, sectionIndex, meshDrawCommand.baseColor);
 				meshDrawCommand.indexCount = sectionRange.indexCount;
 				meshDrawCommand.startIndexLocation = sectionRange.startIndex;

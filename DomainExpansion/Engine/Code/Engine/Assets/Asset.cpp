@@ -31,7 +31,21 @@ void Asset::readProperty(const XMLKeyValueDocument& document)
 
 	xml.readProperty(document, "deasset.guid", guid);
 	xml.readProperty(document, "deasset.name", name);
-	xml.readProperty(document, "deasset.hasBinary", hasBinary);
+
+	bool documentHasBinary = false;
+	const bool hasDocumentBinaryFlag = xml.readProperty(document, "deasset.hasBinary", documentHasBinary);
+	assert(hasDocumentBinaryFlag && "[Asset][Assert] reason=asset_document_has_binary_missing");
+	if (!hasDocumentBinaryFlag)
+	{
+		return;
+	}
+
+	const bool binaryLayoutCompatible = isDocumentBinaryLayoutCompatible(document, documentHasBinary);
+	assert(binaryLayoutCompatible && "[Asset][Assert] reason=asset_document_has_binary_mismatch");
+	if (!binaryLayoutCompatible)
+	{
+		return;
+	}
 
 	readAssetProperty(document);
 
@@ -46,6 +60,12 @@ void Asset::readProperty(const XMLKeyValueDocument& document)
 void Asset::writeAssetProperty(OutputFileStream& fileStream) const
 {
 	unused(fileStream);
+}
+
+bool Asset::isDocumentBinaryLayoutCompatible(const XMLKeyValueDocument& document, const bool documentHasBinary) const
+{
+	unused(document);
+	return documentHasBinary == hasBinary;
 }
 
 void Asset::readAssetProperty(const XMLKeyValueDocument& document)

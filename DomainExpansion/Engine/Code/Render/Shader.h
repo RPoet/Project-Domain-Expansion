@@ -97,6 +97,12 @@ inline const ShaderLoadRequest& getEmptyShaderLoadRequest()
 	return emptyLoadRequest;
 }
 
+inline const ShaderBinaryLoadRequest& getEmptyShaderBinaryLoadRequest()
+{
+	static const ShaderBinaryLoadRequest emptyBinaryLoadRequest = {};
+	return emptyBinaryLoadRequest;
+}
+
 inline uint64 computeShaderByteCodeHash(const vector<char>& byteCode)
 {
 	uint64 hashValue = platformHashOffsetBasis;
@@ -190,6 +196,8 @@ struct ShaderPackageVariant
 {
 	string name = {};
 	shared_pointer<ShaderObject> shaders[shaderStageCount] = {};
+	ShaderLoadRequest shaderLoadRequests[shaderStageCount] = {};
+	ShaderBinaryLoadRequest shaderBinaryLoadRequests[shaderStageCount] = {};
 
 	shared_pointer<ShaderObject> getShader(const ShaderStage shaderStage) const
 	{
@@ -200,6 +208,28 @@ struct ShaderPackageVariant
 		}
 
 		return shaders[shaderStageIndex];
+	}
+
+	const ShaderLoadRequest& getLoadRequest(const ShaderStage shaderStage) const
+	{
+		const uint32 shaderStageIndex = getShaderStageIndex(shaderStage);
+		if (shaderStageIndex == uint32MaxValue)
+		{
+			return getEmptyShaderLoadRequest();
+		}
+
+		return shaderLoadRequests[shaderStageIndex];
+	}
+
+	const ShaderBinaryLoadRequest& getBinaryLoadRequest(const ShaderStage shaderStage) const
+	{
+		const uint32 shaderStageIndex = getShaderStageIndex(shaderStage);
+		if (shaderStageIndex == uint32MaxValue)
+		{
+			return getEmptyShaderBinaryLoadRequest();
+		}
+
+		return shaderBinaryLoadRequests[shaderStageIndex];
 	}
 };
 

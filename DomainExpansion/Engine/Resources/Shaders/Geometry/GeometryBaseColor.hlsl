@@ -20,10 +20,13 @@ VSOutput mainVS(VSInput input)
 {
 	VSOutput output;
 	output.position = mul(float4(input.position, 1.0f), worldViewProjection);
+	/* MATERIAL_VERTEX_EDIT */
 	return output;
 }
 
 float4 mainPS(VSOutput input) : SV_Target0
 {
-	return baseColor;
+	float4 materialColor = baseColor;
+	/* MATERIAL_PIXEL_EDIT */
+	return materialColor;
 }

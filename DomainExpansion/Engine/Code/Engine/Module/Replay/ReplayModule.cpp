@@ -25,6 +25,30 @@ static World* requireReplayActiveWorld()
 	return framework != nullptr ? framework->getActiveWorld() : nullptr;
 }
 
+static bool saveReplayMaterialAssetDocument(const MaterialAsset& materialAsset)
+{
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	if (diskLoaderModule == nullptr)
+	{
+		return false;
+	}
+
+	string absoluteAssetPath = {};
+	if (!diskLoaderModule->resolveAbsolutePathFromResources(materialAsset.getAssetPath(), absoluteAssetPath))
+	{
+		return false;
+	}
+
+	OutputFileStream materialAssetFileStream = {};
+	if (!diskLoaderModule->openOutputFileStream(absoluteAssetPath, materialAssetFileStream, false, true))
+	{
+		return false;
+	}
+
+	materialAsset.writeProperty(materialAssetFileStream);
+	return materialAssetFileStream.good();
+}
+
 bool ReplayModule::init(Framework& framework)
 {
 	frameworkReference = &framework;
@@ -413,7 +437,7 @@ void ReplayModule::registerReplayCommands()
 				return static_cast<int32>(EditorExecutionCode::activeWorldMissing);
 			}
 
-			if (arguments.size() != 4)
+			if (arguments.size() < 4)
 			{
 				return static_cast<int32>(EditorExecutionCode::invalidArguments);
 			}
@@ -438,23 +462,30 @@ void ReplayModule::registerReplayCommands()
 				return static_cast<int32>(EditorExecutionCode::invalidArguments);
 			}
 
-			meshComponent->meshAssetPath = arguments[1];
-			meshComponent->lodLevel = lodLevel;
-			meshComponent->visible = visible;
-			if (meshComponent->meshAssetPath.empty())
+			const string& meshAssetPath = arguments[1];
+			meshComponent->setMeshAssetPath(meshAssetPath);
+			meshComponent->setLODLevel(lodLevel);
+			meshComponent->setVisible(visible);
+			vector<string> materialAssetPaths = {};
+			materialAssetPaths.reserve(arguments.size() > 4 ? arguments.size() - 4 : 0);
+			for (uint32 materialIndex = 4; materialIndex < static_cast<uint32>(arguments.size()); ++materialIndex)
 			{
-				meshComponent->meshAsset.reset();
+				materialAssetPaths.push_back(arguments[materialIndex]);
+			}
+			meshComponent->setMaterialAssetPaths(materialAssetPaths);
+			if (meshAssetPath.empty())
+			{
+				meshComponent->requestMeshStreaming();
 			}
 			else
 			{
 				string absoluteMeshAssetPath = {};
-				if (!DiskLoaderModule::get()->resolvePathFromResources(meshComponent->meshAssetPath, absoluteMeshAssetPath))
+				if (!DiskLoaderModule::get()->resolvePathFromResources(meshAssetPath, absoluteMeshAssetPath))
 				{
 					return static_cast<int32>(EditorExecutionCode::meshAssetLoadFailed);
 				}
 
-				meshComponent->meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshComponent->meshAssetPath);
-				MeshStreaming::get()->requestMesh(meshComponent->meshAsset, meshComponent->lodLevel);
+				meshComponent->requestMeshStreaming();
 			}
 
 			if (!framework->saveActiveWorld())
@@ -466,6 +497,107 @@ void ReplayModule::registerReplayCommands()
 		});
 	assert(setMeshComponentRegistered && "[ReplayModule][Assert] reason=editor_set_mesh_component_command_register_failed");
 	unused(setMeshComponentRegistered);
+
+	const bool createMaterialAssetRegistered = CLIModule::registerCommand(
+		"Editor.createMaterialAsset",
+		[](const vector<string>& arguments)
+		{
+			if (arguments.size() != 7)
+			{
+				return static_cast<int32>(EditorExecutionCode::invalidArguments);
+			}
+
+			MaterialAsset materialAsset = {};
+			materialAsset.clear();
+			materialAsset.setAssetPath(arguments[0]);
+			materialAsset.setName(arguments[1]);
+			materialAsset.setGUID("");
+			editorCommandApplyMaterialShaderConfig(
+				materialAsset,
+				arguments[2],
+				arguments[3],
+				arguments[4],
+				arguments[5],
+				arguments[6]);
+			if (!saveReplayMaterialAssetDocument(materialAsset))
+			{
+				return static_cast<int32>(EditorExecutionCode::deassetWriteFailed);
+			}
+
+			editorCommandSyncLoadedMaterialShaderConfig(
+				requireReplayActiveWorld(),
+				arguments[0],
+				arguments[2],
+				arguments[3],
+				arguments[4],
+				arguments[5],
+				arguments[6]);
+			return static_cast<int32>(CLIModule::ExecutionCode::succeeded);
+		});
+	assert(createMaterialAssetRegistered && "[ReplayModule][Assert] reason=editor_create_material_asset_command_register_failed");
+	unused(createMaterialAssetRegistered);
+
+	const bool setMaterialAssetRegistered = CLIModule::registerCommand(
+		"Editor.setMaterialAsset",
+		[](const vector<string>& arguments)
+		{
+			if (arguments.size() != 6)
+			{
+				return static_cast<int32>(EditorExecutionCode::invalidArguments);
+			}
+
+			shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+			if (diskLoaderModule == nullptr)
+			{
+				return static_cast<int32>(EditorExecutionCode::frameworkMissing);
+			}
+
+			string absoluteAssetPath = {};
+			if (!diskLoaderModule->resolveAbsolutePathFromResources(arguments[0], absoluteAssetPath))
+			{
+				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
+			}
+
+			XMLKeyValueDocument document = {};
+			const XML::ParseCode parseCode = XML::get().readDocumentFile(absoluteAssetPath, document);
+			if (parseCode != XML::ParseCode::succeeded)
+			{
+				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
+			}
+
+			const string* assetTypeName = document.find("deasset.@type");
+			if (assetTypeName == nullptr || *assetTypeName != MaterialAsset::getStaticAssetTypeName())
+			{
+				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
+			}
+
+			MaterialAsset materialAsset = {};
+			materialAsset.setAssetPath(arguments[0]);
+			materialAsset.readProperty(document);
+			editorCommandApplyMaterialShaderConfig(
+				materialAsset,
+				arguments[1],
+				arguments[2],
+				arguments[3],
+				arguments[4],
+				arguments[5]);
+			if (!saveReplayMaterialAssetDocument(materialAsset))
+			{
+				return static_cast<int32>(EditorExecutionCode::deassetWriteFailed);
+			}
+
+			editorCommandSyncLoadedMaterialShaderConfig(
+				requireReplayActiveWorld(),
+				arguments[0],
+				arguments[1],
+				arguments[2],
+				arguments[3],
+				arguments[4],
+				arguments[5]);
+			return static_cast<int32>(CLIModule::ExecutionCode::succeeded);
+		});
+	assert(setMaterialAssetRegistered && "[ReplayModule][Assert] reason=editor_set_material_asset_command_register_failed");
+	unused(setMaterialAssetRegistered);
 
 	const bool setCameraComponentRegistered = CLIModule::registerCommand(
 		"Editor.setCameraComponent",

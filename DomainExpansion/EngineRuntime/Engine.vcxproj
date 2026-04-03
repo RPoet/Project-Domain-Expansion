@@ -75,6 +75,7 @@
   <ItemGroup>
     <ClCompile Include="..\Engine\Code\Engine\Assets\AssetLoader.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Assets\Asset.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Assets\MaterialAsset.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Assets\MeshAsset.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Assets\TextureAsset.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\BackendValidation.cpp" />
@@ -89,6 +90,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Framework\PlaceableEntity.cpp" />
     <ClCompile Include="..\Engine\Code\Bridge\CameraBridge.cpp" />
     <ClCompile Include="..\Engine\Code\Bridge\EntityBridge.cpp" />
+    <ClCompile Include="..\Engine\Code\Bridge\MaterialBridge.cpp" />
     <ClCompile Include="..\Engine\Code\Bridge\MeshBridge.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Bridge\BridgeModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\CLI\CLIModule.cpp" />

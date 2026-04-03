@@ -106,11 +106,19 @@ private:
 
 	private:
 		bool ensureMeshAssetPathsLoaded();
+		bool ensureMaterialAssetPathsLoaded();
 		void collectMeshAssetPaths(const filesystem_path& directoryPath);
+		void collectMaterialAssetPaths(const filesystem_path& directoryPath);
 
 		string meshAssetRootPath = {};
+		string materialAssetRootPath = {};
 		vector<string> meshAssetPaths = {};
+		vector<string> materialAssetPaths = {};
+		unordered_map<string, bool> materialAssetDirtyStateByPath = {};
+		string createMaterialAssetNameText = "NewMaterial";
+		string createMaterialAssetStatusText = {};
 		bool meshAssetPathsLoaded = false;
+		bool materialAssetPathsLoaded = false;
 	};
 
 	class DeassetViewerPanel final : public Panel

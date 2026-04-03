@@ -18,6 +18,7 @@ public:
 	void shutdown() override final;
 
 	shared_pointer<ShaderPackageAsset> getOrLoadPackage(const string& packageRelativePath);
+	const ShaderPackageVariant* findVariantByName(const ShaderPackageAsset& shaderPackage, const string& variantName) const;
 	void clear();
 	uint32 getCachedPackageCount() const;
 

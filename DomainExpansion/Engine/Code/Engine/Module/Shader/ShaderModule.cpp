@@ -2,6 +2,7 @@
 
 #include "Engine/Framework/Framework.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
+#include "Engine/Module/ShaderCompiler/ShaderCompiler.h"
 #include "Render/Backends/Dx12/Dx12Shader.h"
 
 static ShaderTargetPlatform getShaderTargetPlatformFromRenderBackendType(const RenderBackendType renderBackendType)
@@ -94,13 +95,32 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 
 	vector<char> shaderByteCode = {};
 	const bool loadedShaderByteCode = diskLoaderModule->loadBinaryFile(shaderBinaryAbsolutePath, shaderByteCode);
-	assert(loadedShaderByteCode && "[ShaderModule][Assert] reason=shader_binary_load_failed");
+	if (loadedShaderByteCode)
+	{
+		shared_pointer<ShaderAsset> shaderAsset(new ShaderAsset());
+		assert(shaderAsset != nullptr && "[ShaderModule][Assert] reason=shader_asset_allocate_failed");
+		const bool initializedShaderAsset = shaderAsset->initialize(loadRequest);
+		assert(initializedShaderAsset && "[ShaderModule][Assert] reason=shader_asset_initialize_failed");
+		shaderHandle->shader = createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
+	}
+	else
+	{
+		ShaderCompiler shaderCompiler = {};
+		ShaderCompileRequest compileRequest = {};
+		compileRequest.stage = loadRequest.stage;
+		compileRequest.sourceRelativePath = loadRequest.sourceRelativePath;
+		compileRequest.entryPoint = loadRequest.entryPoint;
+		compileRequest.definesHash = loadRequest.definesHash;
+		compileRequest.targetPlatform = normalizedBinaryLoadRequest.targetPlatform;
+		compileRequest.profile = normalizedBinaryLoadRequest.profile;
+		compileRequest.outputBinaryRelativePath = normalizedBinaryLoadRequest.binaryRelativePath;
 
-	shared_pointer<ShaderAsset> shaderAsset(new ShaderAsset());
-	const bool initializedShaderAsset = shaderAsset != nullptr && shaderAsset->initialize(loadRequest);
-	assert(initializedShaderAsset && "[ShaderModule][Assert] reason=shader_asset_initialize_failed");
+		ShaderCompileResult compileResult = {};
+		const bool compiledShader = shaderCompiler.compileFromFile(compileRequest, compileResult);
+		assert(compiledShader && compileResult.success && "[ShaderModule][Assert] reason=shader_fallback_compile_failed");
+		shaderHandle->shader = compileResult.shaderObject;
+	}
 
-	shaderHandle->shader = createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
 	const bool createdShaderObject = shaderHandle->shader != nullptr;
 	assert(createdShaderObject && "[ShaderModule][Assert] reason=shader_object_create_failed");
 

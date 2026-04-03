@@ -12,6 +12,7 @@
 #include "Render/RenderCommand.h"
 #include "Render/ResourceObject.h"
 
+class MaterialAsset;
 struct MeshAssetHandle;
 
 struct RenderWorldUpdateInput
@@ -24,6 +25,7 @@ struct RenderWorldUpdateInput
 struct RenderWorldMeshDrawData
 {
 	shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;
+	vector<BridgeHandle> materialHandles = {};
 	Transform transform = {};
 };
 
@@ -36,6 +38,7 @@ struct RenderWorldBuildResult
 struct RenderWorldMeshDrawCommand
 {
 	shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;
+	shared_pointer<MaterialAsset> materialAsset = nullptr;
 	Transform transform = {};
 	PipelineStateDesc pipelineStateDesc = {};
 	float baseColor[4] = {}; // <-- Debug Color

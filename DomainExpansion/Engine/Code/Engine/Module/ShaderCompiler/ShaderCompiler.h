@@ -7,6 +7,7 @@ struct ShaderCompileRequest
 	ShaderStage stage = ShaderStage::unknown;
 	string sourceRelativePath = {};
 	string entryPoint = {};
+	uint64 definesHash = 0;
 	ShaderTargetPlatform targetPlatform = ShaderTargetPlatform::unknown;
 	string profile = {};
 	string outputBinaryRelativePath = {};

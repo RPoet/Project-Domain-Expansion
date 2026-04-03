@@ -2,6 +2,7 @@
 
 #include "Bridge/CameraBridge.h"
 #include "Bridge/EntityBridge.h"
+#include "Bridge/MaterialBridge.h"
 #include "Bridge/MeshBridge.h"
 
 bool BridgeModule::init(Framework& framework)
@@ -9,6 +10,7 @@ bool BridgeModule::init(Framework& framework)
 	unused(framework);
 	registerBridge(&CameraBridge::get());
 	registerBridge(&EntityBridge::get());
+	registerBridge(&MaterialBridge::get());
 	registerBridge(&MeshBridge::get());
 	return true;
 }

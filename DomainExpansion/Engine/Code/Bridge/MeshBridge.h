@@ -13,6 +13,7 @@ struct MeshBridgeObject
 		string meshAssetPath = {};
 		uint32 lodLevel = 0;
 		shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;
+		vector<BridgeHandle> materialHandles = {};
 	};
 
 	struct DynamicProperty

@@ -1,6 +1,7 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
 #include "Engine/Assets/AssetLoader.h"
+#include "Engine/Common/EditorCommandCommon.h"
 #include "Engine/Common/EditorCommandReplay.h"
 #include "Engine/Framework/Entity.h"
 #include "Engine/Framework/CameraComponent.h"
@@ -127,6 +128,77 @@ static string buildReplayFloatArgument(const float value)
 static string buildReplayUnsignedArgument(const uint32 value)
 {
 	return to_string(value);
+}
+
+static vector<string> buildReplayMeshComponentArguments(const MeshComponent& meshComponent)
+{
+	vector<string> arguments = {};
+	arguments.push_back(meshComponent.getAssetPath());
+	arguments.push_back(meshComponent.getMeshAssetPath());
+	arguments.push_back(buildReplayUnsignedArgument(meshComponent.getLODLevel()));
+	arguments.push_back(buildReplayBooleanArgument(meshComponent.isVisible()));
+
+	const vector<string>& materialAssetPaths = meshComponent.getMaterialAssetPaths();
+	arguments.reserve(arguments.size() + materialAssetPaths.size());
+	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialAssetPaths.size()); ++materialIndex)
+	{
+		arguments.push_back(materialAssetPaths[materialIndex]);
+	}
+
+	return arguments;
+}
+
+static vector<string> buildReplayMaterialShaderConfigArguments(
+	const string& materialAssetPath,
+	const string& shaderTemplatePath,
+	const string& shaderPackagePath,
+	const string& shaderVariantName,
+	const string& vertexShaderInjectedCode,
+	const string& pixelShaderInjectedCode)
+{
+	return
+	{
+		materialAssetPath,
+		shaderTemplatePath,
+		shaderPackagePath,
+		shaderVariantName,
+		vertexShaderInjectedCode,
+		pixelShaderInjectedCode,
+	};
+}
+
+static string buildReplaySetMaterialShaderCommandText(const MaterialAsset& materialAsset)
+{
+	return EditorCommandReplay::buildCommandText(
+		"Editor.setMaterialAsset",
+		buildReplayMaterialShaderConfigArguments(
+			materialAsset.getAssetPath(),
+			materialAsset.getShaderTemplatePath(),
+			materialAsset.getShaderPackagePath(),
+			materialAsset.getShaderVariantName(),
+			materialAsset.getVertexShaderInjectedCode(),
+			materialAsset.getPixelShaderInjectedCode()));
+}
+
+static string buildReplayCreateMaterialAssetCommandText(
+	const string& materialAssetPath,
+	const string& materialAssetName,
+	const string& shaderTemplatePath,
+	const string& shaderPackagePath,
+	const string& shaderVariantName,
+	const string& vertexShaderInjectedCode,
+	const string& pixelShaderInjectedCode)
+{
+	vector<string> arguments = { materialAssetPath, materialAssetName };
+	const vector<string> materialShaderConfigArguments = buildReplayMaterialShaderConfigArguments(
+		materialAssetPath,
+		shaderTemplatePath,
+		shaderPackagePath,
+		shaderVariantName,
+		vertexShaderInjectedCode,
+		pixelShaderInjectedCode);
+	arguments.insert(arguments.end(), materialShaderConfigArguments.begin() + 1, materialShaderConfigArguments.end());
+	return EditorCommandReplay::buildCommandText("Editor.createMaterialAsset", arguments);
 }
 
 static Component* findFirstComponentByType(World* world, Entity* entity, const ComponentType componentType)
@@ -427,8 +499,7 @@ void ImGuiLayerModule::ImportPanel::executeImportCommand()
 		return;
 	}
 
-	const bool shouldImportTexture = TextureParser::supportsImportExtension(sourceFileExtension);
-	commandText = (shouldImportTexture ? "TextureParser.import \"" : "MeshParser.import \"")
+	commandText = (TextureParser::supportsImportExtension(sourceFileExtension) ? "TextureParser.import \"" : "MeshParser.import \"")
 		+ sourceFilePathText
 		+ "\"";
 	CLIModule::execute(commandText);
@@ -1218,8 +1289,14 @@ void ImGuiLayerModule::OutlinerPanel::drawEntityNode(
 void ImGuiLayerModule::DetailPanel::reset()
 {
 	meshAssetRootPath.clear();
+	materialAssetRootPath.clear();
 	meshAssetPaths.clear();
+	materialAssetPaths.clear();
+	materialAssetDirtyStateByPath.clear();
+	createMaterialAssetNameText = "NewMaterial";
+	createMaterialAssetStatusText.clear();
 	meshAssetPathsLoaded = false;
+	materialAssetPathsLoaded = false;
 }
 
 bool ImGuiLayerModule::DetailPanel::ensureMeshAssetPathsLoaded()
@@ -1269,6 +1346,56 @@ void ImGuiLayerModule::DetailPanel::collectMeshAssetPaths(const filesystem_path&
 
 		const filesystem_path relativePath = directoryEntry.path().lexically_normal().lexically_relative(meshAssetRootPath);
 		meshAssetPaths.push_back((filesystem_path("Meshes") / relativePath).lexically_normal().string());
+	}
+}
+
+bool ImGuiLayerModule::DetailPanel::ensureMaterialAssetPathsLoaded()
+{
+	if (materialAssetPathsLoaded)
+	{
+		return !materialAssetRootPath.empty();
+	}
+
+	materialAssetRootPath = DiskLoaderModule::get()->resolveAbsolutePathFromResources("Materials");
+	materialAssetPaths.clear();
+	collectMaterialAssetPaths(materialAssetRootPath);
+	materialAssetPathsLoaded = true;
+	return true;
+}
+
+void ImGuiLayerModule::DetailPanel::collectMaterialAssetPaths(const filesystem_path& directoryPath)
+{
+	error_code directoryErrorCode;
+	vector<filesystem_directory_entry> directoryEntries = {};
+	for (const filesystem_directory_entry& directoryEntry : filesystem_directory_iterator(directoryPath, filesystem_directory_options::skip_permission_denied, directoryErrorCode))
+	{
+		if (directoryErrorCode)
+		{
+			break;
+		}
+
+		directoryEntries.push_back(directoryEntry);
+	}
+
+	sortDirectoryEntries(directoryEntries);
+	for (uint32 directoryEntryIndex = 0; directoryEntryIndex < static_cast<uint32>(directoryEntries.size()); ++directoryEntryIndex)
+	{
+		const filesystem_directory_entry& directoryEntry = directoryEntries[directoryEntryIndex];
+		if (isDirectoryEntry(directoryEntry))
+		{
+			collectMaterialAssetPaths(directoryEntry.path());
+			continue;
+		}
+
+		string extension = directoryEntry.path().extension().string();
+		tolower(extension);
+		if (extension != ".deasset")
+		{
+			continue;
+		}
+
+		const filesystem_path relativePath = directoryEntry.path().lexically_normal().lexically_relative(materialAssetRootPath);
+		materialAssetPaths.push_back((filesystem_path("Materials") / relativePath).lexically_normal().string());
 	}
 }
 
@@ -1489,10 +1616,12 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		ImGui::Separator();
 		ImGui::TextUnformatted("MeshComponent");
 
-		int32 lodLevel = static_cast<int32>(meshComponent->lodLevel);
-		bool visible = meshComponent->visible;
+		int32 lodLevel = static_cast<int32>(meshComponent->getLODLevel());
+		bool visible = meshComponent->isVisible();
 		bool meshComponentChanged = false;
-		const char* meshAssetPathText = meshComponent->meshAssetPath.empty() ? "(none)" : meshComponent->meshAssetPath.c_str();
+		bool meshStreamingRefreshRequired = false;
+		const string& meshAssetPath = meshComponent->getMeshAssetPath();
+		const char* meshAssetPathText = meshAssetPath.empty() ? "(none)" : meshAssetPath.c_str();
 
 		ImGui::Text("Mesh Asset: %s", meshAssetPathText);
 		if (ImGui::Button("Select Mesh Asset"))
@@ -1503,8 +1632,7 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		ImGui::SameLine();
 		if (ImGui::Button("Clear Mesh Asset"))
 		{
-			meshComponent->meshAssetPath.clear();
-			meshComponent->meshAsset.reset();
+			meshComponent->setMeshAssetPath("");
 			meshComponentChanged = true;
 		}
 
@@ -1523,14 +1651,14 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 				for (uint32 meshAssetPathIndex = 0; meshAssetPathIndex < static_cast<uint32>(meshAssetPaths.size()); ++meshAssetPathIndex)
 				{
 					const string& meshAssetPath = meshAssetPaths[meshAssetPathIndex];
-					if (!ImGui::Selectable(meshAssetPath.c_str(), meshComponent->meshAssetPath == meshAssetPath))
+					if (!ImGui::Selectable(meshAssetPath.c_str(), meshComponent->getMeshAssetPath() == meshAssetPath))
 					{
 						continue;
 					}
 
-					meshComponent->meshAssetPath = meshAssetPath;
-					meshComponent->meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
+					meshComponent->setMeshAssetPath(meshAssetPath);
 					meshComponentChanged = true;
+					meshStreamingRefreshRequired = true;
 					ImGui::CloseCurrentPopup();
 					break;
 				}
@@ -1551,36 +1679,314 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 				lodLevel = 0;
 			}
 
-			meshComponent->lodLevel = static_cast<uint32>(lodLevel);
+			meshComponent->setLODLevel(static_cast<uint32>(lodLevel));
 			meshComponentChanged = true;
+			meshStreamingRefreshRequired = meshComponent->hasLoadedMeshAsset();
 		}
 
 		if (ImGui::Checkbox("Visible", &visible))
 		{
-			meshComponent->visible = visible;
+			meshComponent->setVisible(visible);
 			meshComponentChanged = true;
+		}
+
+		uint32 sectionCount = static_cast<uint32>(meshComponent->getMaterialAssetPaths().size());
+		sectionCount = std::max(sectionCount, meshComponent->getMeshSectionCount());
+
+		ImGui::Separator();
+		ImGui::Text("Material Sections: %u", sectionCount);
+		if (!meshComponent->hasLoadedMeshAsset())
+		{
+			ImGui::TextDisabled("Assign a mesh asset to edit per-section materials.");
+		}
+		else if (sectionCount == 0)
+		{
+			ImGui::TextDisabled("Mesh asset has no section ranges.");
+		}
+
+		for (uint32 sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex)
+		{
+			const vector<string>& currentMaterialAssetPaths = meshComponent->getMaterialAssetPaths();
+			const string currentMaterialAssetPath =
+				sectionIndex < static_cast<uint32>(currentMaterialAssetPaths.size())
+					? currentMaterialAssetPaths[sectionIndex]
+					: "";
+			shared_pointer<MaterialAsset> materialAsset = meshComponent->getMaterialAsset(sectionIndex);
+
+			ImGui::PushID(static_cast<int32>(sectionIndex));
+			if (ImGui::TreeNodeEx("SectionMaterial", ImGuiTreeNodeFlags_DefaultOpen, "Section %u", sectionIndex))
+			{
+				ImGui::Text("Material Asset: %s", currentMaterialAssetPath.empty() ? "(none)" : currentMaterialAssetPath.c_str());
+				if (ImGui::Button("Select Material Asset"))
+				{
+					materialAssetPathsLoaded = false;
+					ImGui::OpenPopup("Select Material Asset");
+				}
+				ImGui::SameLine();
+				ImGui::BeginDisabled(currentMaterialAssetPath.empty());
+				if (ImGui::Button("Clear Material Asset"))
+				{
+					meshComponent->setMaterialAssetPath(sectionIndex, "");
+					meshComponentChanged = true;
+				}
+				ImGui::EndDisabled();
+				ImGui::SameLine();
+				if (ImGui::Button(currentMaterialAssetPath.empty() ? "Create Material Asset" : "Duplicate Material Asset"))
+				{
+					createMaterialAssetNameText =
+						materialAsset != nullptr && !materialAsset->getName().empty()
+							? (materialAsset->getName() + "_Copy")
+							: "NewMaterial";
+					createMaterialAssetStatusText.clear();
+					ImGui::OpenPopup("Create Material Asset");
+				}
+
+				if (ImGui::BeginPopupModal("Select Material Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+				{
+					if (!ensureMaterialAssetPathsLoaded())
+					{
+						ImGui::TextDisabled("Materials directory not found.");
+					}
+					else if (materialAssetPaths.empty())
+					{
+						ImGui::TextDisabled("No material assets found.");
+					}
+					else
+					{
+						for (uint32 materialAssetPathIndex = 0; materialAssetPathIndex < static_cast<uint32>(materialAssetPaths.size()); ++materialAssetPathIndex)
+						{
+							const string& materialAssetPath = materialAssetPaths[materialAssetPathIndex];
+							if (!ImGui::Selectable(materialAssetPath.c_str(), currentMaterialAssetPath == materialAssetPath))
+							{
+								continue;
+							}
+
+							meshComponent->setMaterialAssetPath(sectionIndex, materialAssetPath);
+							meshComponentChanged = true;
+							ImGui::CloseCurrentPopup();
+							break;
+						}
+					}
+
+					if (ImGui::Button("Close"))
+					{
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGui::EndPopup();
+				}
+
+				if (ImGui::BeginPopupModal("Create Material Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+				{
+					ImGui::Text(
+						"Source: %s",
+						materialAsset != nullptr && !currentMaterialAssetPath.empty()
+							? currentMaterialAssetPath.c_str()
+							: "(default)");
+					ImGui::InputText("Material Name", &createMaterialAssetNameText);
+					if (!createMaterialAssetStatusText.empty())
+					{
+						ImGui::TextWrapped("Status: %s", createMaterialAssetStatusText.c_str());
+					}
+
+					if (ImGui::Button("Create"))
+					{
+						createMaterialAssetStatusText.clear();
+						if (!ensureMaterialAssetPathsLoaded())
+						{
+							createMaterialAssetStatusText = "material_root_missing";
+						}
+						else
+						{
+							shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+							const string materialFileStem = diskLoaderModule->sanitizeFileName(createMaterialAssetNameText, "NewMaterial");
+							string createdAbsoluteMaterialAssetPath = {};
+							if (!diskLoaderModule->resolveUniqueFilePath(materialAssetRootPath, materialFileStem, ".deasset", createdAbsoluteMaterialAssetPath))
+							{
+								createMaterialAssetStatusText = "material_path_create_failed";
+							}
+							else
+							{
+								const filesystem_path relativeMaterialAssetPath =
+									filesystem_path(createdAbsoluteMaterialAssetPath).lexically_normal().lexically_relative(materialAssetRootPath);
+								const string createdMaterialAssetPath =
+									(filesystem_path("Materials") / relativeMaterialAssetPath).lexically_normal().string();
+								const string createdMaterialAssetName = filesystem_path(createdMaterialAssetPath).stem().string();
+								const string shaderTemplatePath =
+									materialAsset != nullptr ? materialAsset->getShaderTemplatePath() : MaterialAsset::getDefaultShaderTemplatePath();
+								const string shaderPackagePath =
+									materialAsset != nullptr ? materialAsset->getShaderPackagePath() : MaterialAsset::getDefaultShaderPackagePath();
+								const string shaderVariantName =
+									materialAsset != nullptr ? materialAsset->getShaderVariantName() : MaterialAsset::getDefaultShaderVariantName();
+								const string vertexShaderInjectedCode =
+									materialAsset != nullptr ? materialAsset->getVertexShaderInjectedCode() : "";
+								const string pixelShaderInjectedCode =
+									materialAsset != nullptr ? materialAsset->getPixelShaderInjectedCode() : "";
+								const string createCommandText = buildReplayCreateMaterialAssetCommandText(
+									createdMaterialAssetPath,
+									createdMaterialAssetName,
+									shaderTemplatePath,
+									shaderPackagePath,
+									shaderVariantName,
+									vertexShaderInjectedCode,
+									pixelShaderInjectedCode);
+								const bool createdMaterialAsset =
+									CLIModule::execute(createCommandText)
+									&& CLIModule::get() != nullptr
+									&& CLIModule::get()->getLastExecutionCode() == static_cast<int32>(CLIModule::ExecutionCode::succeeded);
+								if (!createdMaterialAsset)
+								{
+									createMaterialAssetStatusText = "material_create_failed";
+								}
+								else
+								{
+									materialAssetPathsLoaded = false;
+									materialAssetDirtyStateByPath[createdMaterialAssetPath] = false;
+									meshComponent->setMaterialAssetPath(sectionIndex, createdMaterialAssetPath);
+									meshComponentChanged = true;
+									owner.lastEditorActionStatus = "material_asset_created";
+									owner.recordEditorReplayCommandText(createCommandText);
+									ImGui::CloseCurrentPopup();
+								}
+							}
+						}
+					}
+
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel"))
+					{
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGui::EndPopup();
+				}
+
+				materialAsset = meshComponent->getMaterialAsset(sectionIndex);
+				const vector<string>& updatedMaterialAssetPaths = meshComponent->getMaterialAssetPaths();
+				const string updatedMaterialAssetPath =
+					sectionIndex < static_cast<uint32>(updatedMaterialAssetPaths.size())
+						? updatedMaterialAssetPaths[sectionIndex]
+						: "";
+				if (materialAsset == nullptr)
+				{
+					if (!updatedMaterialAssetPath.empty())
+					{
+						ImGui::TextDisabled("Material asset load failed.");
+					}
+				}
+				else
+				{
+					string shaderTemplatePath = materialAsset->getShaderTemplatePath();
+					string shaderPackagePath = materialAsset->getShaderPackagePath();
+					string shaderVariantName = materialAsset->getShaderVariantName();
+					string vertexShaderInjectedCode = materialAsset->getVertexShaderInjectedCode();
+					string pixelShaderInjectedCode = materialAsset->getPixelShaderInjectedCode();
+					bool materialAssetChanged = false;
+
+					if (ImGui::InputText("Shader Template", &shaderTemplatePath))
+					{
+						materialAssetChanged = true;
+					}
+
+					if (ImGui::InputText("Shader Package", &shaderPackagePath))
+					{
+						materialAssetChanged = true;
+					}
+
+					if (ImGui::InputText("Shader Variant", &shaderVariantName))
+					{
+						materialAssetChanged = true;
+					}
+
+					if (ImGui::InputTextMultiline("Vertex Injection", &vertexShaderInjectedCode, ImVec2(-1.0f, 110.0f)))
+					{
+						materialAssetChanged = true;
+					}
+
+					if (ImGui::InputTextMultiline("Pixel Injection", &pixelShaderInjectedCode, ImVec2(-1.0f, 140.0f)))
+					{
+						materialAssetChanged = true;
+					}
+
+					if (materialAssetChanged)
+					{
+						editorCommandSyncLoadedMaterialShaderConfig(
+							world,
+							materialAsset->getAssetPath(),
+							shaderTemplatePath,
+							shaderPackagePath,
+							shaderVariantName,
+							vertexShaderInjectedCode,
+							pixelShaderInjectedCode);
+						materialAssetDirtyStateByPath[materialAsset->getAssetPath()] = true;
+						owner.lastEditorActionStatus = "material_asset_modified";
+					}
+
+					bool materialAssetDirty = false;
+					const auto dirtyStateIterator = materialAssetDirtyStateByPath.find(materialAsset->getAssetPath());
+					if (dirtyStateIterator != materialAssetDirtyStateByPath.end())
+					{
+						materialAssetDirty = dirtyStateIterator->second;
+					}
+
+					ImGui::BeginDisabled(!materialAssetDirty || materialAsset->getAssetPath().empty());
+					if (ImGui::Button("Save Material"))
+					{
+						const string saveCommandText = buildReplaySetMaterialShaderCommandText(*materialAsset);
+						const bool savedMaterialAsset =
+							CLIModule::execute(saveCommandText)
+							&& CLIModule::get() != nullptr
+							&& CLIModule::get()->getLastExecutionCode() == static_cast<int32>(CLIModule::ExecutionCode::succeeded);
+						if (savedMaterialAsset)
+						{
+							materialAssetDirtyStateByPath[materialAsset->getAssetPath()] = false;
+							owner.lastEditorActionStatus = "material_asset_saved";
+							owner.recordEditorReplayCommandText(saveCommandText);
+						}
+						else
+						{
+							owner.lastEditorActionStatus = "material_asset_save_failed";
+						}
+					}
+					ImGui::EndDisabled();
+
+					string generatedShaderSourceText = {};
+					const bool generatedShaderSourceAvailable = materialAsset->buildShaderSourceText(generatedShaderSourceText);
+					if (ImGui::TreeNodeEx("GeneratedShader", ImGuiTreeNodeFlags_DefaultOpen, "Generated Shader"))
+					{
+						if (generatedShaderSourceAvailable)
+						{
+							ImGui::InputTextMultiline(
+								"##GeneratedShaderSource",
+								&generatedShaderSourceText,
+								ImVec2(-1.0f, 180.0f),
+								ImGuiInputTextFlags_ReadOnly);
+						}
+						else
+						{
+							ImGui::TextDisabled("Failed to build material shader source.");
+						}
+
+						ImGui::TreePop();
+					}
+				}
+
+				ImGui::TreePop();
+			}
+			ImGui::PopID();
 		}
 
 		if (meshComponentChanged)
 		{
-			if (meshComponent->meshAsset != nullptr)
+			if (meshStreamingRefreshRequired && meshComponent->hasLoadedMeshAsset())
 			{
-				MeshStreaming::get()->requestMesh(
-					meshComponent->meshAsset,
-					meshComponent->lodLevel);
+				meshComponent->requestMeshStreaming();
 			}
 
 			if (owner.saveActiveWorldImmediate())
 			{
 				owner.lastEditorActionStatus = "mesh_component_updated_and_saved";
-				owner.recordEditorReplayCommand(
-					"Editor.setMeshComponent",
-					{
-						meshComponent->getAssetPath(),
-						meshComponent->meshAssetPath,
-						buildReplayUnsignedArgument(meshComponent->lodLevel),
-						buildReplayBooleanArgument(meshComponent->visible)
-					});
+				owner.recordEditorReplayCommand("Editor.setMeshComponent", buildReplayMeshComponentArguments(*meshComponent));
 			}
 			else
 			{

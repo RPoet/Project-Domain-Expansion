@@ -65,6 +65,7 @@ public:
 
 protected:
 	virtual const char* getAssetTypeName() const = 0;
+	virtual bool isDocumentBinaryLayoutCompatible(const XMLKeyValueDocument& document, bool documentHasBinary) const;
 	virtual void writeAssetProperty(OutputFileStream& fileStream) const;
 	virtual void readAssetProperty(const XMLKeyValueDocument& document);
 

@@ -1,5 +1,7 @@
 #include "Engine/Common/EditorCommandCommon.h"
 
+#include "Engine/Assets/MaterialAsset.h"
+#include "Engine/Framework/MeshComponent.h"
 #include "Engine/Framework/World.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
@@ -81,6 +83,21 @@ void editorCommandClampPlanes(float& nearPlane, float& farPlane)
 	farPlane = std::max(farPlane, nearPlane + 0.001f);
 }
 
+void editorCommandApplyMaterialShaderConfig(
+	MaterialAsset& materialAsset,
+	const string& shaderTemplatePath,
+	const string& shaderPackagePath,
+	const string& shaderVariantName,
+	const string& vertexShaderInjectedCode,
+	const string& pixelShaderInjectedCode)
+{
+	materialAsset.setShaderTemplatePath(shaderTemplatePath);
+	materialAsset.setShaderPackagePath(shaderPackagePath);
+	materialAsset.setShaderVariantName(shaderVariantName);
+	materialAsset.setVertexShaderInjectedCode(vertexShaderInjectedCode);
+	materialAsset.setPixelShaderInjectedCode(pixelShaderInjectedCode);
+}
+
 bool editorCommandResolveAssetPathForComparison(const string& assetPath, string& outResolvedAssetPath)
 {
 	outResolvedAssetPath.clear();
@@ -153,4 +170,51 @@ bool editorCommandFindComponentIndexByAssetPath(const World& world, const string
 	}
 
 	return false;
+}
+
+void editorCommandSyncLoadedMaterialShaderConfig(
+	World* world,
+	const string& materialAssetPath,
+	const string& shaderTemplatePath,
+	const string& shaderPackagePath,
+	const string& shaderVariantName,
+	const string& vertexShaderInjectedCode,
+	const string& pixelShaderInjectedCode)
+{
+	if (world == nullptr || materialAssetPath.empty())
+	{
+		return;
+	}
+
+	for (uint32 componentIndex = 0; componentIndex < world->getComponentCount(); ++componentIndex)
+	{
+		MeshComponent* meshComponent = componentCast<MeshComponent>(world->getComponentByIndex(componentIndex));
+		if (meshComponent == nullptr)
+		{
+			continue;
+		}
+
+		const vector<string>& materialAssetPaths = meshComponent->getMaterialAssetPaths();
+		for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(materialAssetPaths.size()); ++sectionIndex)
+		{
+			if (!editorCommandAreEquivalentAssetPaths(materialAssetPaths[sectionIndex], materialAssetPath))
+			{
+				continue;
+			}
+
+			shared_pointer<MaterialAsset> loadedMaterialAsset = meshComponent->getMaterialAsset(sectionIndex);
+			if (loadedMaterialAsset == nullptr)
+			{
+				continue;
+			}
+
+			editorCommandApplyMaterialShaderConfig(
+				*loadedMaterialAsset,
+				shaderTemplatePath,
+				shaderPackagePath,
+				shaderVariantName,
+				vertexShaderInjectedCode,
+				pixelShaderInjectedCode);
+		}
+	}
 }

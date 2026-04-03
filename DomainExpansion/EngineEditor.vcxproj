@@ -112,6 +112,7 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     <ClInclude Include="Engine\Code\Bridge\DefaultBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\CameraBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\EntityBridge.h" />
+    <ClInclude Include="Engine\Code\Bridge\MaterialBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\MeshBridge.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\BackendValidation.h" />
     <ClInclude Include="Engine\Code\Engine\Framework\CameraComponent.h" />

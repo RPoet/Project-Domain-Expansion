@@ -470,6 +470,8 @@ static bool buildVariants(
 			}
 
 			variant.shaders[shaderStageIndex] = foundShader->second->shader;
+			variant.shaderLoadRequests[shaderStageIndex] = foundShader->second->loadRequest;
+			variant.shaderBinaryLoadRequests[shaderStageIndex] = foundShader->second->binaryLoadRequest;
 			++linkedShaderCount;
 		}
 
@@ -563,6 +565,22 @@ shared_pointer<ShaderPackageAsset> ShaderPackageModule::getOrLoadPackage(const s
 	output << "[ShaderPackageModule][Ready] package=" << packageRelativePath
 		   << " variantCount=" << packageAsset->variants.size() << lineBreak;
 	return packageAsset;
+}
+
+const ShaderPackageVariant* ShaderPackageModule::findVariantByName(
+	const ShaderPackageAsset& shaderPackage,
+	const string& variantName) const
+{
+	for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackage.variants.size()); ++variantIndex)
+	{
+		const ShaderPackageVariant& currentVariant = shaderPackage.variants[variantIndex];
+		if (currentVariant.name == variantName)
+		{
+			return &currentVariant;
+		}
+	}
+
+	return nullptr;
 }
 
 void ShaderPackageModule::clear()
