@@ -91,11 +91,11 @@ static string getDefaultShaderBinaryProfileText(
 	switch (shaderStage)
 	{
 	case ShaderStage::vertex:
-		return "vs_6_6";
+		return "vs_6_9";
 	case ShaderStage::pixel:
-		return "ps_6_6";
+		return "ps_6_9";
 	case ShaderStage::compute:
-		return "cs_6_6";
+		return "cs_6_9";
 	default:
 		return {};
 	}
@@ -522,8 +522,11 @@ shared_pointer<ShaderPackageAsset> ShaderPackageModule::getOrLoadPackage(const s
 	packageAsset->packageRelativePath = packageRelativePath;
 	packageAsset->state = ShaderPackageState::pending;
 
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	string packageAbsolutePath = {};
-	if (!resolvePackageAbsolutePath(packageRelativePath, packageAbsolutePath))
+	assert(diskLoaderModule != nullptr);
+	const bool resolvedPackageAbsolutePath = diskLoaderModule->resolvePathFromResources(packageRelativePath, packageAbsolutePath);
+	if (!resolvedPackageAbsolutePath)
 	{
 		packageAsset->state = ShaderPackageState::failed;
 		packageCache.emplace(packageCacheKey, packageAsset);
@@ -570,15 +573,6 @@ void ShaderPackageModule::clear()
 uint32 ShaderPackageModule::getCachedPackageCount() const
 {
 	return static_cast<uint32>(packageCache.size());
-}
-
-bool ShaderPackageModule::resolvePackageAbsolutePath(
-	const string& packageRelativePath,
-	string& outAbsolutePath) const
-{
-	outAbsolutePath.clear();
-	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	return diskLoaderModule->resolvePathFromResources(packageRelativePath, outAbsolutePath);
 }
 
 string ShaderPackageModule::buildPackageCacheKey(const string& packageRelativePath) const

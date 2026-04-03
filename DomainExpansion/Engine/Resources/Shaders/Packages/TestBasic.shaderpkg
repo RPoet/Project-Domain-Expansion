@@ -6,7 +6,7 @@ id=VS_Graphics
 stage=vertex
 file=Shaders/Test/TestBasicVS.bin
 entry=main
-profile=vs_6_6
+profile=vs_6_9
 definesHash=0
 
 [Shader]
@@ -14,7 +14,7 @@ id=PS_Graphics
 stage=pixel
 file=Shaders/Test/TestBasicPS.bin
 entry=main
-profile=ps_6_6
+profile=ps_6_9
 definesHash=0
 
 [Shader]
@@ -22,7 +22,7 @@ id=CS_Compute
 stage=compute
 file=Shaders/Test/TestBasicCS.bin
 entry=main
-profile=cs_6_6
+profile=cs_6_9
 definesHash=0
 
 [Variant]

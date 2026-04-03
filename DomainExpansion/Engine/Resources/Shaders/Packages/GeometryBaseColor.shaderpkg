@@ -7,7 +7,7 @@ stage=vertex
 source=Shaders/Geometry/GeometryBaseColor.hlsl
 file=Shaders/Geometry/GeometryBaseColorVS.bin
 entry=mainVS
-profile=vs_6_6
+profile=vs_6_9
 definesHash=0
 
 [Shader]
@@ -16,7 +16,7 @@ stage=pixel
 source=Shaders/Geometry/GeometryBaseColor.hlsl
 file=Shaders/Geometry/GeometryBaseColorPS.bin
 entry=mainPS
-profile=ps_6_6
+profile=ps_6_9
 definesHash=0
 
 [Variant]

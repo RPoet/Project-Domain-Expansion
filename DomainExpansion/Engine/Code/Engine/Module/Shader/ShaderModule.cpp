@@ -84,12 +84,13 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 	const bool targetPlatformMatched = normalizedBinaryLoadRequest.targetPlatform == activeTargetPlatform;
 	assert(targetPlatformMatched && "[ShaderModule][Assert] reason=shader_target_platform_mismatch");
 
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[ShaderModule][Assert] reason=disk_loader_module_missing");
+
 	string shaderBinaryAbsolutePath = {};
 	const bool resolvedBinaryAbsolutePath =
-		resolveShaderBinaryAbsolutePath(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
+		diskLoaderModule->resolvePathFromResources(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
 	assert(resolvedBinaryAbsolutePath && "[ShaderModule][Assert] reason=shader_binary_path_resolve_failed");
-
-	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 
 	vector<char> shaderByteCode = {};
 	const bool loadedShaderByteCode = diskLoaderModule->loadBinaryFile(shaderBinaryAbsolutePath, shaderByteCode);
@@ -99,8 +100,7 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 	const bool initializedShaderAsset = shaderAsset != nullptr && shaderAsset->initialize(loadRequest);
 	assert(initializedShaderAsset && "[ShaderModule][Assert] reason=shader_asset_initialize_failed");
 
-	shaderHandle->shader =
-		createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
+	shaderHandle->shader = createShaderObjectForPlatform(shaderAsset, normalizedBinaryLoadRequest, moveValue(shaderByteCode));
 	const bool createdShaderObject = shaderHandle->shader != nullptr;
 	assert(createdShaderObject && "[ShaderModule][Assert] reason=shader_object_create_failed");
 
@@ -159,13 +159,4 @@ bool ShaderModule::validateBinaryLoadRequest(const ShaderBinaryLoadRequest& bina
 {
 	return getShaderTargetPlatformIndex(binaryLoadRequest.targetPlatform) != uint32MaxValue
 		&& !binaryLoadRequest.binaryRelativePath.empty();
-}
-
-bool ShaderModule::resolveShaderBinaryAbsolutePath(
-	const string& binaryRelativePath,
-	string& outAbsolutePath) const
-{
-	outAbsolutePath.clear();
-	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	return diskLoaderModule->resolvePathFromResources(binaryRelativePath, outAbsolutePath);
 }

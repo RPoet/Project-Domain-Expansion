@@ -22,7 +22,6 @@ public:
 	uint32 getCachedPackageCount() const;
 
 private:
-	bool resolvePackageAbsolutePath(const string& packageRelativePath, string& outAbsolutePath) const;
 	string buildPackageCacheKey(const string& packageRelativePath) const;
 
 	unordered_map<string, shared_pointer<ShaderPackageAsset>> packageCache;

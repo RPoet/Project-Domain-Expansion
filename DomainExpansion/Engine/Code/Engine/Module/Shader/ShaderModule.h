@@ -29,7 +29,6 @@ private:
 		const ShaderBinaryLoadRequest& binaryLoadRequest) const;
 	bool validateLoadRequest(const ShaderLoadRequest& loadRequest) const;
 	bool validateBinaryLoadRequest(const ShaderBinaryLoadRequest& binaryLoadRequest) const;
-	bool resolveShaderBinaryAbsolutePath(const string& binaryRelativePath, string& outAbsolutePath) const;
 
 	unordered_map<string, shared_pointer<ShaderHandle>> shaderCache;
 	ShaderTargetPlatform activeTargetPlatform = ShaderTargetPlatform::dx12;

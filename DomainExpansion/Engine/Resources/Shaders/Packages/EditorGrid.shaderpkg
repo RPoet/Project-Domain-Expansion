@@ -7,7 +7,7 @@ stage=vertex
 source=Shaders/Editor/EditorGrid.hlsl
 file=Shaders/Editor/EditorGridVS.bin
 entry=mainVS
-profile=vs_6_6
+profile=vs_6_9
 definesHash=0
 
 [Shader]
@@ -16,7 +16,7 @@ stage=pixel
 source=Shaders/Editor/EditorGrid.hlsl
 file=Shaders/Editor/EditorGridPS.bin
 entry=mainPS
-profile=ps_6_6
+profile=ps_6_9
 definesHash=0
 
 [Variant]
