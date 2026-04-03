@@ -89,13 +89,24 @@ bool editorCommandResolveAssetPathForComparison(const string& assetPath, string&
 		return true;
 	}
 
+	string comparisonAssetPath = assetPath;
+	const filesystem_path inputAssetPath(assetPath);
+	if (!inputAssetPath.has_extension())
+	{
+		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+		if (diskLoaderModule != nullptr)
+		{
+			comparisonAssetPath = diskLoaderModule->resolveAssetPath(assetPath, DiskLoaderModule::AssetFileType::document);
+		}
+	}
+
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule != nullptr && diskLoaderModule->resolveAbsolutePathFromResources(assetPath, outResolvedAssetPath))
+	if (diskLoaderModule != nullptr && diskLoaderModule->resolveAbsolutePathFromResources(comparisonAssetPath, outResolvedAssetPath))
 	{
 		return true;
 	}
 
-	outResolvedAssetPath = filesystem_path(assetPath).lexically_normal().string();
+	outResolvedAssetPath = filesystem_path(comparisonAssetPath).lexically_normal().string();
 	return true;
 }
 

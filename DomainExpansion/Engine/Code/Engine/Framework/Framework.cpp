@@ -111,7 +111,7 @@ bool Framework::initialize(
 
 	if (initializeOptions.bootstrapWorld && getActiveWorld() == nullptr)
 	{
-		const bool defaultWorldLoaded = loadWorld("Scenes/SphereTest.deasset") != nullptr;
+		const bool defaultWorldLoaded = loadWorld("Scenes/BistroTest.deasset") != nullptr;
 		if (defaultWorldLoaded)
 		{
 			return true;

@@ -1,0 +1,18 @@
+<deasset type="World">
+  <guid></guid>
+  <name>BistroTest</name>
+  <hasBinary>0</hasBinary>
+<Entities>
+  <item0>Scenes/BistroTest/Entity0.deasset</item0>
+  <item1>Scenes/BistroTest/Entity1.deasset</item1>
+  <item2>Scenes/BistroTest/Entity2.deasset</item2>
+  <item3>Scenes/BistroTest/Entity3.deasset</item3>
+</Entities>
+<Components>
+  <item0>Scenes/BistroTest/Entity0_MeshComponent0.deasset</item0>
+  <item1>Scenes/BistroTest/Entity1_CameraComponent0.deasset</item1>
+  <item2>Scenes/BistroTest/Entity1_EditorCameraMovementComponent1.deasset</item2>
+  <item3>Scenes/BistroTest/Entity2_MeshComponent0.deasset</item3>
+  <item4>Scenes/BistroTest/Entity3_MeshComponent0.deasset</item4>
+</Components>
+</deasset>
