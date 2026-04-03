@@ -1,0 +1,34 @@
+<deasset type="World">
+  <guid></guid>
+  <name>MaterialShowcase</name>
+  <hasBinary>0</hasBinary>
+<Entities>
+  <item0>Scenes/MaterialShowcase/Entity0.deasset</item0>
+  <item1>Scenes/MaterialShowcase/Entity1.deasset</item1>
+  <item2>Scenes/MaterialShowcase/Entity2.deasset</item2>
+  <item3>Scenes/MaterialShowcase/Entity3.deasset</item3>
+  <item4>Scenes/MaterialShowcase/Entity4.deasset</item4>
+  <item5>Scenes/MaterialShowcase/Entity5.deasset</item5>
+  <item6>Scenes/MaterialShowcase/Entity6.deasset</item6>
+  <item7>Scenes/MaterialShowcase/Entity7.deasset</item7>
+  <item8>Scenes/MaterialShowcase/Entity8.deasset</item8>
+  <item9>Scenes/MaterialShowcase/Entity9.deasset</item9>
+  <item10>Scenes/MaterialShowcase/Entity10.deasset</item10>
+  <item11>Scenes/MaterialShowcase/Entity11.deasset</item11>
+</Entities>
+<Components>
+  <item0>Scenes/MaterialShowcase/Entity0_CameraComponent0.deasset</item0>
+  <item1>Scenes/MaterialShowcase/Entity0_EditorCameraMovementComponent1.deasset</item1>
+  <item2>Scenes/MaterialShowcase/Entity1_MeshComponent0.deasset</item2>
+  <item3>Scenes/MaterialShowcase/Entity2_MeshComponent0.deasset</item3>
+  <item4>Scenes/MaterialShowcase/Entity3_MeshComponent0.deasset</item4>
+  <item5>Scenes/MaterialShowcase/Entity4_MeshComponent0.deasset</item5>
+  <item6>Scenes/MaterialShowcase/Entity5_MeshComponent0.deasset</item6>
+  <item7>Scenes/MaterialShowcase/Entity6_MeshComponent0.deasset</item7>
+  <item8>Scenes/MaterialShowcase/Entity7_MeshComponent0.deasset</item8>
+  <item9>Scenes/MaterialShowcase/Entity8_MeshComponent0.deasset</item9>
+  <item10>Scenes/MaterialShowcase/Entity9_MeshComponent0.deasset</item10>
+  <item11>Scenes/MaterialShowcase/Entity10_MeshComponent0.deasset</item11>
+  <item12>Scenes/MaterialShowcase/Entity11_MeshComponent0.deasset</item12>
+</Components>
+</deasset>

@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>EditorCamera</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath></parentAssetPath>
+  <positionX>0</positionX>
+  <positionY>-11</positionY>
+  <positionZ>0.6</positionZ>
+  <rotationPitch>0</rotationPitch>
+  <rotationYaw>0</rotationYaw>
+  <rotationRoll>0</rotationRoll>
+  <scaleX>1</scaleX>
+  <scaleY>1</scaleY>
+  <scaleZ>1</scaleZ>
+</deasset>

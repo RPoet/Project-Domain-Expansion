@@ -1,0 +1,12 @@
+<deasset type="MeshComponent">
+  <guid></guid>
+  <name></name>
+  <hasBinary>0</hasBinary>
+  <ownerEntityAssetPath>Scenes/MaterialShowcase/Entity11.deasset</ownerEntityAssetPath>
+  <meshAssetPath>Meshes/SphereHigh.deasset</meshAssetPath>
+  <lodLevel>0</lodLevel>
+  <visible>1</visible>
+<materialAssetPaths>
+  <item0>Materials/Samples/Sample_XRayRim.deasset</item0>
+</materialAssetPaths>
+</deasset>

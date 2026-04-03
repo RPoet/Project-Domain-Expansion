@@ -14,12 +14,19 @@ struct VSInput
 struct VSOutput
 {
 	float4 position : SV_Position;
+	float3 localPosition : TEXCOORD0;
+	float3 normal : TEXCOORD1;
+	float2 uv : TEXCOORD2;
 };
 
 VSOutput mainVS(VSInput input)
 {
 	VSOutput output;
 	output.position = mul(float4(input.position, 1.0f), worldViewProjection);
+	output.localPosition = input.position;
+	const float inputNormalLengthSquared = dot(input.normal, input.normal);
+	output.normal = inputNormalLengthSquared > 0.0f ? normalize(input.normal) : float3(0.0f, 1.0f, 0.0f);
+	output.uv = input.uv;
 	/* MATERIAL_VERTEX_EDIT */
 	return output;
 }

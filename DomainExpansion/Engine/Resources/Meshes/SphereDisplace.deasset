@@ -1,0 +1,7 @@
+<deasset type="MeshAsset">
+  <guid></guid>
+  <name>SphereDisplace</name>
+  <hasBinary>1</hasBinary>
+  <version>3</version>
+  <source>Meshes/SphereDisplace.obj</source>
+</deasset>

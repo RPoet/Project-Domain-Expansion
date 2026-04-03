@@ -1,0 +1,9 @@
+<deasset type="MaterialAsset">
+  <guid></guid>
+  <name>Sample_ContourTopo</name>
+  <hasBinary>1</hasBinary>
+  <version>2</version>
+  <shaderTemplatePath>Shaders/Geometry/GeometryBaseColor.hlsl</shaderTemplatePath>
+  <shaderPackagePath>Shaders/Packages/GeometryBaseColor.shaderpkg</shaderPackagePath>
+  <shaderVariantName>GeometryDefault</shaderVariantName>
+</deasset>
