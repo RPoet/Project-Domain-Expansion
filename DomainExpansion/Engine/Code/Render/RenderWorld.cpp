@@ -323,7 +323,7 @@ public:
 				continue;
 			}
 
-			const vector<MeshSectionRange>& sectionRanges = meshAssetHandle->meshAsset->getSectionRanges(lodLevel);
+			const vector<RawMeshData::MeshSectionRange>& sectionRanges = meshAssetHandle->meshAsset->getSectionRanges(lodLevel);
 			if (sectionRanges.empty())
 			{
 				assert(false && "[RenderWorld][Assert] reason=mesh_section_ranges_missing");
@@ -332,7 +332,7 @@ public:
 
 			for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionRanges.size()); ++sectionIndex)
 			{
-				const MeshSectionRange& sectionRange = sectionRanges[sectionIndex];
+				const RawMeshData::MeshSectionRange& sectionRange = sectionRanges[sectionIndex];
 				const bool validSectionRange =
 					sectionRange.indexCount > 0
 					&& sectionRange.startIndex < totalIndexCount

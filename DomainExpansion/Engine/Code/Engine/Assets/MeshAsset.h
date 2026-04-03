@@ -7,21 +7,22 @@ using TexcoordData = float2;
 
 struct RawMeshData
 {
+	struct MeshSectionRange
+	{
+		uint32 startIndex = 0;
+		uint32 indexCount = 0;
+	};
+
 	vector<PositionData> positionVertices = {};
 	vector<NormalData> normalVertices = {};
 	vector<TexcoordData> texcoordVertices = {};
 	vector<uint32> indices = {};
+	vector<MeshSectionRange> sectionRanges = {};
 
 	void empty();
 	void serialize(OutputFileStream& fileStream) const;
 	void deserialize(InputFileStream& fileStream);
 	bool isValid() const;
-};
-
-struct MeshSectionRange
-{
-	uint32 startIndex = 0;
-	uint32 indexCount = 0;
 };
 
 class MeshAsset : public Asset
@@ -43,8 +44,8 @@ public:
 	uint32 getLODCount() const;
 	RawMeshData& getRawMeshData(const uint32 lodLevel = 0);
 	const RawMeshData& getRawMeshData(const uint32 lodLevel = 0) const;
-	vector<MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0);
-	const vector<MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0) const;
+	vector<RawMeshData::MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0);
+	const vector<RawMeshData::MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0) const;
 	void addSectionRange(uint32 lodLevel, uint32 startIndex, uint32 indexCount);
 	void ensureSectionRanges();
 	uint32 getVertexCount(const uint32 lodLevel = 0) const;
@@ -61,7 +62,6 @@ private:
 
 	// TO DO : no CPU data is not required for this, directly load mesh data into GPU.
 	vector<RawMeshData> meshes;
-	vector<vector<MeshSectionRange>> sectionRangesByLOD;
 	string source;
 };
 

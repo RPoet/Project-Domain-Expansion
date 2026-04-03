@@ -8,15 +8,19 @@ void RawMeshData::empty()
 	normalVertices.clear();
 	texcoordVertices.clear();
 	indices.clear();
+	sectionRanges.clear();
 }
 
 void RawMeshData::serialize(OutputFileStream& fileStream) const
 {
 	assert(isValid() && "[MeshAsset][Assert] reason=raw_mesh_data_invalid");
+	const bool validSectionRanges = !sectionRanges.empty() || indices.empty();
+	assert(validSectionRanges && "[MeshAsset][Assert] reason=raw_mesh_section_ranges_invalid");
 	fileStream << positionVertices;
 	fileStream << normalVertices;
 	fileStream << texcoordVertices;
 	fileStream << indices;
+	fileStream << sectionRanges;
 }
 
 void RawMeshData::deserialize(InputFileStream& fileStream)
@@ -26,6 +30,7 @@ void RawMeshData::deserialize(InputFileStream& fileStream)
 	fileStream >> normalVertices;
 	fileStream >> texcoordVertices;
 	fileStream >> indices;
+	fileStream >> sectionRanges;
 	assert(isValid() && "[MeshAsset][Assert] reason=raw_mesh_data_invalid");
 }
 
@@ -37,7 +42,6 @@ bool RawMeshData::isValid() const
 void MeshAsset::empty()
 {
 	meshes.clear();
-	sectionRangesByLOD.clear();
 	source.clear();
 }
 
@@ -56,11 +60,6 @@ void MeshAsset::ensureLODCount(const uint32 lodCount)
 	if (meshes.size() < lodCount)
 	{
 		meshes.resize(lodCount);
-	}
-
-	if (sectionRangesByLOD.size() < lodCount)
-	{
-		sectionRangesByLOD.resize(lodCount);
 	}
 }
 
@@ -82,17 +81,17 @@ const RawMeshData& MeshAsset::getRawMeshData(const uint32 lodLevel) const
 	return meshes[lodLevel];
 }
 
-vector<MeshSectionRange>& MeshAsset::getSectionRanges(const uint32 lodLevel)
+vector<RawMeshData::MeshSectionRange>& MeshAsset::getSectionRanges(const uint32 lodLevel)
 {
 	ensureLODCount(lodLevel + 1);
-	return sectionRangesByLOD[lodLevel];
+	return meshes[lodLevel].sectionRanges;
 }
 
-const vector<MeshSectionRange>& MeshAsset::getSectionRanges(const uint32 lodLevel) const
+const vector<RawMeshData::MeshSectionRange>& MeshAsset::getSectionRanges(const uint32 lodLevel) const
 {
-	const bool validLODIndex = lodLevel < sectionRangesByLOD.size();
+	const bool validLODIndex = lodLevel < meshes.size();
 	assert(validLODIndex && "[MeshAsset][Assert] reason=section_lod_index_out_of_range");
-	return sectionRangesByLOD[lodLevel];
+	return meshes[lodLevel].sectionRanges;
 }
 
 void MeshAsset::addSectionRange(const uint32 lodLevel, const uint32 startIndex, const uint32 indexCount)
@@ -103,7 +102,7 @@ void MeshAsset::addSectionRange(const uint32 lodLevel, const uint32 startIndex, 
 	}
 
 	ensureLODCount(lodLevel + 1);
-	sectionRangesByLOD[lodLevel].push_back({ startIndex, indexCount });
+	meshes[lodLevel].sectionRanges.push_back({ startIndex, indexCount });
 }
 
 uint32 MeshAsset::getVertexCount(const uint32 lodLevel) const
@@ -118,10 +117,9 @@ uint32 MeshAsset::getIndexCount(const uint32 lodLevel) const
 
 void MeshAsset::ensureSectionRanges()
 {
-	ensureLODCount(static_cast<uint32>(meshes.size()));
 	for (uint32 lodIndex = 0; lodIndex < static_cast<uint32>(meshes.size()); ++lodIndex)
 	{
-		vector<MeshSectionRange>& lodSectionRanges = sectionRangesByLOD[lodIndex];
+		vector<RawMeshData::MeshSectionRange>& lodSectionRanges = meshes[lodIndex].sectionRanges;
 		if (!lodSectionRanges.empty())
 		{
 			continue;
@@ -164,7 +162,6 @@ void MeshAsset::readAssetProperty(const XMLKeyValueDocument& document)
 	assert(documentVersion == version && "[MeshAsset][Assert] reason=document_version_mismatch");
 
 	source.clear();
-	sectionRangesByLOD.clear();
 	xml.readProperty(document, "deasset.source", source);
 }
 
@@ -177,31 +174,22 @@ void MeshAsset::serialize(OutputFileStream& fileStream) const
 	{
 		const RawMeshData& rawMeshData = meshes[i];
 		assert(rawMeshData.isValid() && "[MeshAsset][Assert] reason=serialize_raw_mesh_data_invalid");
-		const bool hasSectionData = i < static_cast<uint32>(sectionRangesByLOD.size());
-		assert(hasSectionData && "[MeshAsset][Assert] reason=serialize_section_ranges_missing");
-		const vector<MeshSectionRange>& lodSectionRanges = sectionRangesByLOD[i];
-		const bool validSectionRanges = !lodSectionRanges.empty() || rawMeshData.indices.empty();
-		assert(validSectionRanges && "[MeshAsset][Assert] reason=serialize_section_ranges_invalid");
 		rawMeshData.serialize(fileStream);
-		fileStream << lodSectionRanges;
 	}
 }
 
 void MeshAsset::deserialize(InputFileStream& fileStream)
 {
 	meshes.clear();
-	sectionRangesByLOD.clear();
 
 	uint32 lodCount = 0;
 	fileStream >> lodCount;
 
 	meshes.resize(lodCount);
-	sectionRangesByLOD.resize(lodCount);
 
 	for (uint32 lodIndex = 0; lodIndex < lodCount; ++lodIndex)
 	{
 		meshes[lodIndex].deserialize(fileStream);
-		fileStream >> sectionRangesByLOD[lodIndex];
 	}
 
 	ensureSectionRanges();
