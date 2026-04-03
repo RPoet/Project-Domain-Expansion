@@ -5,6 +5,7 @@
 #include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Timer/Timer.h"
+#include "Engine/Module/TextureParser/TextureParser.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
 static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
@@ -50,6 +51,7 @@ bool Framework::initialize(
 	worldUpdateSerial = 0;
 
 	MeshParser::registerCLICommands();
+	TextureParser::registerCLICommands();
 	if (backendOptions.createBackend)
 	{
 		if (!backendOptions.enableDebugLayer)

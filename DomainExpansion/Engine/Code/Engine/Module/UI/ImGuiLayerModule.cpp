@@ -14,6 +14,7 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
+#include "Engine/Module/TextureParser/TextureParser.h"
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
@@ -426,7 +427,10 @@ void ImGuiLayerModule::ImportPanel::executeImportCommand()
 		return;
 	}
 
-	commandText = "MeshParser.import \"" + sourceFilePathText + "\"";
+	const bool shouldImportTexture = TextureParser::supportsImportExtension(sourceFileExtension);
+	commandText = (shouldImportTexture ? "TextureParser.import \"" : "MeshParser.import \"")
+		+ sourceFilePathText
+		+ "\"";
 	CLIModule::execute(commandText);
 	shared_pointer<CLIModule> cliModule = CLIModule::get();
 	processCode = mapProcessCodeFromCLIExecutionCode(cliModule->getLastExecutionCode());
