@@ -44,6 +44,7 @@ struct RenderWorldMeshDrawCommand
 	uint32 activeVertexBufferSlotFlags = 0;
 	IndexBufferBinding indexBufferBinding = {};
 	uint32 indexCount = 0;
+	uint32 startIndexLocation = 0;
 };
 
 struct RenderWorldDrawPrepareResult

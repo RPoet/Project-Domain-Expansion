@@ -18,11 +18,17 @@ struct RawMeshData
 	bool isValid() const;
 };
 
+struct MeshSectionRange
+{
+	uint32 startIndex = 0;
+	uint32 indexCount = 0;
+};
+
 class MeshAsset : public Asset
 {
 public:
 	DECLARE_ASSET(MeshAsset);
-	constexpr static uint32 version = 1;
+	constexpr static uint32 version = 3;
 
 	MeshAsset()
 	{
@@ -37,6 +43,10 @@ public:
 	uint32 getLODCount() const;
 	RawMeshData& getRawMeshData(const uint32 lodLevel = 0);
 	const RawMeshData& getRawMeshData(const uint32 lodLevel = 0) const;
+	vector<MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0);
+	const vector<MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0) const;
+	void addSectionRange(uint32 lodLevel, uint32 startIndex, uint32 indexCount);
+	void ensureSectionRanges();
 	uint32 getVertexCount(const uint32 lodLevel = 0) const;
 	uint32 getIndexCount(const uint32 lodLevel = 0) const;
 	const string& getSource() const;
@@ -51,6 +61,7 @@ private:
 
 	// TO DO : no CPU data is not required for this, directly load mesh data into GPU.
 	vector<RawMeshData> meshes;
+	vector<vector<MeshSectionRange>> sectionRangesByLOD;
 	string source;
 };
 

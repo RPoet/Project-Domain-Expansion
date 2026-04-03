@@ -3,8 +3,6 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/CLI/CLIModule.h"
 
-static MeshParser& forceMeshParserSingleton = MeshParser::get();
-
 static int32 getMeshParserImportExecutionCode(const string& errorText)
 {
 	if (errorText == "fbx_not_implemented")
@@ -47,14 +45,20 @@ static int32 meshParserImportCLICommand(const vector<string>& arguments)
 
 MeshParser::MeshParser()
 {
-	registerCLICommands();
 }
 
 void MeshParser::registerCLICommands()
 {
+	static bool cliCommandsRegistered = false;
+	if (cliCommandsRegistered)
+	{
+		return;
+	}
+
 	const bool importRegistered = CLIModule::registerCommand("MeshParser.import", meshParserImportCLICommand);
 	assert(importRegistered && "[MeshParser][Assert] reason=mesh_parser_import_cli_register_failed");
 	unused(importRegistered);
+	cliCommandsRegistered = true;
 }
 
 bool MeshParser::parseFromFile(
@@ -78,12 +82,24 @@ bool MeshParser::parseFromFile(
 	const string extension = meshPath.extension().string();
 	if (extension == ".obj" || extension == ".OBJ")
 	{
-		return objMeshParser.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
+		const bool parsed = objMeshParser.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
+		if (parsed)
+		{
+			outMeshAsset.ensureSectionRanges();
+		}
+
+		return parsed;
 	}
 
 	if (extension == ".fbx" || extension == ".FBX")
 	{
-		return fbxMeshParserStub.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
+		const bool parsed = fbxMeshParserStub.parse(resolvedMeshFilePath, lodLevel, outMeshAsset, outErrorText);
+		if (parsed)
+		{
+			outMeshAsset.ensureSectionRanges();
+		}
+
+		return parsed;
 	}
 
 	outErrorText = "unsupported_extension";

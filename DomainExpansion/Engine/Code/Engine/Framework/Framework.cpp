@@ -3,6 +3,7 @@
 #include "Engine/Assets/AssetLoader.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/Input/InputModule.h"
+#include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
@@ -48,6 +49,7 @@ bool Framework::initialize(
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	worldUpdateSerial = 0;
 
+	MeshParser::registerCLICommands();
 	if (backendOptions.createBackend)
 	{
 		if (!backendOptions.enableDebugLayer)

@@ -29,13 +29,13 @@ public:
 		const string& meshAssetPath,
 		MeshAsset& outMeshAsset,
 		string& outErrorText) const;
+	static void registerCLICommands();
 
 private:
 	friend class Singleton<MeshParser>;
 
 	MeshParser();
 	~MeshParser() = default;
-	void registerCLICommands();
 
 	ObjMeshParser objMeshParser = {};
 	FbxMeshParserStub fbxMeshParserStub = {};

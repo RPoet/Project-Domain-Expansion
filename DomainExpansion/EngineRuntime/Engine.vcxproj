@@ -97,6 +97,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Timer\Timer.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\DiskLoader\DiskLoaderModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\FbxBinaryParser.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\FbxMeshParserStub.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\MeshParser\MeshParser.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\MeshStreaming\MeshStreaming.cpp" />
@@ -126,9 +127,16 @@
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_draw.cpp" />
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_tables.cpp" />
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\adler32.c" />
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_dx12.cpp" />
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\backends\imgui_impl_win32.cpp" />
     <ClCompile Include="..\Engine\Code\ThirdParty\ImGui\misc\cpp\imgui_stdlib.cpp" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\crc32.c" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\inffast.c" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\inflate.c" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\inftrees.c" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\uncompr.c" />
+    <ClCompile Include="..\Engine\Code\ThirdParty\Zlib\zutil.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

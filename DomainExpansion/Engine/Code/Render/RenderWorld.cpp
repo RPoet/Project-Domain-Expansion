@@ -10,6 +10,81 @@
 #include "Render/RenderCommand.h"
 #include "Render/Renderer.h"
 
+#include <cmath>
+
+static float computeRenderWorldFractionalPart(const float value)
+{
+	return value - floorf(value);
+}
+
+static void convertRenderWorldHSVToRGB(
+	const float hue,
+	const float saturation,
+	const float value,
+	float& outRed,
+	float& outGreen,
+	float& outBlue)
+{
+	const float wrappedHue = computeRenderWorldFractionalPart(hue) * 6.0f;
+	const int32 hueSector = static_cast<int32>(wrappedHue);
+	const float hueFraction = wrappedHue - static_cast<float>(hueSector);
+	const float p = value * (1.0f - saturation);
+	const float q = value * (1.0f - (saturation * hueFraction));
+	const float t = value * (1.0f - (saturation * (1.0f - hueFraction)));
+
+	switch (hueSector % 6)
+	{
+	case 0:
+		outRed = value;
+		outGreen = t;
+		outBlue = p;
+		return;
+	case 1:
+		outRed = q;
+		outGreen = value;
+		outBlue = p;
+		return;
+	case 2:
+		outRed = p;
+		outGreen = value;
+		outBlue = t;
+		return;
+	case 3:
+		outRed = p;
+		outGreen = q;
+		outBlue = value;
+		return;
+	case 4:
+		outRed = t;
+		outGreen = p;
+		outBlue = value;
+		return;
+	default:
+		outRed = value;
+		outGreen = p;
+		outBlue = q;
+		return;
+	}
+}
+
+static void buildRenderWorldSectionDebugColor(
+	const uint32 meshDrawDataIndex,
+	const uint32 sectionIndex,
+	float outColor[4])
+{
+	const uint32 meshSeed = (meshDrawDataIndex + 1u) * 0x9E3779B9u;
+	const uint32 sectionSeed = (sectionIndex + 1u) * 0x85EBCA6Bu;
+	const uint32 combinedSeed = meshSeed ^ sectionSeed ^ 0xC2B2AE35u;
+	const float hue = computeRenderWorldFractionalPart(
+		(static_cast<float>(combinedSeed & 0xFFFFu) / 65535.0f)
+		+ (static_cast<float>(meshDrawDataIndex) * 0.173f)
+		+ (static_cast<float>(sectionIndex) * 0.327f));
+	const float saturation = 0.65f + (static_cast<float>((combinedSeed >> 8) & 0xFFu) / 255.0f) * 0.25f;
+	const float value = 0.78f + (static_cast<float>((combinedSeed >> 16) & 0xFFu) / 255.0f) * 0.18f;
+	convertRenderWorldHSVToRGB(hue, saturation, value, outColor[0], outColor[1], outColor[2]);
+	outColor[3] = 1.0f;
+}
+
 class RenderCameraBuilder
 {
 public:
@@ -109,88 +184,90 @@ public:
 			return moveValue(drawPrepareResult);
 		}
 
+		shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage("Shaders/Packages/GeometryBaseColor.shaderpkg");
+		if (shaderPackage == nullptr || shaderPackage->state != ShaderPackageState::ready)
+		{
+			return moveValue(drawPrepareResult);
+		}
+
+		const ShaderPackageVariant* shaderVariant = nullptr;
+		for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackage->variants.size()); ++variantIndex)
+		{
+			const ShaderPackageVariant& currentVariant = shaderPackage->variants[variantIndex];
+			if (currentVariant.name == "GeometryDefault")
+			{
+				shaderVariant = &currentVariant;
+				break;
+			}
+		}
+
+		if (shaderVariant == nullptr)
+		{
+			return moveValue(drawPrepareResult);
+		}
+
+		shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
+		shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
+		if (vertexShader == nullptr || pixelShader == nullptr)
+		{
+			return moveValue(drawPrepareResult);
+		}
+
 		for (uint32 meshDrawDataIndex = 0; meshDrawDataIndex < static_cast<uint32>(buildResult.meshDrawData.size()); ++meshDrawDataIndex)
 		{
 			const RenderWorldMeshDrawData& meshDrawData = buildResult.meshDrawData[meshDrawDataIndex];
 			const shared_pointer<MeshAssetHandle>& meshAssetHandle = meshDrawData.meshAssetHandle;
-			shared_pointer<ShaderPackageAsset> shaderPackage = shaderPackageModule->getOrLoadPackage("Shaders/Packages/GeometryBaseColor.shaderpkg");
-			if (shaderPackage == nullptr || shaderPackage->state != ShaderPackageState::ready)
+			const uint32 lodLevel = meshAssetHandle->lodLevel;
+			const uint32 totalIndexCount = meshAssetHandle->meshAsset->getIndexCount(lodLevel);
+			if (totalIndexCount == 0)
 			{
 				continue;
 			}
 
-			const ShaderPackageVariant* shaderVariant = nullptr;
-			for (uint32 variantIndex = 0; variantIndex < static_cast<uint32>(shaderPackage->variants.size()); ++variantIndex)
-			{
-				const ShaderPackageVariant& currentVariant = shaderPackage->variants[variantIndex];
-				if (currentVariant.name == "GeometryDefault")
-				{
-					shaderVariant = &currentVariant;
-					break;
-				}
-			}
-
-			if (shaderVariant == nullptr)
-			{
-				continue;
-			}
-
-			shared_pointer<ShaderObject> vertexShader = shaderVariant->getShader(ShaderStage::vertex);
-			shared_pointer<ShaderObject> pixelShader = shaderVariant->getShader(ShaderStage::pixel);
-			if (vertexShader == nullptr || pixelShader == nullptr)
-			{
-				continue;
-			}
-
-			RenderWorldMeshDrawCommand meshDrawCommand = {};
-			meshDrawCommand.meshAssetHandle = meshAssetHandle;
-			meshDrawCommand.transform = meshDrawData.transform;
-			meshDrawCommand.pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
-			meshDrawCommand.pipelineStateDesc.vertexShader = vertexShader;
-			meshDrawCommand.pipelineStateDesc.pixelShader = pixelShader;
+			RenderWorldMeshDrawCommand baseMeshDrawCommand = {};
+			baseMeshDrawCommand.meshAssetHandle = meshAssetHandle;
+			baseMeshDrawCommand.transform = meshDrawData.transform;
+			baseMeshDrawCommand.pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
+			baseMeshDrawCommand.pipelineStateDesc.vertexShader = vertexShader;
+			baseMeshDrawCommand.pipelineStateDesc.pixelShader = pixelShader;
 			PushConstantRange pushConstantRange = {};
 			pushConstantRange.offsetInBytes = 0;
 			pushConstantRange.sizeInBytes = static_cast<uint32>(sizeof(float) * 20);
 			pushConstantRange.shaderVisibility = ShaderVisibility::allGraphics;
-			meshDrawCommand.pipelineStateDesc.rootSignatureDesc.pushConstantRanges.push_back(pushConstantRange);
+			baseMeshDrawCommand.pipelineStateDesc.rootSignatureDesc.pushConstantRanges.push_back(pushConstantRange);
 
 			PipelineInputElementDesc positionInputElement = {};
 			positionInputElement.semantic = VertexInputSemantic::position;
 			positionInputElement.format = VertexInputFormat::float3;
 			positionInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::position);
-			meshDrawCommand.pipelineStateDesc.inputElements.push_back(positionInputElement);
+			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(positionInputElement);
 
 			PipelineInputElementDesc normalInputElement = {};
 			normalInputElement.semantic = VertexInputSemantic::normal;
 			normalInputElement.format = VertexInputFormat::float3;
 			normalInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::normal);
-			meshDrawCommand.pipelineStateDesc.inputElements.push_back(normalInputElement);
+			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(normalInputElement);
 
 			PipelineInputElementDesc texcoordInputElement = {};
 			texcoordInputElement.semantic = VertexInputSemantic::texcoord;
 			texcoordInputElement.format = VertexInputFormat::float2;
 			texcoordInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::texcoord);
-			meshDrawCommand.pipelineStateDesc.inputElements.push_back(texcoordInputElement);
+			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(texcoordInputElement);
 
 			PipelineRenderTargetDesc renderTargetDesc = {};
 			renderTargetDesc.colorFormat = TextureFormat::rgba8Unorm;
-			meshDrawCommand.pipelineStateDesc.renderTargets.push_back(renderTargetDesc);
-			meshDrawCommand.pipelineStateDesc.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
-			meshDrawCommand.pipelineStateDesc.depthStencilDesc.depthTestEnabled = true;
-			meshDrawCommand.pipelineStateDesc.depthStencilDesc.depthWriteEnabled = true;
-			meshDrawCommand.pipelineStateDesc.depthStencilDesc.depthCompareOperation = PipelineCompareOperation::lessEqual;
-			meshDrawCommand.pipelineStateDesc.cullMode = PipelineCullMode::back;
-			meshDrawCommand.pipelineStateDesc.sampleCount = 1;
-			meshDrawCommand.baseColor[0] = 0.86f;
-			meshDrawCommand.baseColor[1] = 0.73f;
-			meshDrawCommand.baseColor[2] = 0.42f;
-			meshDrawCommand.baseColor[3] = 1.0f;
-			meshDrawCommand.indexCount = meshAssetHandle->meshAsset->getIndexCount();
-			meshDrawCommand.primitiveTopology = PrimitiveTopology::triangleList;
-			meshDrawCommand.indexBufferBinding.resourceObject = meshAssetHandle->indexBufferObject.get();
-			meshDrawCommand.indexBufferBinding.elementSize = IndexElementSize::thirtyTwoBits;
-			meshDrawCommand.indexBufferBinding.sizeInBytes = meshAssetHandle->indexBufferSizeInBytes;
-			meshDrawCommand.indexBufferBinding.offsetInBytes = 0;
+			baseMeshDrawCommand.pipelineStateDesc.renderTargets.push_back(renderTargetDesc);
+			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
+			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthTestEnabled = true;
+			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthWriteEnabled = true;
+			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthCompareOperation = PipelineCompareOperation::lessEqual;
+			baseMeshDrawCommand.pipelineStateDesc.cullMode = PipelineCullMode::back;
+			baseMeshDrawCommand.pipelineStateDesc.sampleCount = 1;
+			baseMeshDrawCommand.primitiveTopology = PrimitiveTopology::triangleList;
+			baseMeshDrawCommand.indexBufferBinding.resourceObject = meshAssetHandle->indexBufferObject.get();
+			baseMeshDrawCommand.indexBufferBinding.elementSize = IndexElementSize::thirtyTwoBits;
+			baseMeshDrawCommand.indexBufferBinding.sizeInBytes = meshAssetHandle->indexBufferSizeInBytes;
+			baseMeshDrawCommand.indexBufferBinding.offsetInBytes = 0;
 
 			for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
 			{
@@ -204,22 +281,21 @@ public:
 				BufferResourceObject* bufferObject = meshAssetHandle->getBufferObject(signature);
 				if (bufferObject == nullptr)
 				{
-					meshDrawCommand.activeVertexBufferSlotFlags = 0;
+					baseMeshDrawCommand.activeVertexBufferSlotFlags = 0;
 					break;
 				}
 
-				VertexBufferBinding& vertexBufferBinding = meshDrawCommand.vertexBufferBindings[signatureIndex];
+				VertexBufferBinding& vertexBufferBinding = baseMeshDrawCommand.vertexBufferBindings[signatureIndex];
 				vertexBufferBinding.resourceObject = bufferObject;
 				vertexBufferBinding.strideInBytes = meshAssetHandle->getBufferStrideInBytes(signature);
 				vertexBufferBinding.sizeInBytes = meshAssetHandle->getBufferSizeInBytes(signature);
 				vertexBufferBinding.offsetInBytes = 0;
-				meshDrawCommand.activeVertexBufferSlotFlags |= static_cast<uint32>(1u << signatureIndex);
+				baseMeshDrawCommand.activeVertexBufferSlotFlags |= static_cast<uint32>(1u << signatureIndex);
 			}
 
-			if (meshDrawCommand.activeVertexBufferSlotFlags == 0
-				|| meshDrawCommand.indexBufferBinding.resourceObject == nullptr
-				|| meshDrawCommand.indexBufferBinding.sizeInBytes == 0
-				|| meshDrawCommand.indexCount == 0)
+			if (baseMeshDrawCommand.activeVertexBufferSlotFlags == 0
+				|| baseMeshDrawCommand.indexBufferBinding.resourceObject == nullptr
+				|| baseMeshDrawCommand.indexBufferBinding.sizeInBytes == 0)
 			{
 				continue;
 			}
@@ -227,12 +303,12 @@ public:
 			bool validVertexBufferBinding = true;
 			for (uint32 slotIndex = 0; slotIndex < renderBackendVertexBufferSlotCount; ++slotIndex)
 			{
-				if ((meshDrawCommand.activeVertexBufferSlotFlags & static_cast<uint32>(1u << slotIndex)) == 0)
+				if ((baseMeshDrawCommand.activeVertexBufferSlotFlags & static_cast<uint32>(1u << slotIndex)) == 0)
 				{
 					continue;
 				}
 
-				const VertexBufferBinding& vertexBufferBinding = meshDrawCommand.vertexBufferBindings[slotIndex];
+				const VertexBufferBinding& vertexBufferBinding = baseMeshDrawCommand.vertexBufferBindings[slotIndex];
 				if (vertexBufferBinding.resourceObject == nullptr
 					|| vertexBufferBinding.strideInBytes == 0
 					|| vertexBufferBinding.sizeInBytes == 0)
@@ -247,7 +323,31 @@ public:
 				continue;
 			}
 
-			drawPrepareResult.meshDrawCommands.push_back(moveValue(meshDrawCommand));
+			const vector<MeshSectionRange>& sectionRanges = meshAssetHandle->meshAsset->getSectionRanges(lodLevel);
+			if (sectionRanges.empty())
+			{
+				assert(false && "[RenderWorld][Assert] reason=mesh_section_ranges_missing");
+				continue;
+			}
+
+			for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionRanges.size()); ++sectionIndex)
+			{
+				const MeshSectionRange& sectionRange = sectionRanges[sectionIndex];
+				const bool validSectionRange =
+					sectionRange.indexCount > 0
+					&& sectionRange.startIndex < totalIndexCount
+					&& sectionRange.startIndex + sectionRange.indexCount <= totalIndexCount;
+				if (!validSectionRange)
+				{
+					continue;
+				}
+
+				RenderWorldMeshDrawCommand meshDrawCommand = baseMeshDrawCommand;
+				buildRenderWorldSectionDebugColor(meshDrawDataIndex, sectionIndex, meshDrawCommand.baseColor);
+				meshDrawCommand.indexCount = sectionRange.indexCount;
+				meshDrawCommand.startIndexLocation = sectionRange.startIndex;
+				drawPrepareResult.meshDrawCommands.push_back(moveValue(meshDrawCommand));
+			}
 		}
 
 		return moveValue(drawPrepareResult);

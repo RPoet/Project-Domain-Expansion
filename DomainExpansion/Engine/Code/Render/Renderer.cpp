@@ -98,7 +98,7 @@ void Renderer::drawGeometry(
 			commandList->setVertexBuffer(slotIndex, meshDrawCommand.vertexBufferBindings[slotIndex]);
 		}
 		commandList->setIndexBuffer(meshDrawCommand.indexBufferBinding);
-		commandList->drawIndexed(meshDrawCommand.indexCount, 1, 0, 0, 0);
+		commandList->drawIndexed(meshDrawCommand.indexCount, 1, meshDrawCommand.startIndexLocation, 0, 0);
 	}
 }
 
