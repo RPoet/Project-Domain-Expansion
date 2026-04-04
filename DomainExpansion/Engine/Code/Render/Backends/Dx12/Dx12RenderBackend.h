@@ -45,16 +45,22 @@ public:
 	void finalizeQueuedSubmissions() override;
 	void releaseQueuedRenderResources() override;
 	bool reportDebugErrorsIfAny() override;
+	void beginFrame(CommandList& commandList) override;
+	void endFrame(CommandList& commandList) override;
+	float getGpuFrameTimeMilliseconds() const override;
 	HandleWindow getWindowHandle() const override;
 	void* getNativeGraphicsDevice() override;
 	void* getNativeGraphicsFactory() override;
 	void* getNativeGraphicsCommandQueue() override;
 
 protected:
+	// TO DO : move all this initialize stuff into common interface like init().
 	bool createDevice() override;
 	bool createCommandQueue() override;
 	bool createSwapChain(uint32 width, uint32 height) override;
 	bool createBackendResources() override;
+
+	// TO DO : move all this destroy stuff into common interface like teardown().
 	void destroyBackendResources() override;
 	void destroySyncObject() override;
 	void destroySwapChain() override;
@@ -63,9 +69,13 @@ protected:
 	void beforeDestroy() override;
 
 private:
+	// TO DO : move all this initialize stuff into common interface like init().
 	bool createFactory(bool enableDebugLayer);
 	bool createCommandResources();
+
+	// TO DO : this can be common interface
 	bool waitForGpuIdle();
+
 	void resetCommandListPoolUsage();
 
 	static constexpr uint32 graphicsCommandListPoolCapacity = 4;
@@ -74,6 +84,14 @@ private:
 
 	com_pointer<IDXGIFactory6> dxgiFactory;
 	com_pointer<ID3D12Device> device;
+	com_pointer<ID3D12QueryHeap> frameTimestampQueryHeap;
+	com_pointer<ID3D12Resource> frameTimestampReadbackBuffer;
+	com_pointer<ID3D12Fence> frameTimestampFence;
+	uint64 frameTimestampFrequency = 0;
+	uint64 nextFrameTimestampFenceValue = 1;
+	uint64 pendingFrameTimestampFenceValue = 0;
+	bool frameGpuTimingActive = false;
+	float gpuFrameTimeMilliseconds = 0.0f;
 
 	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
 	vector<bool> graphicsCommandListInUse;

@@ -5,8 +5,8 @@
   <active>1</active>
   <parentAssetPath></parentAssetPath>
   <positionX>-3.6</positionX>
-  <positionY>-2.2</positionY>
-  <positionZ>0</positionZ>
+  <positionY>0</positionY>
+  <positionZ>-2.2</positionZ>
   <rotationPitch>0</rotationPitch>
   <rotationYaw>0</rotationYaw>
   <rotationRoll>0</rotationRoll>

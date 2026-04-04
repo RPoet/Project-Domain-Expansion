@@ -235,16 +235,16 @@ int WINAPI wWinMain(
 
 	while (windowsWindowObject.pumpMessages())
 	{
-		const bool updatedFramework = framework.update();
-		assert(updatedFramework && "[Main][Assert] reason=framework_update_failed");
+		framework.update();
 
-		RenderWorldUpdateInput renderWorldUpdateInput = {};
-		renderWorldUpdateInput.worldFlow = true;
-		renderWorldUpdateInput.worldUpdateSerial = framework.getWorldUpdateSerial();
-		renderWorldUpdateInput.renderCommandFlushInput.clearOnly = false;
+		RenderWorldUpdateInput renderWorldUpdateInput{
+		.worldUpdateSerial = framework.getWorldUpdateSerial(),
+		.renderCommandFlushInput { .clearOnly = false }
+		};
+		renderWorld.update(renderWorldUpdateInput);
 
-		const bool updatedRenderWorld = renderWorld.update(renderWorldUpdateInput);
-		assert(updatedRenderWorld && "[Main][Assert] reason=render_world_update_failed");
+		const RenderWorldUpdateResult& renderWorldUpdateResult = renderWorld.getUpdateResult();
+		framework.setRenderFramePerformanceMetrics(renderWorldUpdateResult.renderWorldCpuFrameTimeMilliseconds, renderWorldUpdateResult.renderCommandCpuFrameTimeMilliseconds, renderWorldUpdateResult.gpuFrameTimeMilliseconds);
 
 		Sleep(1);
 	}

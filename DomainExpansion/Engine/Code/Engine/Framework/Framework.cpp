@@ -49,6 +49,7 @@ bool Framework::initialize(
 	windowsWindowObject = &inWindowsWindowObject;
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	worldUpdateSerial = 0;
+	framePerformanceMetrics = {};
 
 	MeshParser::registerCLICommands();
 	TextureParser::registerCLICommands();
@@ -133,6 +134,7 @@ void Framework::shutdown()
 	backendOptions = {};
 	windowsWindowObject = nullptr;
 	worldUpdateSerial = 0;
+	framePerformanceMetrics = {};
 	runtimeExitCode = FrameworkRuntimeExitCode::success;
 	editorUIEnabled = true;
 }
@@ -187,21 +189,23 @@ const World* Framework::getActiveWorld() const
 	return activeWorld.get();
 }
 
-bool Framework::update()
+void Framework::update()
 {
 	preUpdateModules();
 
 	World* activeWorldObject = getActiveWorld();
 	if (activeWorldObject != nullptr)
 	{
-		const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
+		ScopedTimer worldCpuFrameTimer(framePerformanceMetrics.worldCpuFrameTimeMilliseconds);		const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 		activeWorldObject->tick(deltaTimeSeconds);
+	}
+	else
+	{
+		framePerformanceMetrics.worldCpuFrameTimeMilliseconds = 0.0f;
 	}
 
 	postUpdateModules();
 	++worldUpdateSerial;
-
-	return true;
 }
 
 FrameworkRuntimeExitCode Framework::getRuntimeExitCode() const
@@ -212,6 +216,11 @@ FrameworkRuntimeExitCode Framework::getRuntimeExitCode() const
 const FrameworkBackendOptions& Framework::getBackendOptions() const
 {
 	return backendOptions;
+}
+
+const FramePerformanceMetrics& Framework::getFramePerformanceMetrics() const
+{
+	return framePerformanceMetrics;
 }
 
 WindowsWindowObject* Framework::getWindowObject()
@@ -237,6 +246,13 @@ void Framework::setEditorUIEnabled(const bool enabled)
 bool Framework::isEditorUIEnabled() const
 {
 	return editorUIEnabled;
+}
+
+void Framework::setRenderFramePerformanceMetrics(const float renderWorldCpuFrameTimeMilliseconds,const float renderCommandCpuFrameTimeMilliseconds, const float gpuFrameTimeMilliseconds)
+{
+	framePerformanceMetrics.renderWorldCpuFrameTimeMilliseconds = renderWorldCpuFrameTimeMilliseconds;
+	framePerformanceMetrics.renderCommandCpuFrameTimeMilliseconds = renderCommandCpuFrameTimeMilliseconds;
+	framePerformanceMetrics.gpuFrameTimeMilliseconds = gpuFrameTimeMilliseconds;
 }
 
 void Framework::completeExecution(const FrameworkRuntimeExitCode exitCode)

@@ -66,6 +66,18 @@ public:
 	virtual void finalizeQueuedSubmissions() = 0;
 	virtual void releaseQueuedRenderResources() = 0;
 	virtual bool reportDebugErrorsIfAny() = 0;
+	virtual void beginFrame(CommandList& commandList)
+	{
+		unused(commandList);
+	}
+	virtual void endFrame(CommandList& commandList)
+	{
+		unused(commandList);
+	}
+	virtual float getGpuFrameTimeMilliseconds() const
+	{
+		return 0.0f;
+	}
 	virtual HandleWindow getWindowHandle() const = 0;
 	virtual void* getNativeGraphicsDevice() = 0;
 	virtual void* getNativeGraphicsFactory() = 0;

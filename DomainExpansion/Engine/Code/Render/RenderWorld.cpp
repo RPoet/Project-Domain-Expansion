@@ -5,6 +5,7 @@
 #include "Bridge/MaterialBridge.h"
 #include "Bridge/MeshBridge.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
+#include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
@@ -29,8 +30,7 @@ public:
 			}
 
 			const CameraBridge::StaticData* cameraStaticData = CameraBridge::get().getStaticData(cameraHandle);
-			if (cameraStaticData == nullptr
-				|| cameraStaticData->entityHandle == invalidBridgeHandle)
+			if (cameraStaticData == nullptr || cameraStaticData->entityHandle == invalidBridgeHandle)
 			{
 				continue;
 			}
@@ -68,16 +68,7 @@ public:
 
 			const MeshBridge::StaticData* meshStaticData = MeshBridge::get().getStaticData(meshHandle);
 			const MeshBridge::DynamicData* meshDynamicData = MeshBridge::get().getDynamicData(meshHandle);
-			if (meshStaticData == nullptr
-				|| meshDynamicData == nullptr
-				|| !meshDynamicData->visible
-				|| meshStaticData->entityHandle == invalidBridgeHandle
-				|| meshStaticData->meshAssetHandle == nullptr
-				|| meshStaticData->meshAssetHandle->state != MeshAssetHandleState::ready
-				|| meshStaticData->meshAssetHandle->gpuState != MeshAssetGpuState::ready
-				|| meshStaticData->meshAssetHandle->meshAsset == nullptr
-				|| meshStaticData->meshAssetHandle->indexBufferObject == nullptr
-				|| meshStaticData->meshAssetHandle->indexBufferSizeInBytes == 0)
+			if (meshStaticData == nullptr || meshDynamicData == nullptr || !meshDynamicData->visible || meshStaticData->entityHandle == invalidBridgeHandle || meshStaticData->meshAssetHandle == nullptr || meshStaticData->meshAssetHandle->state != MeshAssetHandleState::ready || meshStaticData->meshAssetHandle->gpuState != MeshAssetGpuState::ready || meshStaticData->meshAssetHandle->meshAsset == nullptr || meshStaticData->meshAssetHandle->indexBufferObject == nullptr || meshStaticData->meshAssetHandle->indexBufferSizeInBytes == 0)
 			{
 				continue;
 			}
@@ -88,10 +79,11 @@ public:
 				continue;
 			}
 
-			RenderWorldMeshDrawData meshDrawData = {};
-			meshDrawData.meshAssetHandle = meshStaticData->meshAssetHandle;
-			meshDrawData.materialHandles = meshStaticData->materialHandles;
-			meshDrawData.transform = entityDynamicData->transform;
+			RenderWorldMeshDrawData meshDrawData = {
+				.meshAssetHandle = meshStaticData->meshAssetHandle,
+				.materialHandles = meshStaticData->materialHandles,
+				.transform = entityDynamicData->transform,
+			};
 			buildResult.meshDrawData.push_back(meshDrawData);
 		}
 
@@ -128,32 +120,37 @@ public:
 			baseMeshDrawCommand.meshAssetHandle = meshAssetHandle;
 			baseMeshDrawCommand.transform = meshDrawData.transform;
 			baseMeshDrawCommand.pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
-			PushConstantRange pushConstantRange = {};
-			pushConstantRange.offsetInBytes = 0;
-			pushConstantRange.sizeInBytes = static_cast<uint32>(sizeof(float) * 20);
-			pushConstantRange.shaderVisibility = ShaderVisibility::allGraphics;
+			PushConstantRange pushConstantRange = {
+				.offsetInBytes = 0,
+				.sizeInBytes = static_cast<uint32>(sizeof(float) * 20),
+				.shaderVisibility = ShaderVisibility::allGraphics,
+			};
 			baseMeshDrawCommand.pipelineStateDesc.rootSignatureDesc.pushConstantRanges.push_back(pushConstantRange);
 
-			PipelineInputElementDesc positionInputElement = {};
-			positionInputElement.semantic = VertexInputSemantic::position;
-			positionInputElement.format = VertexInputFormat::float3;
-			positionInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::position);
+			PipelineInputElementDesc positionInputElement = {
+				.semantic = VertexInputSemantic::position,
+				.format = VertexInputFormat::float3,
+				.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::position),
+			};
 			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(positionInputElement);
 
-			PipelineInputElementDesc normalInputElement = {};
-			normalInputElement.semantic = VertexInputSemantic::normal;
-			normalInputElement.format = VertexInputFormat::float3;
-			normalInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::normal);
+			PipelineInputElementDesc normalInputElement = {
+				.semantic = VertexInputSemantic::normal,
+				.format = VertexInputFormat::float3,
+				.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::normal),
+			};
 			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(normalInputElement);
 
-			PipelineInputElementDesc texcoordInputElement = {};
-			texcoordInputElement.semantic = VertexInputSemantic::texcoord;
-			texcoordInputElement.format = VertexInputFormat::float2;
-			texcoordInputElement.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::texcoord);
+			PipelineInputElementDesc texcoordInputElement = {
+				.semantic = VertexInputSemantic::texcoord,
+				.format = VertexInputFormat::float2,
+				.inputSlot = getMeshBufferSignatureIndex(MeshBufferSignature::texcoord),
+			};
 			baseMeshDrawCommand.pipelineStateDesc.inputElements.push_back(texcoordInputElement);
 
-			PipelineRenderTargetDesc renderTargetDesc = {};
-			renderTargetDesc.colorFormat = TextureFormat::rgba8Unorm;
+			PipelineRenderTargetDesc renderTargetDesc = {
+				.colorFormat = TextureFormat::rgba8Unorm,
+			};
 			baseMeshDrawCommand.pipelineStateDesc.renderTargets.push_back(renderTargetDesc);
 			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthStencilFormat = TextureFormat::d32Float;
 			baseMeshDrawCommand.pipelineStateDesc.depthStencilDesc.depthTestEnabled = true;
@@ -191,9 +188,7 @@ public:
 				baseMeshDrawCommand.activeVertexBufferSlotFlags |= static_cast<uint32>(1u << signatureIndex);
 			}
 
-			if (baseMeshDrawCommand.activeVertexBufferSlotFlags == 0
-				|| baseMeshDrawCommand.indexBufferBinding.resourceObject == nullptr
-				|| baseMeshDrawCommand.indexBufferBinding.sizeInBytes == 0)
+			if (baseMeshDrawCommand.activeVertexBufferSlotFlags == 0 || baseMeshDrawCommand.indexBufferBinding.resourceObject == nullptr || baseMeshDrawCommand.indexBufferBinding.sizeInBytes == 0)
 			{
 				continue;
 			}
@@ -207,9 +202,7 @@ public:
 				}
 
 				const VertexBufferBinding& vertexBufferBinding = baseMeshDrawCommand.vertexBufferBindings[slotIndex];
-				if (vertexBufferBinding.resourceObject == nullptr
-					|| vertexBufferBinding.strideInBytes == 0
-					|| vertexBufferBinding.sizeInBytes == 0)
+				if (vertexBufferBinding.resourceObject == nullptr || vertexBufferBinding.strideInBytes == 0 || vertexBufferBinding.sizeInBytes == 0)
 				{
 					validVertexBufferBinding = false;
 					break;
@@ -231,18 +224,14 @@ public:
 			for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionRanges.size()); ++sectionIndex)
 			{
 				const RawMeshData::MeshSectionRange& sectionRange = sectionRanges[sectionIndex];
-				const bool validSectionRange =
-					sectionRange.indexCount > 0
-					&& sectionRange.startIndex < totalIndexCount
-					&& sectionRange.startIndex + sectionRange.indexCount <= totalIndexCount;
+				const bool validSectionRange = sectionRange.indexCount > 0 && sectionRange.startIndex < totalIndexCount && sectionRange.startIndex + sectionRange.indexCount <= totalIndexCount;
 				if (!validSectionRange)
 				{
 					continue;
 				}
 
 				RenderWorldMeshDrawCommand meshDrawCommand = baseMeshDrawCommand;
-				const BridgeHandle materialHandle =
-					sectionIndex < meshDrawData.materialHandles.size() ? meshDrawData.materialHandles[sectionIndex] : invalidBridgeHandle;
+				const BridgeHandle materialHandle = sectionIndex < meshDrawData.materialHandles.size() ? meshDrawData.materialHandles[sectionIndex] : invalidBridgeHandle;
 				if (materialHandle != invalidBridgeHandle)
 				{
 					const MaterialBridge::StaticData* materialStaticData = MaterialBridge::get().getStaticData(materialHandle);
@@ -250,20 +239,14 @@ public:
 				}
 				shared_pointer<ShaderObject> vertexShader = nullptr;
 				shared_pointer<ShaderObject> pixelShader = nullptr;
-				if (!MaterialAsset::resolveEffectiveShaders(
-					*shaderPackageModule,
-					meshDrawCommand.materialAsset,
-					ShaderTargetPlatform::dx12, // TODO: Remove the hardcoded DX12 target and resolve this from the active render backend or platform-neutral shader selection path.
-					vertexShader,
-					pixelShader))
+				if (!MaterialAsset::resolveEffectiveShaders(*shaderPackageModule, meshDrawCommand.materialAsset, ShaderTargetPlatform::dx12, vertexShader, pixelShader)) // TODO: Remove the hardcoded DX12 target and resolve this from the active render backend or platform-neutral shader selection path.
 				{
 					continue;
 				}
 
 				meshDrawCommand.pipelineStateDesc.vertexShader = vertexShader;
 				meshDrawCommand.pipelineStateDesc.pixelShader = pixelShader;
-				if (meshDrawCommand.pipelineStateDesc.vertexShader == nullptr
-					|| meshDrawCommand.pipelineStateDesc.pixelShader == nullptr)
+				if (meshDrawCommand.pipelineStateDesc.vertexShader == nullptr || meshDrawCommand.pipelineStateDesc.pixelShader == nullptr)
 				{
 					continue;
 				}
@@ -331,328 +314,318 @@ void RenderWorld::shutdown()
 	consumedWorldUpdateSerial = 0;
 }
 
-bool RenderWorld::update(const RenderWorldUpdateInput& updateInput)
+void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 {
+	updateResult = {};
 	assert(windowObject != nullptr);
-
-	if (!updateInput.worldFlow)
-	{
-		RenderCommand::flushRenderCommandQueue(updateInput.renderCommandFlushInput);
-		return true;
-	}
 
 	if (updateInput.worldUpdateSerial == 0 || updateInput.worldUpdateSerial == consumedWorldUpdateSerial)
 	{
-		return true;
+		return;
 	}
 
-	consumedWorldUpdateSerial = updateInput.worldUpdateSerial;
-	MeshCommandBuilder meshBuilder = {};
-	RenderWorldBuildResult buildResult = meshBuilder.build();
-	RenderCameraBuilder cameraBuilder = {};
-	buildResult.cameraHandles = cameraBuilder.build();
-	MeshDrawCommandBuilder drawCommandBuilder = {};
-	RenderWorldDrawPrepareResult drawPrepareResult = drawCommandBuilder.build(buildResult);
-
-	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (renderBackendModule == nullptr
-		|| !renderBackendModule->isBackendCreated()
-		|| windowObject->isWindowMinimized())
+	RenderBackend* renderBackend = nullptr;
 	{
-		return true;
-	}
+		ScopedTimer renderWorldCpuFrameTimer(updateResult.renderWorldCpuFrameTimeMilliseconds);
+		consumedWorldUpdateSerial = updateInput.worldUpdateSerial;
+		MeshCommandBuilder meshBuilder = {};
+		RenderWorldBuildResult buildResult = meshBuilder.build();
+		RenderCameraBuilder cameraBuilder = {};
+		buildResult.cameraHandles = cameraBuilder.build();
+		MeshDrawCommandBuilder drawCommandBuilder = {};
+		RenderWorldDrawPrepareResult drawPrepareResult = drawCommandBuilder.build(buildResult);
 
-	RenderBackend* renderBackend = renderBackendModule->getBackend();
-	if (renderBackend == nullptr)
-	{
-		return true;
-	}
-
-	SwapChain* swapChain = renderBackend->getSwapChain();
-	if (swapChain == nullptr || !swapChain->isRenderable())
-	{
-		return true;
-	}
-
-	const uint32 swapChainWidth = swapChain->getWidth();
-	const uint32 swapChainHeight = swapChain->getHeight();
-	if (swapChainWidth == 0 || swapChainHeight == 0)
-	{
-		return true;
-	}
-
-	const bool depthBufferResizeRequired =
-		view.depthTextureObject == nullptr
-		|| view.depthStencilView == nullptr
-		|| view.width != swapChainWidth
-		|| view.height != swapChainHeight;
-	if (depthBufferResizeRequired)
-	{
-		SyncObject* syncObject = renderBackend->getSyncObject();
-		if (syncObject != nullptr)
+		shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+		renderBackend = renderBackendModule != nullptr && renderBackendModule->isBackendCreated() ? renderBackendModule->getBackend() : nullptr;
+		SwapChain* swapChain = renderBackend != nullptr ? renderBackend->getSwapChain() : nullptr;
+		const uint32 swapChainWidth = swapChain != nullptr ? swapChain->getWidth() : 0;
+		const uint32 swapChainHeight = swapChain != nullptr ? swapChain->getHeight() : 0;
+		const bool readyToRender = renderBackend != nullptr && !windowObject->isWindowMinimized() && swapChain != nullptr && swapChain->isRenderable() && swapChainWidth != 0 && swapChainHeight != 0;
+		if (!readyToRender)
 		{
+			return;
+		}
+
+		const bool depthBufferResizeRequired = view.depthTextureObject == nullptr || view.depthStencilView == nullptr || view.width != swapChainWidth || view.height != swapChainHeight;
+		if (depthBufferResizeRequired)
+		{
+			SyncObject* syncObject = renderBackend->getSyncObject();
+			if (syncObject != nullptr)
+			{
+				syncObject->wait();
+			}
+
+			if (view.depthStencilView != nullptr)
+			{
+				renderBackend->destroyDepthStencilView(view.depthStencilView);
+				view.depthStencilView = nullptr;
+			}
+
+			view.depthTextureObject.reset();
+			view.width = 0;
+			view.height = 0;
+
+			TextureObjectCreateOptions depthTextureCreateOptions = {
+				.width = swapChainWidth,
+				.height = swapChainHeight,
+				.format = TextureFormat::d32Float,
+				.sampleCount = 1,
+				.flags = getTextureObjectFlag(TextureObjectFlag::allowDepthStencil),
+				.initialState = ResourceState::depthWrite,
+				.clearDepth = 1.0f,
+				.clearStencil = 0,
+			};
+			view.depthTextureObject = renderBackend->createTextureObject(depthTextureCreateOptions);
+			if (view.depthTextureObject != nullptr)
+			{
+				view.depthStencilView = renderBackend->createDepthStencilView(view.depthTextureObject.get());
+			}
+
+			const bool validDepthResources = view.depthTextureObject != nullptr && view.depthStencilView != nullptr;
+			assert(validDepthResources && "[RenderWorld][Assert] reason=depth_resource_create_failed");
+
+			view.width = swapChainWidth;
+			view.height = swapChainHeight;
+		}
+
+		RenderCommand& renderCommand = RenderCommand::get();
+		shared_pointer<RenderWorldDrawPrepareResult> drawPrepareResultHandle(new RenderWorldDrawPrepareResult(moveValue(drawPrepareResult)));
+		const BridgeHandle cameraHandle = !buildResult.cameraHandles.empty() ? buildResult.cameraHandles[0] : invalidBridgeHandle;
+		renderCommand.enqueue("BeginFrame", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			if (syncObject == nullptr)
+			{
+				return;
+			}
+
 			syncObject->wait();
-		}
+			renderBackendReference.finalizeQueuedSubmissions();
+			renderBackendReference.releaseQueuedRenderResources();
 
-		if (view.depthStencilView != nullptr)
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (commandList == nullptr)
+			{
+				return;
+			}
+
+			commandList->reset();
+			renderBackendReference.beginFrame(*commandList);
+			commandList->close();
+			renderBackendReference.queueCommandList(commandList);
+		});
+		renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
 		{
-			renderBackend->destroyDepthStencilView(view.depthStencilView);
-			view.depthStencilView = nullptr;
-		}
+			unused(commandName);
+			MeshStreaming::get()->flushGpuRequests(renderBackendReference);
+		});
 
-		view.depthTextureObject.reset();
-		view.width = 0;
-		view.height = 0;
-
-		TextureObjectCreateOptions depthTextureCreateOptions = {};
-		depthTextureCreateOptions.width = swapChainWidth;
-		depthTextureCreateOptions.height = swapChainHeight;
-		depthTextureCreateOptions.format = TextureFormat::d32Float;
-		depthTextureCreateOptions.flags = getTextureObjectFlag(TextureObjectFlag::allowDepthStencil);
-		depthTextureCreateOptions.initialState = ResourceState::depthWrite;
-		depthTextureCreateOptions.sampleCount = 1;
-		depthTextureCreateOptions.clearDepth = 1.0f;
-		depthTextureCreateOptions.clearStencil = 0;
-		view.depthTextureObject = renderBackend->createTextureObject(depthTextureCreateOptions);
-		if (view.depthTextureObject != nullptr)
+		renderCommand.enqueue("Render", [this, drawPrepareResultHandle, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
 		{
-			view.depthStencilView = renderBackend->createDepthStencilView(view.depthTextureObject.get());
-		}
+			unused(commandName);
 
-		const bool validDepthResources = view.depthTextureObject != nullptr && view.depthStencilView != nullptr;
-		assert(validDepthResources && "[RenderWorld][Assert] reason=depth_resource_create_failed");
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			if (swapChain == nullptr || syncObject == nullptr || !swapChain->isRenderable())
+			{
+				return;
+			}
 
-		view.width = swapChainWidth;
-		view.height = swapChainHeight;
+			TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				return;
+			}
+
+			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (renderTargetView == nullptr || commandList == nullptr)
+			{
+				if (commandList != nullptr)
+				{
+					renderBackendReference.releaseCommandList(commandList);
+				}
+				if (renderTargetView != nullptr)
+				{
+					renderBackendReference.destroyRenderTargetView(renderTargetView);
+				}
+				return;
+			}
+
+			commandList->reset();
+			commandList->resourceBarrier(outputResource, ResourceState::present, ResourceState::renderTarget);
+			RenderTargetView* renderTargetViews[1] = { renderTargetView };
+			commandList->setRenderTargets(renderTargetViews, 1, view.depthStencilView);
+
+			ViewportArea viewportArea = {
+				.width = static_cast<float>(swapChain->getWidth()),
+				.height = static_cast<float>(swapChain->getHeight()),
+			};
+			commandList->setViewport(viewportArea);
+
+			ScissorRectArea scissorRectArea = {
+				.right = static_cast<int32>(swapChain->getWidth()),
+				.bottom = static_cast<int32>(swapChain->getHeight()),
+			};
+			commandList->setScissorRect(scissorRectArea);
+			commandList->clearRenderTarget(renderTargetView, 0.07f, 0.11f, 0.17f, 1.0f);
+			commandList->clearDepthStencil(view.depthStencilView, 1.0f, 0);
+			if (drawPrepareResultHandle != nullptr && cameraHandle != invalidBridgeHandle)
+			{
+				Renderer renderer = {};
+				renderer.setBackend(&renderBackendReference);
+				const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+				assert(cameraDynamicData != nullptr && "[RenderWorld][Assert] reason=camera_dynamic_data_missing");
+
+				const float4x4 viewProjectionMatrix = multiplyMatrix4x4(cameraDynamicData->viewMatrix, buildProjectionMatrix4x4(swapChain->getWidth(), swapChain->getHeight(), cameraDynamicData->fieldOfViewYDegrees, cameraDynamicData->nearPlane, cameraDynamicData->farPlane));
+				renderer.drawGeometry(commandList, *drawPrepareResultHandle, viewProjectionMatrix);
+			}
+			commandList->close();
+
+			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
+			renderBackendReference.queueCommandList(commandList);
+		});
+		renderCommand.enqueue("EndFrame", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (commandList == nullptr)
+			{
+				return;
+			}
+
+			commandList->reset();
+			renderBackendReference.endFrame(*commandList);
+			commandList->close();
+			renderBackendReference.queueCommandList(commandList);
+		});
+
+		renderCommand.enqueue("UI", [this, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
+			if (imGuiLayerModule == nullptr)
+			{
+				return;
+			}
+
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			if (swapChain == nullptr || !swapChain->isRenderable())
+			{
+				return;
+			}
+
+			TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				return;
+			}
+
+			RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (renderTargetView == nullptr || commandList == nullptr)
+			{
+				if (commandList != nullptr)
+				{
+					renderBackendReference.releaseCommandList(commandList);
+				}
+				if (renderTargetView != nullptr)
+				{
+					renderBackendReference.destroyRenderTargetView(renderTargetView);
+				}
+				return;
+			}
+
+			commandList->reset();
+			RenderTargetView* renderTargetViews[1] = { renderTargetView };
+			commandList->setRenderTargets(renderTargetViews, 1, view.depthStencilView);
+
+			ViewportArea viewportArea = {
+				.width = static_cast<float>(swapChain->getWidth()),
+				.height = static_cast<float>(swapChain->getHeight()),
+			};
+			commandList->setViewport(viewportArea);
+
+			ScissorRectArea scissorRectArea = {
+				.right = static_cast<int32>(swapChain->getWidth()),
+				.bottom = static_cast<int32>(swapChain->getHeight()),
+			};
+			commandList->setScissorRect(scissorRectArea);
+
+			float4x4 editorViewProjectionMatrix = {};
+			const float4x4* editorViewProjectionMatrixPointer = nullptr;
+			if (cameraHandle != invalidBridgeHandle)
+			{
+				const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
+				if (cameraDynamicData != nullptr)
+				{
+					editorViewProjectionMatrix = multiplyMatrix4x4(cameraDynamicData->viewMatrix, buildProjectionMatrix4x4(swapChain->getWidth(), swapChain->getHeight(), cameraDynamicData->fieldOfViewYDegrees, cameraDynamicData->nearPlane, cameraDynamicData->farPlane));
+					editorViewProjectionMatrixPointer = &editorViewProjectionMatrix;
+				}
+			}
+
+			imGuiLayerModule->buildAndRender(commandList, editorViewProjectionMatrixPointer);
+			commandList->close();
+
+			renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
+			renderBackendReference.queueCommandList(commandList);
+		});
+
+		renderCommand.enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			unused(commandName);
+
+			CommandQueue* commandQueue = renderBackendReference.getCommandQueue();
+			SwapChain* swapChain = renderBackendReference.getSwapChain();
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			if (commandQueue == nullptr || swapChain == nullptr || syncObject == nullptr || !swapChain->isRenderable())
+			{
+				renderBackendReference.finalizeQueuedSubmissions();
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
+			if (outputResource == nullptr)
+			{
+				renderBackendReference.finalizeQueuedSubmissions();
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			CommandList* commandList = renderBackendReference.acquireCommandList();
+			if (commandList == nullptr)
+			{
+				renderBackendReference.finalizeQueuedSubmissions();
+				renderBackendReference.releaseQueuedRenderResources();
+				return;
+			}
+
+			commandList->reset();
+			commandList->resourceBarrier(outputResource, ResourceState::renderTarget, ResourceState::present);
+			commandList->close();
+
+			renderBackendReference.queueCommandList(commandList);
+			renderBackendReference.executeQueuedCommandLists();
+			swapChain->present();
+			syncObject->signal();
+		});
 	}
 
-	RenderCommand& renderCommand = RenderCommand::get();
-	shared_pointer<RenderWorldDrawPrepareResult> drawPrepareResultHandle(new RenderWorldDrawPrepareResult(moveValue(drawPrepareResult)));
-	const BridgeHandle cameraHandle =
-		!buildResult.cameraHandles.empty()
-		? buildResult.cameraHandles[0]
-		: invalidBridgeHandle;
-	renderCommand.enqueue("MeshUpload", [](string&& commandName, RenderBackend& renderBackendReference)
 	{
-		unused(commandName);
-		MeshStreaming::get()->flushGpuRequests(renderBackendReference);
-	});
+		ScopedTimer renderCommandCpuFrameTimer(updateResult.renderCommandCpuFrameTimeMilliseconds);
+		RenderCommand::flushRenderCommandQueue(updateInput.renderCommandFlushInput);
+	}
+	updateResult.gpuFrameTimeMilliseconds = renderBackend != nullptr ? renderBackend->getGpuFrameTimeMilliseconds() : 0.0f;
+}
 
-	renderCommand.enqueue("Render", [this, drawPrepareResultHandle, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
-	{
-		unused(commandName);
-
-		SwapChain* swapChain = renderBackendReference.getSwapChain();
-		SyncObject* syncObject = renderBackendReference.getSyncObject();
-		if (swapChain == nullptr || syncObject == nullptr)
-		{
-			return;
-		}
-
-		syncObject->wait();
-		renderBackendReference.finalizeQueuedSubmissions();
-		renderBackendReference.releaseQueuedRenderResources();
-		if (!swapChain->isRenderable())
-		{
-			return;
-		}
-
-		TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-		if (outputResource == nullptr)
-		{
-			return;
-		}
-
-		RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
-		CommandList* commandList = renderBackendReference.acquireCommandList();
-		if (renderTargetView == nullptr || commandList == nullptr)
-		{
-			if (commandList != nullptr)
-			{
-				renderBackendReference.releaseCommandList(commandList);
-			}
-			if (renderTargetView != nullptr)
-			{
-				renderBackendReference.destroyRenderTargetView(renderTargetView);
-			}
-			return;
-		}
-
-		commandList->reset();
-		commandList->resourceBarrier(
-			outputResource,
-			ResourceState::present,
-			ResourceState::renderTarget);
-		RenderTargetView* renderTargetViews[1] = { renderTargetView };
-		commandList->setRenderTargets(renderTargetViews, 1, view.depthStencilView);
-
-		ViewportArea viewportArea = {};
-		viewportArea.width = static_cast<float>(swapChain->getWidth());
-		viewportArea.height = static_cast<float>(swapChain->getHeight());
-		commandList->setViewport(viewportArea);
-
-		ScissorRectArea scissorRectArea = {};
-		scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
-		scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
-		commandList->setScissorRect(scissorRectArea);
-		commandList->clearRenderTarget(
-			renderTargetView,
-			0.07f,
-			0.11f,
-			0.17f,
-			1.0f);
-		commandList->clearDepthStencil(view.depthStencilView, 1.0f, 0);
-		if (drawPrepareResultHandle != nullptr && cameraHandle != invalidBridgeHandle)
-		{
-			Renderer renderer = {};
-			renderer.setBackend(&renderBackendReference);
-			const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
-			assert(cameraDynamicData != nullptr && "[RenderWorld][Assert] reason=camera_dynamic_data_missing");
-
-			const float4x4 viewProjectionMatrix = multiplyMatrix4x4(
-				cameraDynamicData->viewMatrix,
-				buildProjectionMatrix4x4(
-					swapChain->getWidth(),
-					swapChain->getHeight(),
-					cameraDynamicData->fieldOfViewYDegrees,
-					cameraDynamicData->nearPlane,
-					cameraDynamicData->farPlane));
-			renderer.drawGeometry(
-				commandList,
-				*drawPrepareResultHandle,
-				viewProjectionMatrix);
-		}
-		commandList->close();
-
-		renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
-		renderBackendReference.queueCommandList(commandList);
-	});
-
-	renderCommand.enqueue("UI", [this, cameraHandle](string&& commandName, RenderBackend& renderBackendReference)
-	{
-		unused(commandName);
-
-		shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
-		if (imGuiLayerModule == nullptr)
-		{
-			return;
-		}
-
-		SwapChain* swapChain = renderBackendReference.getSwapChain();
-		if (swapChain == nullptr || !swapChain->isRenderable())
-		{
-			return;
-		}
-
-		TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-		if (outputResource == nullptr)
-		{
-			return;
-		}
-
-		RenderTargetView* renderTargetView = renderBackendReference.createRenderTargetView(outputResource);
-		CommandList* commandList = renderBackendReference.acquireCommandList();
-		if (renderTargetView == nullptr || commandList == nullptr)
-		{
-			if (commandList != nullptr)
-			{
-				renderBackendReference.releaseCommandList(commandList);
-			}
-			if (renderTargetView != nullptr)
-			{
-				renderBackendReference.destroyRenderTargetView(renderTargetView);
-			}
-			return;
-		}
-
-		commandList->reset();
-		RenderTargetView* renderTargetViews[1] = { renderTargetView };
-		commandList->setRenderTargets(renderTargetViews, 1, view.depthStencilView);
-
-		ViewportArea viewportArea = {};
-		viewportArea.width = static_cast<float>(swapChain->getWidth());
-		viewportArea.height = static_cast<float>(swapChain->getHeight());
-		commandList->setViewport(viewportArea);
-
-		ScissorRectArea scissorRectArea = {};
-		scissorRectArea.right = static_cast<int32>(swapChain->getWidth());
-		scissorRectArea.bottom = static_cast<int32>(swapChain->getHeight());
-		commandList->setScissorRect(scissorRectArea);
-
-		float4x4 editorViewProjectionMatrix = {};
-		const float4x4* editorViewProjectionMatrixPointer = nullptr;
-		if (cameraHandle != invalidBridgeHandle)
-		{
-			const CameraBridge::DynamicData* cameraDynamicData = CameraBridge::get().getDynamicData(cameraHandle);
-			if (cameraDynamicData != nullptr)
-			{
-				editorViewProjectionMatrix = multiplyMatrix4x4(
-					cameraDynamicData->viewMatrix,
-					buildProjectionMatrix4x4(
-						swapChain->getWidth(),
-						swapChain->getHeight(),
-						cameraDynamicData->fieldOfViewYDegrees,
-						cameraDynamicData->nearPlane,
-						cameraDynamicData->farPlane));
-				editorViewProjectionMatrixPointer = &editorViewProjectionMatrix;
-			}
-		}
-
-		imGuiLayerModule->buildAndRender(commandList, editorViewProjectionMatrixPointer);
-		commandList->close();
-
-		renderBackendReference.queueRenderTargetViewForDestroy(renderTargetView);
-		renderBackendReference.queueCommandList(commandList);
-	});
-
-	renderCommand.enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
-	{
-		unused(commandName);
-
-		CommandQueue* commandQueue = renderBackendReference.getCommandQueue();
-		SwapChain* swapChain = renderBackendReference.getSwapChain();
-		SyncObject* syncObject = renderBackendReference.getSyncObject();
-		if (commandQueue == nullptr
-			|| swapChain == nullptr
-			|| syncObject == nullptr
-			|| !swapChain->isRenderable())
-		{
-			renderBackendReference.finalizeQueuedSubmissions();
-			renderBackendReference.releaseQueuedRenderResources();
-			return;
-		}
-
-		TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
-		if (outputResource == nullptr)
-		{
-			renderBackendReference.finalizeQueuedSubmissions();
-			renderBackendReference.releaseQueuedRenderResources();
-			return;
-		}
-
-		CommandList* commandList = renderBackendReference.acquireCommandList();
-		if (commandList == nullptr)
-		{
-			renderBackendReference.finalizeQueuedSubmissions();
-			renderBackendReference.releaseQueuedRenderResources();
-			return;
-		}
-
-		commandList->reset();
-		commandList->resourceBarrier(
-			outputResource,
-			ResourceState::renderTarget,
-			ResourceState::present);
-		commandList->close();
-
-		renderBackendReference.queueCommandList(commandList);
-		renderBackendReference.executeQueuedCommandLists();
-		swapChain->present();
-		syncObject->signal();
-	});
-
-	RenderCommand::flushRenderCommandQueue(updateInput.renderCommandFlushInput);
-	return true;
+const RenderWorldUpdateResult& RenderWorld::getUpdateResult() const
+{
+	return updateResult;
 }
 
 RenderWorldBuildResult RenderWorld::build()

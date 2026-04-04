@@ -7,6 +7,7 @@
 
 class CommandList;
 class CLIModule;
+struct FramePerformanceMetrics;
 class Framework;
 class PipelineStateObject;
 class RenderBackend;
@@ -39,7 +40,8 @@ private:
 	{
 		left = 0,
 		right = 1,
-		bottom = 2,
+		bottomLeft = 2,
+		bottomRight = 3,
 	};
 
 	class Panel
@@ -119,6 +121,8 @@ private:
 		string createMaterialAssetStatusText = {};
 		bool meshAssetPathsLoaded = false;
 		bool materialAssetPathsLoaded = false;
+		int32 focusedMaterialSectionIndex = 0;
+		bool showAllMaterialSections = false;
 	};
 
 	class DeassetViewerPanel final : public Panel
@@ -177,6 +181,25 @@ private:
 		string lastOpenedWorldPath = {};
 		vector<string> supportedImportExtensions = {};
 		bool supportedImportExtensionsLoaded = false;
+		bool collapsed = false;
+	};
+
+	class PerformanceMonitorPanel final : public Panel
+	{
+	public:
+		void reset() override;
+		void build(ImGuiLayerModule& owner, World* world) override;
+
+	private:
+		void pushSample(uint64 worldUpdateSerial, const FramePerformanceMetrics& framePerformanceMetrics);
+
+		constexpr static uint32 historySampleCapacity = 180;
+		float worldCpuFrameTimeHistory[historySampleCapacity] = {};
+		float renderCommandCpuFrameTimeHistory[historySampleCapacity] = {};
+		float gpuFrameTimeHistory[historySampleCapacity] = {};
+		uint32 historyWriteIndex = 0;
+		uint32 historySampleCount = 0;
+		uint64 lastRecordedWorldUpdateSerial = 0;
 	};
 
 	struct EditorGridRenderResources
@@ -198,7 +221,7 @@ private:
 	bool initializeContext();
 	void shutdownContext();
 	void updateUiScaleIfNeeded();
-	void applyAnchoredPanelLayout(AnchoredPanelSlot panelSlot) const;
+	void applyAnchoredPanelLayout(AnchoredPanelSlot panelSlot, bool bottomPanelCollapsed = false) const;
 	float calculateUiScale() const;
 	void renderEditorGrid(CommandList* commandList, const float4x4& editorViewProjectionMatrix);
 	bool resolveEditorGridRenderResources(EditorGridRenderResources& outRenderResources) const;
@@ -221,6 +244,7 @@ private:
 	unique_pointer<OutlinerPanel> outlinerPanel;
 	unique_pointer<DetailPanel> detailPanel;
 	unique_pointer<DeassetViewerPanel> deassetViewerPanel;
+	unique_pointer<PerformanceMonitorPanel> performanceMonitorPanel;
 	unique_pointer<FileSystemPanel> fileSystemPanel;
 	vector<Panel*> panels = {};
 };

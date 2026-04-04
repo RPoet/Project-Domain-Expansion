@@ -17,9 +17,15 @@ struct MeshAssetHandle;
 
 struct RenderWorldUpdateInput
 {
-	bool worldFlow = false;
 	uint64 worldUpdateSerial = 0;
 	RenderCommand::RenderCommandFlushInput renderCommandFlushInput = {};
+};
+
+struct RenderWorldUpdateResult
+{
+	float renderWorldCpuFrameTimeMilliseconds = 0.0f;
+	float renderCommandCpuFrameTimeMilliseconds = 0.0f;
+	float gpuFrameTimeMilliseconds = 0.0f;
 };
 
 struct RenderWorldMeshDrawData
@@ -68,13 +74,15 @@ class RenderWorld
 public:
 	bool initialize(WindowsWindowObject& windowObject);
 	void shutdown();
-	bool update(const RenderWorldUpdateInput& updateInput);
+	void update(const RenderWorldUpdateInput& updateInput);
 	RenderWorldBuildResult build();
+	const RenderWorldUpdateResult& getUpdateResult() const;
 
 private:
 	WindowsWindowObject* windowObject = nullptr;
 
 	// TO DO : Change as signal
 	uint64 consumedWorldUpdateSerial = 0;
+	RenderWorldUpdateResult updateResult = {};
 	Temp_RenderWorldView view = {};
 };

@@ -23,6 +23,14 @@ struct FrameworkInitializeOptions
 	FrameworkBackendOptions backendOptions = {};
 };
 
+struct FramePerformanceMetrics
+{
+	float worldCpuFrameTimeMilliseconds = 0.0f;
+	float renderWorldCpuFrameTimeMilliseconds = 0.0f;
+	float renderCommandCpuFrameTimeMilliseconds = 0.0f;
+	float gpuFrameTimeMilliseconds = 0.0f;
+};
+
 template <typename ExitCodeType>
 inline int32 resolveFrameworkInitializeExitCode(
 	const FrameworkRuntimeExitCode initializeExitCode,
@@ -50,15 +58,17 @@ public:
 	World* getActiveWorld();
 	const World* getActiveWorld() const;
 
-	bool update();
+	void update();
 	FrameworkRuntimeExitCode getRuntimeExitCode() const;
 	const FrameworkBackendOptions& getBackendOptions() const;
+	const FramePerformanceMetrics& getFramePerformanceMetrics() const;
 	WindowsWindowObject* getWindowObject();
 	const WindowsWindowObject* getWindowObject() const;
 	uint64 getWorldUpdateSerial() const;
 	void onWindowResize(uint32 width, uint32 height);
 	void setEditorUIEnabled(bool enabled);
 	bool isEditorUIEnabled() const;
+	void setRenderFramePerformanceMetrics(float renderWorldCpuFrameTimeMilliseconds, float renderCommandCpuFrameTimeMilliseconds, float gpuFrameTimeMilliseconds);
 
 	void registerModule(const FrameworkInitializeOptions& initializeOptions);
 	void addModule(const shared_pointer<Module>& module);
@@ -75,6 +85,7 @@ private:
 
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
+	FramePerformanceMetrics framePerformanceMetrics = {};
 	uint64 worldUpdateSerial = 0;
 
 	bool moduleRegistrationCompleted = false;

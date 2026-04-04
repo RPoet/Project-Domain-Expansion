@@ -69,7 +69,19 @@ CommandList* Dx12RenderBackend::acquireCommandList(const CommandListType command
 		return graphicsCommandListPool[commandListIndex].get();
 	}
 
-	return nullptr;
+	CommandListInitializeOptions initializeOptions = {
+		.renderBackend = this,
+		.commandListType = commandListType,
+	};
+	unique_pointer<Dx12CommandList> dx12CommandList(new Dx12CommandList());
+	if (!dx12CommandList->initialize(initializeOptions))
+	{
+		return nullptr;
+	}
+
+	graphicsCommandListPool.push_back(moveValue(dx12CommandList));
+	graphicsCommandListInUse.push_back(true);
+	return graphicsCommandListPool.back().get();
 }
 
 bool Dx12RenderBackend::supportsCommandListType(const CommandListType commandListType) const
@@ -115,6 +127,21 @@ void Dx12RenderBackend::executeQueuedCommandLists()
 	}
 
 	commandQueue->executeQueued();
+
+	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
+	if (frameTimestampFence == nullptr || pendingFrameTimestampFenceValue == 0 || dx12CommandQueue == nullptr || dx12CommandQueue->getNativeCommandQueue() == nullptr)
+	{
+		return;
+	}
+
+	if (FAILED(dx12CommandQueue->getNativeCommandQueue()->Signal(frameTimestampFence.Get(), pendingFrameTimestampFenceValue)))
+	{
+		pendingFrameTimestampFenceValue = 0;
+		gpuFrameTimeMilliseconds = 0.0f;
+		return;
+	}
+
+	nextFrameTimestampFenceValue = pendingFrameTimestampFenceValue + 1;
 }
 
 CommandQueue* Dx12RenderBackend::getCommandQueue()
@@ -707,6 +734,109 @@ bool Dx12RenderBackend::reportDebugErrorsIfAny()
 	return hasFailureMessage;
 }
 
+void Dx12RenderBackend::beginFrame(CommandList& commandList)
+{
+	if (pendingFrameTimestampFenceValue != 0)
+	{
+		if (frameTimestampFence == nullptr || frameTimestampReadbackBuffer == nullptr || frameTimestampFrequency == 0)
+		{
+			gpuFrameTimeMilliseconds = 0.0f;
+			pendingFrameTimestampFenceValue = 0;
+		}
+		else if (frameTimestampFence->GetCompletedValue() >= pendingFrameTimestampFenceValue)
+		{
+			void* mappedData = nullptr;
+			D3D12_RANGE readRange = { 0, sizeof(uint64) * 2u };
+			if (FAILED(frameTimestampReadbackBuffer->Map(0, &readRange, &mappedData)) || mappedData == nullptr)
+			{
+				gpuFrameTimeMilliseconds = 0.0f;
+			}
+			else
+			{
+				const uint64* timestampData = static_cast<const uint64*>(mappedData);
+				const uint64 beginTimestamp = timestampData[0];
+				const uint64 endTimestamp = timestampData[1];
+				if (endTimestamp > beginTimestamp)
+				{
+					const double elapsedGpuFrameTimeSeconds = static_cast<double>(endTimestamp - beginTimestamp) / static_cast<double>(frameTimestampFrequency);
+					gpuFrameTimeMilliseconds = static_cast<float>(elapsedGpuFrameTimeSeconds * 1000.0);
+				}
+				else
+				{
+					gpuFrameTimeMilliseconds = 0.0f;
+				}
+
+				D3D12_RANGE writeRange = { 0, 0 };
+				frameTimestampReadbackBuffer->Unmap(0, &writeRange);
+			}
+
+			pendingFrameTimestampFenceValue = 0;
+		}
+	}
+
+	if (frameTimestampQueryHeap == nullptr
+		|| frameTimestampReadbackBuffer == nullptr
+		|| frameTimestampFence == nullptr
+		|| pendingFrameTimestampFenceValue != 0
+		|| frameTimestampFrequency == 0)
+	{
+		frameGpuTimingActive = false;
+		return;
+	}
+
+	Dx12CommandList* dx12CommandList = dynamic_cast<Dx12CommandList*>(&commandList);
+	if (dx12CommandList == nullptr || dx12CommandList->getNativeCommandList() == nullptr)
+	{
+		frameGpuTimingActive = false;
+		return;
+	}
+
+	dx12CommandList->getNativeCommandList()->EndQuery(
+		frameTimestampQueryHeap.Get(),
+		D3D12_QUERY_TYPE_TIMESTAMP,
+		0);
+	frameGpuTimingActive = true;
+}
+
+void Dx12RenderBackend::endFrame(CommandList& commandList)
+{
+	if (!frameGpuTimingActive
+		|| frameTimestampQueryHeap == nullptr
+		|| frameTimestampReadbackBuffer == nullptr
+		|| frameTimestampFrequency == 0)
+	{
+		frameGpuTimingActive = false;
+		return;
+	}
+
+	Dx12CommandList* dx12CommandList = dynamic_cast<Dx12CommandList*>(&commandList);
+	if (dx12CommandList == nullptr || dx12CommandList->getNativeCommandList() == nullptr)
+	{
+		frameGpuTimingActive = false;
+		return;
+	}
+
+	ID3D12GraphicsCommandList* nativeCommandList = dx12CommandList->getNativeCommandList();
+	nativeCommandList->EndQuery(
+		frameTimestampQueryHeap.Get(),
+		D3D12_QUERY_TYPE_TIMESTAMP,
+		1);
+	nativeCommandList->ResolveQueryData(
+		frameTimestampQueryHeap.Get(),
+		D3D12_QUERY_TYPE_TIMESTAMP,
+		0,
+		2,
+		frameTimestampReadbackBuffer.Get(),
+		0);
+	frameGpuTimingActive = false;
+	pendingFrameTimestampFenceValue = nextFrameTimestampFenceValue;
+}
+
+float Dx12RenderBackend::getGpuFrameTimeMilliseconds() const
+{
+	return gpuFrameTimeMilliseconds;
+}
+
 HandleWindow Dx12RenderBackend::getWindowHandle() const
 {
 	return windowHandle;
@@ -805,6 +935,11 @@ bool Dx12RenderBackend::createCommandQueue()
 	}
 
 	dx12CommandQueue->setNativeCommandQueue(createdCommandQueue);
+	frameTimestampFrequency = 0;
+	if (FAILED(createdCommandQueue->GetTimestampFrequency(&frameTimestampFrequency)) || frameTimestampFrequency == 0)
+	{
+		frameTimestampFrequency = 0;
+	}
 	return true;
 }
 
@@ -821,11 +956,82 @@ bool Dx12RenderBackend::createSwapChain(uint32 width, uint32 height)
 
 bool Dx12RenderBackend::createBackendResources()
 {
-	return createCommandResources();
+	if (!createCommandResources())
+	{
+		return false;
+	}
+
+	frameTimestampQueryHeap.Reset();
+	frameTimestampReadbackBuffer.Reset();
+	frameTimestampFence.Reset();
+	frameGpuTimingActive = false;
+	nextFrameTimestampFenceValue = 1;
+	pendingFrameTimestampFenceValue = 0;
+	gpuFrameTimeMilliseconds = 0.0f;
+	assert(device != nullptr && "[Dx12RenderBackend][Assert] reason=device_missing_during_backend_resource_create");
+
+	D3D12_QUERY_HEAP_DESC queryHeapDescription = {};
+	queryHeapDescription.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+	queryHeapDescription.Count = 2;
+	queryHeapDescription.NodeMask = 0;
+	if (FAILED(device->CreateQueryHeap(&queryHeapDescription, IID_PPV_ARGS(&frameTimestampQueryHeap))))
+	{
+		frameTimestampQueryHeap.Reset();
+		frameTimestampReadbackBuffer.Reset();
+		return true;
+	}
+
+	D3D12_HEAP_PROPERTIES readbackHeapProperties = {};
+	readbackHeapProperties.Type = D3D12_HEAP_TYPE_READBACK;
+	readbackHeapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	readbackHeapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	readbackHeapProperties.CreationNodeMask = 1;
+	readbackHeapProperties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC readbackResourceDescription = {};
+	readbackResourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	readbackResourceDescription.Alignment = 0;
+	readbackResourceDescription.Width = sizeof(uint64) * 2u;
+	readbackResourceDescription.Height = 1;
+	readbackResourceDescription.DepthOrArraySize = 1;
+	readbackResourceDescription.MipLevels = 1;
+	readbackResourceDescription.Format = DXGI_FORMAT_UNKNOWN;
+	readbackResourceDescription.SampleDesc.Count = 1;
+	readbackResourceDescription.SampleDesc.Quality = 0;
+	readbackResourceDescription.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	readbackResourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
+	if (FAILED(device->CreateCommittedResource(
+		&readbackHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&readbackResourceDescription,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&frameTimestampReadbackBuffer))))
+	{
+		frameTimestampQueryHeap.Reset();
+		frameTimestampReadbackBuffer.Reset();
+		frameTimestampFence.Reset();
+		return true;
+	}
+
+	if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&frameTimestampFence))))
+	{
+		frameTimestampQueryHeap.Reset();
+		frameTimestampReadbackBuffer.Reset();
+		frameTimestampFence.Reset();
+	}
+	return true;
 }
 
 void Dx12RenderBackend::destroyBackendResources()
 {
+	frameTimestampQueryHeap.Reset();
+	frameTimestampReadbackBuffer.Reset();
+	frameTimestampFence.Reset();
+	frameGpuTimingActive = false;
+	nextFrameTimestampFenceValue = 1;
+	pendingFrameTimestampFenceValue = 0;
+	gpuFrameTimeMilliseconds = 0.0f;
 	clearPipelineStateObjects();
 	clearRootSignatureObjects();
 
@@ -873,6 +1079,7 @@ void Dx12RenderBackend::destroyDevice()
 	device.Reset();
 	dxgiFactory.Reset();
 	windowHandle = nullptr;
+	frameTimestampFrequency = 0;
 }
 
 void Dx12RenderBackend::beforeDestroy()

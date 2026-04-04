@@ -351,10 +351,12 @@ ImGuiLayerModule::ImGuiLayerModule()
 	, outlinerPanel(new OutlinerPanel())
 	, detailPanel(new DetailPanel())
 	, deassetViewerPanel(new DeassetViewerPanel())
+	, performanceMonitorPanel(new PerformanceMonitorPanel())
 	, fileSystemPanel(new FileSystemPanel(*importPanel, *deassetViewerPanel))
 {
 	panels.push_back(outlinerPanel.get());
 	panels.push_back(detailPanel.get());
+	panels.push_back(performanceMonitorPanel.get());
 	panels.push_back(fileSystemPanel.get());
 	panels.push_back(importPanel.get());
 	panels.push_back(deassetViewerPanel.get());
@@ -526,11 +528,12 @@ bool ImGuiLayerModule::init(Framework& framework)
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
 	lastEditorActionStatus.clear();
-	const bool validPanels = panels.size() == 5
+	const bool validPanels = panels.size() == 6
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
 		&& deassetViewerPanel != nullptr
+		&& performanceMonitorPanel != nullptr
 		&& fileSystemPanel != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
@@ -614,11 +617,12 @@ void ImGuiLayerModule::shutdown()
 	currentUiScale = 1.0f;
 	uiScaleInitialized = false;
 	lastEditorActionStatus.clear();
-	const bool validPanels = panels.size() == 5
+	const bool validPanels = panels.size() == 6
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
 		&& deassetViewerPanel != nullptr
+		&& performanceMonitorPanel != nullptr
 		&& fileSystemPanel != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
@@ -703,17 +707,19 @@ void ImGuiLayerModule::buildAndRender(
 	ImGui::NewFrame();
 
 	World* world = frameworkReference->getActiveWorld();
-	const bool validPanels = panels.size() == 5
+	const bool validPanels = panels.size() == 6
 		&& importPanel != nullptr
 		&& outlinerPanel != nullptr
 		&& detailPanel != nullptr
 		&& deassetViewerPanel != nullptr
+		&& performanceMonitorPanel != nullptr
 		&& fileSystemPanel != nullptr
 		&& panels[0] != nullptr
 		&& panels[1] != nullptr
 		&& panels[2] != nullptr
 		&& panels[3] != nullptr
-		&& panels[4] != nullptr;
+		&& panels[4] != nullptr
+		&& panels[5] != nullptr;
 	assert(validPanels && "[ImGuiLayerModule][Assert] reason=imgui_panel_missing");
 	for (size_t panelIndex = 0; panelIndex < panels.size(); ++panelIndex)
 	{
@@ -908,7 +914,7 @@ void ImGuiLayerModule::updateUiScaleIfNeeded()
 	uiScaleInitialized = true;
 }
 
-void ImGuiLayerModule::applyAnchoredPanelLayout(const AnchoredPanelSlot panelSlot) const
+void ImGuiLayerModule::applyAnchoredPanelLayout(const AnchoredPanelSlot panelSlot, const bool bottomPanelCollapsed) const
 {
 	const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 	if (mainViewport == nullptr)
@@ -922,13 +928,28 @@ void ImGuiLayerModule::applyAnchoredPanelLayout(const AnchoredPanelSlot panelSlo
 	const float panelGap = 10.0f * layoutScale;
 	const float minimumViewportWidth = 560.0f * layoutScale;
 	const float minimumTopHeight = 260.0f * layoutScale;
+	const float minimumBottomRightWidth = 420.0f * layoutScale;
+	const float desiredBottomLeftWidth = clampFloat(workSize.x * 0.20f, 280.0f * layoutScale, 360.0f * layoutScale);
+	const float collapsedBottomHeight = std::max(ImGui::GetFrameHeight(), 28.0f * layoutScale);
+	const float minimumBottomHeight = bottomPanelCollapsed ? collapsedBottomHeight : 64.0f * layoutScale;
 	float bottomPanelHeight = clampFloat(workSize.y * 0.30f, 260.0f * layoutScale, 380.0f * layoutScale);
+	if (bottomPanelCollapsed)
+	{
+		bottomPanelHeight = minimumBottomHeight;
+	}
 	if (workSize.y - bottomPanelHeight - panelGap < minimumTopHeight)
 	{
-		bottomPanelHeight = std::max(180.0f * layoutScale, workSize.y - minimumTopHeight - panelGap);
+		bottomPanelHeight = std::max(minimumBottomHeight, workSize.y - minimumTopHeight - panelGap);
 	}
 
 	const float topPanelHeight = std::max(140.0f * layoutScale, workSize.y - bottomPanelHeight - panelGap);
+	float bottomLeftPanelWidth = desiredBottomLeftWidth;
+	const float maximumBottomLeftWidth = std::max(220.0f * layoutScale, workSize.x - minimumBottomRightWidth - panelGap);
+	if (bottomLeftPanelWidth > maximumBottomLeftWidth)
+	{
+		bottomLeftPanelWidth = maximumBottomLeftWidth;
+	}
+	const float bottomRightPanelWidth = std::max(220.0f * layoutScale, workSize.x - bottomLeftPanelWidth - panelGap);
 	float leftPanelWidth = clampFloat(workSize.x * 0.19f, 320.0f * layoutScale, 430.0f * layoutScale);
 	float rightPanelWidth = clampFloat(workSize.x * 0.24f, 380.0f * layoutScale, 560.0f * layoutScale);
 	const float availableSideWidth = std::max(0.0f, workSize.x - minimumViewportWidth);
@@ -951,9 +972,14 @@ void ImGuiLayerModule::applyAnchoredPanelLayout(const AnchoredPanelSlot panelSlo
 		panelPosition.x = workPosition.x + workSize.x - rightPanelWidth;
 		panelSize = ImVec2(rightPanelWidth, topPanelHeight);
 		break;
-	case AnchoredPanelSlot::bottom:
+	case AnchoredPanelSlot::bottomLeft:
 		panelPosition.y = workPosition.y + topPanelHeight + panelGap;
-		panelSize = ImVec2(workSize.x, bottomPanelHeight);
+		panelSize = ImVec2(bottomLeftPanelWidth, bottomPanelHeight);
+		break;
+	case AnchoredPanelSlot::bottomRight:
+		panelPosition.x = workPosition.x + bottomLeftPanelWidth + panelGap;
+		panelPosition.y = workPosition.y + topPanelHeight + panelGap + (bottomPanelCollapsed ? bottomPanelHeight - minimumBottomHeight : 0.0f);
+		panelSize = ImVec2(bottomRightPanelWidth, bottomPanelCollapsed ? minimumBottomHeight : bottomPanelHeight);
 		break;
 	default:
 		assert(false && "[ImGuiLayerModule][Assert] reason=anchored_panel_slot_invalid");
@@ -1297,6 +1323,8 @@ void ImGuiLayerModule::DetailPanel::reset()
 	createMaterialAssetStatusText.clear();
 	meshAssetPathsLoaded = false;
 	materialAssetPathsLoaded = false;
+	focusedMaterialSectionIndex = 0;
+	showAllMaterialSections = false;
 }
 
 bool ImGuiLayerModule::DetailPanel::ensureMeshAssetPathsLoaded()
@@ -1480,13 +1508,103 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		ImGui::Text("Next Sibling: %u", selectedEntity->getNextSiblingEntityIndex());
 	}
 
-	ImGui::Separator();
-	const uint32 componentCount = selectedEntity->getComponentCount();
-	ImGui::Text("Components: %u", componentCount);
-
 	PlaceableEntity* placeableEntity = dynamic_cast<PlaceableEntity*>(selectedEntity);
+	const uint32 componentCount = selectedEntity->getComponentCount();
 	MeshComponent* meshComponent = nullptr;
 	CameraComponent* cameraComponent = nullptr;
+	for (uint32 componentArrayIndex = 0; componentArrayIndex < componentCount; ++componentArrayIndex)
+	{
+		const uint32 componentIndex = selectedEntity->getComponentIndex(componentArrayIndex);
+		Component* component = world->getComponentByIndex(componentIndex);
+		if (component == nullptr)
+		{
+			continue;
+		}
+
+		if (component->getComponentType() == MeshComponent::staticComponentType && meshComponent == nullptr)
+		{
+			meshComponent = static_cast<MeshComponent*>(component);
+		}
+		else if (component->getComponentType() == CameraComponent::staticComponentType && cameraComponent == nullptr)
+		{
+			cameraComponent = static_cast<CameraComponent*>(component);
+		}
+	}
+
+	if (placeableEntity != nullptr)
+	{
+		Transform updatedTransform = placeableEntity->transform;
+		bool transformChanged = false;
+		float position[3] = {
+			updatedTransform.positionX,
+			updatedTransform.positionY,
+			updatedTransform.positionZ};
+		float rotation[3] = {
+			updatedTransform.rotationPitch,
+			updatedTransform.rotationYaw,
+			updatedTransform.rotationRoll};
+		float scale[3] = {
+			updatedTransform.scaleX,
+			updatedTransform.scaleY,
+			updatedTransform.scaleZ};
+
+		ImGui::Separator();
+		ImGui::TextUnformatted("Transform");
+
+		if (ImGui::InputFloat3("Position", position, "%.3f"))
+		{
+			updatedTransform.positionX = position[0];
+			updatedTransform.positionY = position[1];
+			updatedTransform.positionZ = position[2];
+			transformChanged = true;
+		}
+
+		if (ImGui::InputFloat3("Rotation", rotation, "%.3f"))
+		{
+			updatedTransform.rotationPitch = rotation[0];
+			updatedTransform.rotationYaw = rotation[1];
+			updatedTransform.rotationRoll = rotation[2];
+			transformChanged = true;
+		}
+
+		if (ImGui::InputFloat3("Scale", scale, "%.3f"))
+		{
+			updatedTransform.scaleX = scale[0];
+			updatedTransform.scaleY = scale[1];
+			updatedTransform.scaleZ = scale[2];
+			transformChanged = true;
+		}
+
+		if (transformChanged)
+		{
+			placeableEntity->transform = updatedTransform;
+			if (owner.saveActiveWorldImmediate())
+			{
+				owner.lastEditorActionStatus = "entity_transform_updated_and_saved";
+				owner.recordEditorReplayCommand(
+					"Editor.setTransform",
+					{
+						placeableEntity->getAssetPath(),
+						buildReplayFloatArgument(placeableEntity->transform.positionX),
+						buildReplayFloatArgument(placeableEntity->transform.positionY),
+						buildReplayFloatArgument(placeableEntity->transform.positionZ),
+						buildReplayFloatArgument(placeableEntity->transform.rotationPitch),
+						buildReplayFloatArgument(placeableEntity->transform.rotationYaw),
+						buildReplayFloatArgument(placeableEntity->transform.rotationRoll),
+						buildReplayFloatArgument(placeableEntity->transform.scaleX),
+						buildReplayFloatArgument(placeableEntity->transform.scaleY),
+						buildReplayFloatArgument(placeableEntity->transform.scaleZ)
+					});
+			}
+			else
+			{
+				owner.lastEditorActionStatus = "entity_transform_updated_save_skipped";
+			}
+		}
+	}
+
+	ImGui::Separator();
+	ImGui::Text("Components: %u", componentCount);
 	for (uint32 componentArrayIndex = 0; componentArrayIndex < componentCount; ++componentArrayIndex)
 	{
 		const uint32 componentIndex = selectedEntity->getComponentIndex(componentArrayIndex);
@@ -1704,8 +1822,59 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			ImGui::TextDisabled("Mesh asset has no section ranges.");
 		}
 
-		for (uint32 sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex)
+		uint32 firstSectionIndex = 0;
+		uint32 sectionIterationCount = sectionCount;
+		if (sectionCount > 8)
 		{
+			if (focusedMaterialSectionIndex < 0)
+			{
+				focusedMaterialSectionIndex = 0;
+			}
+			else if (focusedMaterialSectionIndex >= static_cast<int32>(sectionCount))
+			{
+				focusedMaterialSectionIndex = static_cast<int32>(sectionCount - 1);
+			}
+			ImGui::TextDisabled("Large section counts are shown one slot at a time by default.");
+			ImGui::Checkbox("Show All Sections", &showAllMaterialSections);
+
+			int32 sectionIndexInput = focusedMaterialSectionIndex;
+			if (ImGui::InputInt("Focused Section", &sectionIndexInput))
+			{
+				if (sectionIndexInput < 0)
+				{
+					sectionIndexInput = 0;
+				}
+				else if (sectionIndexInput >= static_cast<int32>(sectionCount))
+				{
+					sectionIndexInput = static_cast<int32>(sectionCount - 1);
+				}
+				focusedMaterialSectionIndex = sectionIndexInput;
+			}
+
+			ImGui::BeginDisabled(focusedMaterialSectionIndex <= 0);
+			if (ImGui::Button("Previous Section"))
+			{
+				--focusedMaterialSectionIndex;
+			}
+			ImGui::EndDisabled();
+			ImGui::SameLine();
+			ImGui::BeginDisabled(focusedMaterialSectionIndex >= static_cast<int32>(sectionCount - 1));
+			if (ImGui::Button("Next Section"))
+			{
+				++focusedMaterialSectionIndex;
+			}
+			ImGui::EndDisabled();
+
+			if (!showAllMaterialSections)
+			{
+				firstSectionIndex = static_cast<uint32>(focusedMaterialSectionIndex);
+				sectionIterationCount = 1;
+			}
+		}
+
+		for (uint32 sectionOffset = 0; sectionOffset < sectionIterationCount; ++sectionOffset)
+		{
+			const uint32 sectionIndex = firstSectionIndex + sectionOffset;
 			const vector<string>& currentMaterialAssetPaths = meshComponent->getMaterialAssetPaths();
 			const string currentMaterialAssetPath =
 				sectionIndex < static_cast<uint32>(currentMaterialAssetPaths.size())
@@ -1714,7 +1883,10 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			shared_pointer<MaterialAsset> materialAsset = meshComponent->getMaterialAsset(sectionIndex);
 
 			ImGui::PushID(static_cast<int32>(sectionIndex));
-			if (ImGui::TreeNodeEx("SectionMaterial", ImGuiTreeNodeFlags_DefaultOpen, "Section %u", sectionIndex))
+			const ImGuiTreeNodeFlags sectionTreeNodeFlags = sectionCount <= 8
+				? ImGuiTreeNodeFlags_DefaultOpen
+				: ImGuiTreeNodeFlags_None;
+			if (ImGui::TreeNodeEx("SectionMaterial", sectionTreeNodeFlags, "Section %u", sectionIndex))
 			{
 				ImGui::Text("Material Asset: %s", currentMaterialAssetPath.empty() ? "(none)" : currentMaterialAssetPath.c_str());
 				if (ImGui::Button("Select Material Asset"))
@@ -2053,77 +2225,6 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 			else
 			{
 				owner.lastEditorActionStatus = "camera_component_updated_save_skipped";
-			}
-		}
-	}
-
-	if (placeableEntity != nullptr)
-	{
-		Transform updatedTransform = placeableEntity->transform;
-		bool transformChanged = false;
-		float position[3] = {
-			updatedTransform.positionX,
-			updatedTransform.positionY,
-			updatedTransform.positionZ};
-		float rotation[3] = {
-			updatedTransform.rotationPitch,
-			updatedTransform.rotationYaw,
-			updatedTransform.rotationRoll};
-		float scale[3] = {
-			updatedTransform.scaleX,
-			updatedTransform.scaleY,
-			updatedTransform.scaleZ};
-		ImGui::Separator();
-		ImGui::TextUnformatted("Transform");
-
-		if (ImGui::InputFloat3("Position", position, "%.3f"))
-		{
-			updatedTransform.positionX = position[0];
-			updatedTransform.positionY = position[1];
-			updatedTransform.positionZ = position[2];
-			transformChanged = true;
-		}
-
-		if (ImGui::InputFloat3("Rotation", rotation, "%.3f"))
-		{
-			updatedTransform.rotationPitch = rotation[0];
-			updatedTransform.rotationYaw = rotation[1];
-			updatedTransform.rotationRoll = rotation[2];
-			transformChanged = true;
-		}
-
-		if (ImGui::InputFloat3("Scale", scale, "%.3f"))
-		{
-			updatedTransform.scaleX = scale[0];
-			updatedTransform.scaleY = scale[1];
-			updatedTransform.scaleZ = scale[2];
-			transformChanged = true;
-		}
-
-		if (transformChanged)
-		{
-			placeableEntity->transform = updatedTransform;
-			if (owner.saveActiveWorldImmediate())
-			{
-				owner.lastEditorActionStatus = "entity_transform_updated_and_saved";
-				owner.recordEditorReplayCommand(
-					"Editor.setTransform",
-					{
-						placeableEntity->getAssetPath(),
-						buildReplayFloatArgument(placeableEntity->transform.positionX),
-						buildReplayFloatArgument(placeableEntity->transform.positionY),
-						buildReplayFloatArgument(placeableEntity->transform.positionZ),
-						buildReplayFloatArgument(placeableEntity->transform.rotationPitch),
-						buildReplayFloatArgument(placeableEntity->transform.rotationYaw),
-						buildReplayFloatArgument(placeableEntity->transform.rotationRoll),
-						buildReplayFloatArgument(placeableEntity->transform.scaleX),
-						buildReplayFloatArgument(placeableEntity->transform.scaleY),
-						buildReplayFloatArgument(placeableEntity->transform.scaleZ)
-					});
-			}
-			else
-			{
-				owner.lastEditorActionStatus = "entity_transform_updated_save_skipped";
 			}
 		}
 	}
@@ -2508,6 +2609,7 @@ void ImGuiLayerModule::FileSystemPanel::reset()
 	lastOpenedWorldPath.clear();
 	supportedImportExtensions.clear();
 	supportedImportExtensionsLoaded = false;
+	collapsed = false;
 }
 
 bool ImGuiLayerModule::FileSystemPanel::isDeassetDocumentFile(const filesystem_path& filePath) const
@@ -2521,8 +2623,10 @@ void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* wo
 {
 	unused(world);
 
-	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::bottom);
-	if (!ImGui::Begin("FileSystem", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::bottomRight, collapsed);
+	const bool opened = ImGui::Begin("FileSystem", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+	collapsed = ImGui::IsWindowCollapsed();
+	if (!opened)
 	{
 		ImGui::End();
 		return;
@@ -2536,7 +2640,6 @@ void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* wo
 	}
 
 	ImGui::Text("Root: %s", resourcesRootPathText.c_str());
-
 	const filesystem_path resourcesRootPath(resourcesRootPathText);
 	error_code verifyErrorCode;
 	if (!exists(resourcesRootPath, verifyErrorCode)
@@ -2623,6 +2726,144 @@ void ImGuiLayerModule::FileSystemPanel::build(ImGuiLayerModule& owner, World* wo
 	{
 		ImGui::Text("Status: %s", owner.lastEditorActionStatus.c_str());
 	}
+
+	ImGui::End();
+}
+
+void ImGuiLayerModule::PerformanceMonitorPanel::reset()
+{
+	for (uint32 sampleIndex = 0; sampleIndex < historySampleCapacity; ++sampleIndex)
+	{
+		worldCpuFrameTimeHistory[sampleIndex] = 0.0f;
+		renderCommandCpuFrameTimeHistory[sampleIndex] = 0.0f;
+		gpuFrameTimeHistory[sampleIndex] = 0.0f;
+	}
+
+	historyWriteIndex = 0;
+	historySampleCount = 0;
+	lastRecordedWorldUpdateSerial = 0;
+}
+
+void ImGuiLayerModule::PerformanceMonitorPanel::pushSample(
+	const uint64 worldUpdateSerial,
+	const FramePerformanceMetrics& framePerformanceMetrics)
+{
+	worldCpuFrameTimeHistory[historyWriteIndex] = framePerformanceMetrics.worldCpuFrameTimeMilliseconds;
+	renderCommandCpuFrameTimeHistory[historyWriteIndex] = framePerformanceMetrics.renderCommandCpuFrameTimeMilliseconds;
+	gpuFrameTimeHistory[historyWriteIndex] = framePerformanceMetrics.gpuFrameTimeMilliseconds;
+	historyWriteIndex = (historyWriteIndex + 1u) % historySampleCapacity;
+	if (historySampleCount < historySampleCapacity)
+	{
+		++historySampleCount;
+	}
+
+	lastRecordedWorldUpdateSerial = worldUpdateSerial;
+}
+
+void ImGuiLayerModule::PerformanceMonitorPanel::build(ImGuiLayerModule& owner, World* world)
+{
+	unused(world);
+
+	owner.applyAnchoredPanelLayout(ImGuiLayerModule::AnchoredPanelSlot::bottomLeft);
+	if (!ImGui::Begin("Performance Monitor", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+	{
+		ImGui::End();
+		return;
+	}
+
+	if (owner.frameworkReference == nullptr)
+	{
+		ImGui::TextUnformatted("No framework metrics.");
+		ImGui::End();
+		return;
+	}
+
+	const uint64 worldUpdateSerial = owner.frameworkReference->getWorldUpdateSerial();
+	const FramePerformanceMetrics& framePerformanceMetrics = owner.frameworkReference->getFramePerformanceMetrics();
+	if (worldUpdateSerial != 0 && worldUpdateSerial != lastRecordedWorldUpdateSerial)
+	{
+		pushSample(worldUpdateSerial, framePerformanceMetrics);
+	}
+
+	struct PerformanceHistoryView
+	{
+		const float* values = nullptr;
+		uint32 sampleCount = 0;
+		uint32 writeIndex = 0;
+	};
+
+	const auto getHistoryValue = [](void* data, const int32 sampleIndex) -> float
+	{
+		const PerformanceHistoryView* historyView = static_cast<const PerformanceHistoryView*>(data);
+		if (historyView == nullptr || historyView->values == nullptr || historyView->sampleCount == 0)
+		{
+			return 0.0f;
+		}
+
+		const uint32 resolvedSampleIndex = static_cast<uint32>(sampleIndex);
+		if (historyView->sampleCount < historySampleCapacity)
+		{
+			return historyView->values[resolvedSampleIndex];
+		}
+
+		return historyView->values[(historyView->writeIndex + resolvedSampleIndex) % historySampleCapacity];
+	};
+
+	const auto getHistoryMaxValue = [](const float* values, const uint32 sampleCount) -> float
+	{
+		float maxValue = 16.0f;
+		for (uint32 sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
+		{
+			if (values[sampleIndex] > maxValue)
+			{
+				maxValue = values[sampleIndex];
+			}
+		}
+
+		return maxValue;
+	};
+
+	const PerformanceHistoryView worldCpuHistoryView = { worldCpuFrameTimeHistory, historySampleCount, historyWriteIndex };
+	const PerformanceHistoryView renderCommandCpuHistoryView = { renderCommandCpuFrameTimeHistory, historySampleCount, historyWriteIndex };
+	const PerformanceHistoryView gpuHistoryView = { gpuFrameTimeHistory, historySampleCount, historyWriteIndex };
+	const int32 plotSampleCount = static_cast<int32>(historySampleCount);
+	const float graphHeight = 72.0f * (owner.currentUiScale > 0.0f ? owner.currentUiScale : 1.0f);
+
+	ImGui::Text("World CPU: %.2f ms", framePerformanceMetrics.worldCpuFrameTimeMilliseconds);
+	ImGui::PlotLines(
+		"##WorldCpuFrameTime",
+		getHistoryValue,
+		const_cast<PerformanceHistoryView*>(addressof(worldCpuHistoryView)),
+		plotSampleCount,
+		0,
+		"World CPU Frame Time",
+		0.0f,
+		getHistoryMaxValue(worldCpuFrameTimeHistory, historySampleCount),
+		ImVec2(0.0f, graphHeight));
+
+	ImGui::Text("Render Command CPU: %.2f ms", framePerformanceMetrics.renderCommandCpuFrameTimeMilliseconds);
+	ImGui::PlotLines(
+		"##RenderCommandCpuFrameTime",
+		getHistoryValue,
+		const_cast<PerformanceHistoryView*>(addressof(renderCommandCpuHistoryView)),
+		plotSampleCount,
+		0,
+		"Render Command CPU Frame Time",
+		0.0f,
+		getHistoryMaxValue(renderCommandCpuFrameTimeHistory, historySampleCount),
+		ImVec2(0.0f, graphHeight));
+
+	ImGui::Text("GPU: %.2f ms", framePerformanceMetrics.gpuFrameTimeMilliseconds);
+	ImGui::PlotLines(
+		"##GpuFrameTime",
+		getHistoryValue,
+		const_cast<PerformanceHistoryView*>(addressof(gpuHistoryView)),
+		plotSampleCount,
+		0,
+		"GPU Frame Time",
+		0.0f,
+		getHistoryMaxValue(gpuFrameTimeHistory, historySampleCount),
+		ImVec2(0.0f, graphHeight));
 
 	ImGui::End();
 }
