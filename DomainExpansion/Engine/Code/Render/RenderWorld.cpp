@@ -11,80 +11,7 @@
 #include "Render/RenderCommand.h"
 #include "Render/Renderer.h"
 
-#include <cmath>
-
-static float computeRenderWorldFractionalPart(const float value)
-{
-	return value - floorf(value);
-}
-
-static void convertRenderWorldHSVToRGB(
-	const float hue,
-	const float saturation,
-	const float value,
-	float& outRed,
-	float& outGreen,
-	float& outBlue)
-{
-	const float wrappedHue = computeRenderWorldFractionalPart(hue) * 6.0f;
-	const int32 hueSector = static_cast<int32>(wrappedHue);
-	const float hueFraction = wrappedHue - static_cast<float>(hueSector);
-	const float p = value * (1.0f - saturation);
-	const float q = value * (1.0f - (saturation * hueFraction));
-	const float t = value * (1.0f - (saturation * (1.0f - hueFraction)));
-
-	switch (hueSector % 6)
-	{
-	case 0:
-		outRed = value;
-		outGreen = t;
-		outBlue = p;
-		return;
-	case 1:
-		outRed = q;
-		outGreen = value;
-		outBlue = p;
-		return;
-	case 2:
-		outRed = p;
-		outGreen = value;
-		outBlue = t;
-		return;
-	case 3:
-		outRed = p;
-		outGreen = q;
-		outBlue = value;
-		return;
-	case 4:
-		outRed = t;
-		outGreen = p;
-		outBlue = value;
-		return;
-	default:
-		outRed = value;
-		outGreen = p;
-		outBlue = q;
-		return;
-	}
-}
-
-static void buildRenderWorldSectionDebugColor(
-	const uint32 meshDrawDataIndex,
-	const uint32 sectionIndex,
-	float outColor[4])
-{
-	const uint32 meshSeed = (meshDrawDataIndex + 1u) * 0x9E3779B9u;
-	const uint32 sectionSeed = (sectionIndex + 1u) * 0x85EBCA6Bu;
-	const uint32 combinedSeed = meshSeed ^ sectionSeed ^ 0xC2B2AE35u;
-	const float hue = computeRenderWorldFractionalPart(
-		(static_cast<float>(combinedSeed & 0xFFFFu) / 65535.0f)
-		+ (static_cast<float>(meshDrawDataIndex) * 0.173f)
-		+ (static_cast<float>(sectionIndex) * 0.327f));
-	const float saturation = 0.65f + (static_cast<float>((combinedSeed >> 8) & 0xFFu) / 255.0f) * 0.25f;
-	const float value = 0.78f + (static_cast<float>((combinedSeed >> 16) & 0xFFu) / 255.0f) * 0.18f;
-	convertRenderWorldHSVToRGB(hue, saturation, value, outColor[0], outColor[1], outColor[2]);
-	outColor[3] = 1.0f;
-}
+#include "Engine/Common/Math/ScalarMath.h"
 
 class RenderCameraBuilder
 {
@@ -341,7 +268,22 @@ public:
 					continue;
 				}
 
-				buildRenderWorldSectionDebugColor(meshDrawDataIndex, sectionIndex, meshDrawCommand.baseColor);
+
+				auto TEMP_getDebugColor = [](const uint32 meshDrawDataIndex, const uint32 sectionIndex, float outColor[4])
+				{
+					const uint32 meshSeed = (meshDrawDataIndex + 1u) * 0x9E3779B9u;
+					const uint32 sectionSeed = (sectionIndex + 1u) * 0x85EBCA6Bu;
+					const uint32 combinedSeed = meshSeed ^ sectionSeed ^ 0xC2B2AE35u;
+					const float hue = fraction((static_cast<float>(combinedSeed & 0xFFFFu) / 65535.0f)
+						+ (static_cast<float>(meshDrawDataIndex) * 0.173f)
+						+ (static_cast<float>(sectionIndex) * 0.327f));
+					const float saturation = 0.65f + (static_cast<float>((combinedSeed >> 8) & 0xFFu) / 255.0f) * 0.25f;
+					const float value = 0.78f + (static_cast<float>((combinedSeed >> 16) & 0xFFu) / 255.0f) * 0.18f;
+					HSVToRGB(hue, saturation, value, outColor[0], outColor[1], outColor[2]);
+					outColor[3] = 1.0f;
+				};
+
+				TEMP_getDebugColor(meshDrawDataIndex, sectionIndex, meshDrawCommand.baseColor);
 				meshDrawCommand.indexCount = sectionRange.indexCount;
 				meshDrawCommand.startIndexLocation = sectionRange.startIndex;
 				drawPrepareResult.meshDrawCommands.push_back(moveValue(meshDrawCommand));
