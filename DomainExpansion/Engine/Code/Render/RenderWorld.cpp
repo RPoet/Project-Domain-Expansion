@@ -613,9 +613,9 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 			renderBackendReference.queueCommandList(commandList);
 			renderBackendReference.executeQueuedCommandLists();
+			swapChain->present();
 			lastSubmittedFrameSyncValue = syncObject->signal();
 			assert(lastSubmittedFrameSyncValue != 0 && "[RenderWorld][Assert] reason=frame_sync_signal_failed");
-			swapChain->present();
 		});
 	}
 
