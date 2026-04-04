@@ -21,11 +21,14 @@ public:
 	bool hasLoadedMeshAsset() const;
 	uint32 getMeshSectionCount() const;
 	const vector<string>& getMaterialAssetPaths() const;
-	shared_pointer<MaterialAsset> getMaterialAsset(uint32 sectionIndex) const;
+	int32 getMaterialSlotIndexForSection(uint32 sectionIndex) const;
+	shared_pointer<MaterialAsset> getMaterialAsset(uint32 materialSlotIndex) const;
+	shared_pointer<MaterialAsset> getSectionMaterialAsset(uint32 sectionIndex) const;
 	void setMeshAssetPath(const string& inMeshAssetPath);
 	void setLODLevel(uint32 inLODLevel);
 	void setVisible(bool inVisible);
-	void setMaterialAssetPath(uint32 sectionIndex, const string& materialAssetPath);
+	void setMaterialAssetPath(uint32 materialSlotIndex, const string& materialAssetPath);
+	void setSectionMaterialAssetPath(uint32 sectionIndex, const string& materialAssetPath);
 	void setMaterialAssetPaths(const vector<string>& inMaterialAssetPaths);
 	void requestMeshStreaming();
 	BridgeHandle getMeshHandle() const;

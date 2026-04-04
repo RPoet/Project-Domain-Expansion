@@ -48,9 +48,34 @@ const vector<string>& MeshComponent::getMaterialAssetPaths() const
 	return materialAssetPaths;
 }
 
-shared_pointer<MaterialAsset> MeshComponent::getMaterialAsset(const uint32 sectionIndex) const
+int32 MeshComponent::getMaterialSlotIndexForSection(const uint32 sectionIndex) const
 {
-	return sectionIndex < materialAssets.size() ? materialAssets[sectionIndex] : nullptr;
+	if (meshAsset == nullptr || lodLevel >= meshAsset->getLODCount())
+	{
+		return static_cast<int32>(sectionIndex);
+	}
+
+	const vector<uint16>& sectionMaterialSlotIndices = meshAsset->getSectionMaterialSlotIndices(lodLevel);
+	if (sectionIndex >= static_cast<uint32>(sectionMaterialSlotIndices.size()))
+	{
+		return static_cast<int32>(sectionIndex);
+	}
+
+	const uint16 materialSlotIndex = sectionMaterialSlotIndices[sectionIndex];
+	return materialSlotIndex != RawMeshData::invalidMaterialSlotIndex
+		? static_cast<int32>(materialSlotIndex)
+		: -1;
+}
+
+shared_pointer<MaterialAsset> MeshComponent::getMaterialAsset(const uint32 materialSlotIndex) const
+{
+	return materialSlotIndex < materialAssets.size() ? materialAssets[materialSlotIndex] : nullptr;
+}
+
+shared_pointer<MaterialAsset> MeshComponent::getSectionMaterialAsset(const uint32 sectionIndex) const
+{
+	const int32 materialSlotIndex = getMaterialSlotIndexForSection(sectionIndex);
+	return materialSlotIndex >= 0 ? getMaterialAsset(static_cast<uint32>(materialSlotIndex)) : nullptr;
 }
 
 void MeshComponent::setMeshAssetPath(const string& inMeshAssetPath)
@@ -78,17 +103,28 @@ void MeshComponent::setVisible(const bool inVisible)
 	visible = inVisible;
 }
 
-void MeshComponent::setMaterialAssetPath(const uint32 sectionIndex, const string& materialAssetPath)
+void MeshComponent::setMaterialAssetPath(const uint32 materialSlotIndex, const string& materialAssetPath)
 {
-	if (materialAssetPaths.size() <= sectionIndex)
+	if (materialAssetPaths.size() <= materialSlotIndex)
 	{
-		materialAssetPaths.resize(sectionIndex + 1);
-		materialAssets.resize(sectionIndex + 1);
+		materialAssetPaths.resize(materialSlotIndex + 1);
+		materialAssets.resize(materialSlotIndex + 1);
 	}
 
-	materialAssetPaths[sectionIndex] = materialAssetPath;
-	materialAssets[sectionIndex] =
+	materialAssetPaths[materialSlotIndex] = materialAssetPath;
+	materialAssets[materialSlotIndex] =
 		materialAssetPath.empty() ? nullptr : AssetLoader::get().loadSharedAsset<MaterialAsset>(materialAssetPath);
+}
+
+void MeshComponent::setSectionMaterialAssetPath(const uint32 sectionIndex, const string& materialAssetPath)
+{
+	const int32 materialSlotIndex = getMaterialSlotIndexForSection(sectionIndex);
+	if (materialSlotIndex < 0)
+	{
+		return;
+	}
+
+	setMaterialAssetPath(static_cast<uint32>(materialSlotIndex), materialAssetPath);
 }
 
 void MeshComponent::setMaterialAssetPaths(const vector<string>& inMaterialAssetPaths)
@@ -181,14 +217,34 @@ void MeshComponent::generateMeshBridgeHandle()
 	assert(entityHandle != invalidBridgeHandle);
 	refreshMaterialBridgeHandles();
 
+	uint32 requiredMaterialSlotCount = static_cast<uint32>(materialHandleReferences.size());
+	if (lodLevel < meshAsset->getLODCount())
+	{
+		const vector<uint16>& sectionMaterialSlotIndices = meshAsset->getSectionMaterialSlotIndices(lodLevel);
+		for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionMaterialSlotIndices.size()); ++sectionIndex)
+		{
+			const uint16 materialSlotIndex = sectionMaterialSlotIndices[sectionIndex];
+			if (materialSlotIndex == RawMeshData::invalidMaterialSlotIndex)
+			{
+				continue;
+			}
+
+			const uint32 nextMaterialSlotCount = static_cast<uint32>(materialSlotIndex) + 1;
+			if (requiredMaterialSlotCount < nextMaterialSlotCount)
+			{
+				requiredMaterialSlotCount = nextMaterialSlotCount;
+			}
+		}
+	}
+
 	vector<BridgeHandle> materialHandles = {};
-	materialHandles.reserve(materialHandleReferences.size());
+	materialHandles.resize(requiredMaterialSlotCount, invalidBridgeHandle);
 	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialHandleReferences.size()); ++materialIndex)
 	{
 		const MaterialBridge::HandleReference& materialHandleReference = materialHandleReferences[materialIndex];
-		materialHandles.push_back(materialHandleReference.isValid()
+		materialHandles[materialIndex] = materialHandleReference.isValid()
 			? materialHandleReference.getPackedHandle()
-			: invalidBridgeHandle);
+			: invalidBridgeHandle;
 	}
 
 	if (meshAssetHandle == nullptr || meshAssetHandle->meshAsset != meshAsset || meshAssetHandle->lodLevel != lodLevel)

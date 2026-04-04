@@ -7,6 +7,8 @@ using TexcoordData = float2;
 
 struct RawMeshData
 {
+	static constexpr uint16 invalidMaterialSlotIndex = static_cast<uint16>((std::numeric_limits<uint16>::max)());
+
 	struct MeshSectionRange
 	{
 		uint32 startIndex = 0;
@@ -18,6 +20,7 @@ struct RawMeshData
 	vector<TexcoordData> texcoordVertices = {};
 	vector<uint32> indices = {};
 	vector<MeshSectionRange> sectionRanges = {};
+	vector<uint16> sectionMaterialSlotIndices = {};
 
 	void empty();
 	void serialize(OutputFileStream& fileStream) const;
@@ -29,7 +32,7 @@ class MeshAsset : public Asset
 {
 public:
 	DECLARE_ASSET(MeshAsset);
-	constexpr static uint32 version = 3;
+	constexpr static uint32 version = 5;
 
 	MeshAsset()
 		: Asset(true)
@@ -46,7 +49,9 @@ public:
 	const RawMeshData& getRawMeshData(const uint32 lodLevel = 0) const;
 	vector<RawMeshData::MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0);
 	const vector<RawMeshData::MeshSectionRange>& getSectionRanges(const uint32 lodLevel = 0) const;
-	void addSectionRange(uint32 lodLevel, uint32 startIndex, uint32 indexCount);
+	vector<uint16>& getSectionMaterialSlotIndices(const uint32 lodLevel = 0);
+	const vector<uint16>& getSectionMaterialSlotIndices(const uint32 lodLevel = 0) const;
+	void addSectionRange(uint32 lodLevel, uint32 startIndex, uint32 indexCount, uint16 materialSlotIndex = RawMeshData::invalidMaterialSlotIndex);
 	void ensureSectionRanges();
 	uint32 getVertexCount(const uint32 lodLevel = 0) const;
 	uint32 getIndexCount(const uint32 lodLevel = 0) const;

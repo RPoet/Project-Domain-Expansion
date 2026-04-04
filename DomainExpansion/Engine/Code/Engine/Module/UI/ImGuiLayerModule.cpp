@@ -1875,19 +1875,29 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 		for (uint32 sectionOffset = 0; sectionOffset < sectionIterationCount; ++sectionOffset)
 		{
 			const uint32 sectionIndex = firstSectionIndex + sectionOffset;
+			const int32 materialSlotIndex = meshComponent->getMaterialSlotIndexForSection(sectionIndex);
 			const vector<string>& currentMaterialAssetPaths = meshComponent->getMaterialAssetPaths();
 			const string currentMaterialAssetPath =
-				sectionIndex < static_cast<uint32>(currentMaterialAssetPaths.size())
-					? currentMaterialAssetPaths[sectionIndex]
+				materialSlotIndex >= 0 && static_cast<uint32>(materialSlotIndex) < static_cast<uint32>(currentMaterialAssetPaths.size())
+					? currentMaterialAssetPaths[static_cast<uint32>(materialSlotIndex)]
 					: "";
-			shared_pointer<MaterialAsset> materialAsset = meshComponent->getMaterialAsset(sectionIndex);
+			shared_pointer<MaterialAsset> materialAsset = meshComponent->getSectionMaterialAsset(sectionIndex);
 
 			ImGui::PushID(static_cast<int32>(sectionIndex));
 			const ImGuiTreeNodeFlags sectionTreeNodeFlags = sectionCount <= 8
 				? ImGuiTreeNodeFlags_DefaultOpen
 				: ImGuiTreeNodeFlags_None;
-			if (ImGui::TreeNodeEx("SectionMaterial", sectionTreeNodeFlags, "Section %u", sectionIndex))
+			if (ImGui::TreeNodeEx(
+				"SectionMaterial",
+				sectionTreeNodeFlags,
+				materialSlotIndex >= 0 ? "Section %u (Slot %d)" : "Section %u",
+				sectionIndex,
+				materialSlotIndex))
 			{
+				if (materialSlotIndex >= 0)
+				{
+					ImGui::Text("Material Slot: %d", materialSlotIndex);
+				}
 				ImGui::Text("Material Asset: %s", currentMaterialAssetPath.empty() ? "(none)" : currentMaterialAssetPath.c_str());
 				if (ImGui::Button("Select Material Asset"))
 				{
@@ -1898,7 +1908,7 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 				ImGui::BeginDisabled(currentMaterialAssetPath.empty());
 				if (ImGui::Button("Clear Material Asset"))
 				{
-					meshComponent->setMaterialAssetPath(sectionIndex, "");
+					meshComponent->setSectionMaterialAssetPath(sectionIndex, "");
 					meshComponentChanged = true;
 				}
 				ImGui::EndDisabled();
@@ -1933,7 +1943,7 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 								continue;
 							}
 
-							meshComponent->setMaterialAssetPath(sectionIndex, materialAssetPath);
+							meshComponent->setSectionMaterialAssetPath(sectionIndex, materialAssetPath);
 							meshComponentChanged = true;
 							ImGui::CloseCurrentPopup();
 							break;
@@ -2014,7 +2024,7 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 								{
 									materialAssetPathsLoaded = false;
 									materialAssetDirtyStateByPath[createdMaterialAssetPath] = false;
-									meshComponent->setMaterialAssetPath(sectionIndex, createdMaterialAssetPath);
+									meshComponent->setSectionMaterialAssetPath(sectionIndex, createdMaterialAssetPath);
 									meshComponentChanged = true;
 									owner.lastEditorActionStatus = "material_asset_created";
 									owner.recordEditorReplayCommandText(createCommandText);
@@ -2033,11 +2043,12 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 					ImGui::EndPopup();
 				}
 
-				materialAsset = meshComponent->getMaterialAsset(sectionIndex);
+				materialAsset = meshComponent->getSectionMaterialAsset(sectionIndex);
 				const vector<string>& updatedMaterialAssetPaths = meshComponent->getMaterialAssetPaths();
+				const int32 updatedMaterialSlotIndex = meshComponent->getMaterialSlotIndexForSection(sectionIndex);
 				const string updatedMaterialAssetPath =
-					sectionIndex < static_cast<uint32>(updatedMaterialAssetPaths.size())
-						? updatedMaterialAssetPaths[sectionIndex]
+					updatedMaterialSlotIndex >= 0 && static_cast<uint32>(updatedMaterialSlotIndex) < static_cast<uint32>(updatedMaterialAssetPaths.size())
+						? updatedMaterialAssetPaths[static_cast<uint32>(updatedMaterialSlotIndex)]
 						: "";
 				if (materialAsset == nullptr)
 				{

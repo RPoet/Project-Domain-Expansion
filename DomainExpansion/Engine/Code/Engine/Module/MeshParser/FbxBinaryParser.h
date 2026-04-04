@@ -21,6 +21,13 @@ struct FbxLayerElementFloat2
 	vector<int32> indices = {};
 };
 
+struct FbxLayerElementMaterial
+{
+	string mappingInformationType = {};
+	string referenceInformationType = {};
+	vector<int32> materialIndices = {};
+};
+
 struct FbxGeometryData
 {
 	string name = {};
@@ -28,6 +35,7 @@ struct FbxGeometryData
 	vector<int32> polygonVertexIndices = {};
 	FbxLayerElementFloat3 normals = {};
 	vector<FbxLayerElementFloat2> uvLayers = {};
+	FbxLayerElementMaterial materials = {};
 };
 
 struct FbxModelData
@@ -40,11 +48,29 @@ struct FbxModelData
 	FbxObjectIdentifier parentModelIdentifier = 0;
 };
 
+struct FbxMaterialData
+{
+	string name = {};
+	string materialType = {};
+};
+
+struct FbxConnectionData
+{
+	string connectionType = {};
+	FbxObjectIdentifier childIdentifier = 0;
+	FbxObjectIdentifier parentIdentifier = 0;
+	string propertyName = {};
+};
+
 struct FbxSceneData
 {
 	unordered_map<FbxObjectIdentifier, FbxGeometryData> geometryByIdentifier = {};
 	unordered_map<FbxObjectIdentifier, FbxModelData> modelByIdentifier = {};
+	unordered_map<FbxObjectIdentifier, FbxMaterialData> materialByIdentifier = {};
+	vector<FbxConnectionData> connections = {};
 	unordered_map<FbxObjectIdentifier, vector<FbxObjectIdentifier>> geometryToModelIdentifiers = {};
+	unordered_map<FbxObjectIdentifier, vector<FbxObjectIdentifier>> modelToGeometryIdentifiers = {};
+	unordered_map<FbxObjectIdentifier, vector<FbxObjectIdentifier>> modelToMaterialIdentifiers = {};
 };
 
 bool parseFbxSceneData(

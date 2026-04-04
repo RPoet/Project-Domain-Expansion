@@ -215,11 +215,13 @@ public:
 			}
 
 			const vector<RawMeshData::MeshSectionRange>& sectionRanges = meshAssetHandle->meshAsset->getSectionRanges(lodLevel);
+			const vector<uint16>& sectionMaterialSlotIndices = meshAssetHandle->meshAsset->getSectionMaterialSlotIndices(lodLevel);
 			if (sectionRanges.empty())
 			{
 				assert(false && "[RenderWorld][Assert] reason=mesh_section_ranges_missing");
 				continue;
 			}
+			assert(sectionMaterialSlotIndices.size() == sectionRanges.size() && "[RenderWorld][Assert] reason=mesh_section_material_slot_count_mismatch");
 
 			for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionRanges.size()); ++sectionIndex)
 			{
@@ -231,7 +233,10 @@ public:
 				}
 
 				RenderWorldMeshDrawCommand meshDrawCommand = baseMeshDrawCommand;
-				const BridgeHandle materialHandle = sectionIndex < meshDrawData.materialHandles.size() ? meshDrawData.materialHandles[sectionIndex] : invalidBridgeHandle;
+				const uint16 materialSlotIndex = sectionMaterialSlotIndices[sectionIndex];
+				assert(materialSlotIndex != RawMeshData::invalidMaterialSlotIndex && "[RenderWorld][Assert] reason=mesh_section_material_slot_invalid");
+				assert(static_cast<uint32>(materialSlotIndex) < meshDrawData.materialHandles.size() && "[RenderWorld][Assert] reason=mesh_section_material_handle_missing");
+				const BridgeHandle materialHandle = meshDrawData.materialHandles[static_cast<uint32>(materialSlotIndex)];
 				if (materialHandle != invalidBridgeHandle)
 				{
 					const MaterialBridge::StaticData* materialStaticData = MaterialBridge::get().getStaticData(materialHandle);

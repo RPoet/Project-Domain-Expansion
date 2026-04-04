@@ -9,18 +9,21 @@ void RawMeshData::empty()
 	texcoordVertices.clear();
 	indices.clear();
 	sectionRanges.clear();
+	sectionMaterialSlotIndices.clear();
 }
 
 void RawMeshData::serialize(OutputFileStream& fileStream) const
 {
 	assert(isValid() && "[MeshAsset][Assert] reason=raw_mesh_data_invalid");
-	const bool validSectionRanges = !sectionRanges.empty() || indices.empty();
+	const bool validSectionRanges = sectionRanges.size() == sectionMaterialSlotIndices.size()
+		&& (!sectionRanges.empty() || indices.empty());
 	assert(validSectionRanges && "[MeshAsset][Assert] reason=raw_mesh_section_ranges_invalid");
 	fileStream << positionVertices;
 	fileStream << normalVertices;
 	fileStream << texcoordVertices;
 	fileStream << indices;
 	fileStream << sectionRanges;
+	fileStream << sectionMaterialSlotIndices;
 }
 
 void RawMeshData::deserialize(InputFileStream& fileStream)
@@ -31,12 +34,15 @@ void RawMeshData::deserialize(InputFileStream& fileStream)
 	fileStream >> texcoordVertices;
 	fileStream >> indices;
 	fileStream >> sectionRanges;
+	fileStream >> sectionMaterialSlotIndices;
 	assert(isValid() && "[MeshAsset][Assert] reason=raw_mesh_data_invalid");
 }
 
 bool RawMeshData::isValid() const
 {
-	return positionVertices.size() == normalVertices.size() && positionVertices.size() == texcoordVertices.size();
+	return positionVertices.size() == normalVertices.size()
+		&& positionVertices.size() == texcoordVertices.size()
+		&& sectionRanges.size() == sectionMaterialSlotIndices.size();
 }
 
 void MeshAsset::empty()
@@ -94,7 +100,20 @@ const vector<RawMeshData::MeshSectionRange>& MeshAsset::getSectionRanges(const u
 	return meshes[lodLevel].sectionRanges;
 }
 
-void MeshAsset::addSectionRange(const uint32 lodLevel, const uint32 startIndex, const uint32 indexCount)
+vector<uint16>& MeshAsset::getSectionMaterialSlotIndices(const uint32 lodLevel)
+{
+	ensureLODCount(lodLevel + 1);
+	return meshes[lodLevel].sectionMaterialSlotIndices;
+}
+
+const vector<uint16>& MeshAsset::getSectionMaterialSlotIndices(const uint32 lodLevel) const
+{
+	const bool validLODIndex = lodLevel < meshes.size();
+	assert(validLODIndex && "[MeshAsset][Assert] reason=section_material_slot_lod_index_out_of_range");
+	return meshes[lodLevel].sectionMaterialSlotIndices;
+}
+
+void MeshAsset::addSectionRange(const uint32 lodLevel, const uint32 startIndex, const uint32 indexCount, const uint16 materialSlotIndex)
 {
 	if (indexCount == 0)
 	{
@@ -103,6 +122,7 @@ void MeshAsset::addSectionRange(const uint32 lodLevel, const uint32 startIndex, 
 
 	ensureLODCount(lodLevel + 1);
 	meshes[lodLevel].sectionRanges.push_back({ startIndex, indexCount });
+	meshes[lodLevel].sectionMaterialSlotIndices.push_back(materialSlotIndex);
 }
 
 uint32 MeshAsset::getVertexCount(const uint32 lodLevel) const
@@ -120,6 +140,7 @@ void MeshAsset::ensureSectionRanges()
 	for (uint32 lodIndex = 0; lodIndex < static_cast<uint32>(meshes.size()); ++lodIndex)
 	{
 		vector<RawMeshData::MeshSectionRange>& lodSectionRanges = meshes[lodIndex].sectionRanges;
+		vector<uint16>& lodSectionMaterialSlotIndices = meshes[lodIndex].sectionMaterialSlotIndices;
 		if (!lodSectionRanges.empty())
 		{
 			continue;
@@ -132,6 +153,7 @@ void MeshAsset::ensureSectionRanges()
 		}
 
 		lodSectionRanges.push_back({ 0, indexCount });
+		lodSectionMaterialSlotIndices.push_back(0);
 	}
 }
 

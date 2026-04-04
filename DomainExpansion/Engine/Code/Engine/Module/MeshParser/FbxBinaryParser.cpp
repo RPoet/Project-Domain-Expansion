@@ -514,6 +514,50 @@ static bool parseFbxLayerElementUV(
 	return true;
 }
 
+static bool parseFbxLayerElementMaterial(
+	const vector<char>& binaryData,
+	const uint32 fbxVersion,
+	const FbxNode& layerElementNode,
+	FbxLayerElementMaterial& outMaterials)
+{
+	outMaterials = {};
+
+	size_t readOffset = layerElementNode.contentOffset;
+	while (readOffset < static_cast<size_t>(layerElementNode.endOffset))
+	{
+		FbxNode childNode = {};
+		if (!parseFbxNode(binaryData, fbxVersion, readOffset, childNode))
+		{
+			return false;
+		}
+
+		if (childNode.nullNode)
+		{
+			break;
+		}
+
+		if (childNode.name == "MappingInformationType" && childNode.properties.size() == 1)
+		{
+			outMaterials.mappingInformationType = childNode.properties[0].stringValue;
+		}
+		else if (childNode.name == "ReferenceInformationType" && childNode.properties.size() == 1)
+		{
+			outMaterials.referenceInformationType = childNode.properties[0].stringValue;
+		}
+		else if (childNode.name == "Materials" && childNode.properties.size() == 1)
+		{
+			if (!copyFbxBinaryArrayToVector(childNode.properties[0], 'i', outMaterials.materialIndices))
+			{
+				return false;
+			}
+		}
+
+		readOffset = static_cast<size_t>(childNode.endOffset);
+	}
+
+	return true;
+}
+
 static bool parseFbxGeometryNode(
 	const vector<char>& binaryData,
 	const uint32 fbxVersion,
@@ -581,6 +625,13 @@ static bool parseFbxGeometryNode(
 			}
 
 			outGeometryData.uvLayers.push_back(moveValue(texcoordLayer));
+		}
+		else if (childNode.name == "LayerElementMaterial")
+		{
+			if (!parseFbxLayerElementMaterial(binaryData, fbxVersion, childNode, outGeometryData.materials))
+			{
+				return false;
+			}
 		}
 
 		readOffset = static_cast<size_t>(childNode.endOffset);
@@ -685,6 +736,29 @@ static bool parseFbxModelNode(
 	return true;
 }
 
+static bool parseFbxMaterialNode(
+	const FbxNode& materialNode,
+	FbxMaterialData& outMaterialData,
+	FbxObjectIdentifier& outMaterialIdentifier)
+{
+	outMaterialData = {};
+	outMaterialIdentifier = 0;
+
+	const bool validMaterialProperties = materialNode.properties.size() >= 3
+		&& materialNode.properties[0].type == 'L'
+		&& materialNode.properties[1].type == 'S'
+		&& materialNode.properties[2].type == 'S';
+	if (!validMaterialProperties)
+	{
+		return false;
+	}
+
+	outMaterialIdentifier = materialNode.properties[0].integerValue;
+	outMaterialData.name = sanitizeFbxText(materialNode.properties[1].stringValue);
+	outMaterialData.materialType = sanitizeFbxText(materialNode.properties[2].stringValue);
+	return true;
+}
+
 static bool parseFbxObjectsNode(
 	const vector<char>& binaryData,
 	const uint32 fbxVersion,
@@ -725,6 +799,17 @@ static bool parseFbxObjectsNode(
 
 			outSceneData.modelByIdentifier[modelIdentifier] = moveValue(modelData);
 		}
+		else if (childNode.name == "Material")
+		{
+			FbxMaterialData materialData = {};
+			FbxObjectIdentifier materialIdentifier = 0;
+			if (!parseFbxMaterialNode(childNode, materialData, materialIdentifier))
+			{
+				return false;
+			}
+
+			outSceneData.materialByIdentifier[materialIdentifier] = moveValue(materialData);
+		}
 
 		readOffset = static_cast<size_t>(childNode.endOffset);
 	}
@@ -756,23 +841,44 @@ static bool parseFbxConnectionsNode(
 			&& childNode.properties.size() >= 3
 			&& childNode.properties[0].type == 'S'
 			&& childNode.properties[1].type == 'L'
-			&& childNode.properties[2].type == 'L'
-			&& childNode.properties[0].stringValue == "OO";
+			&& childNode.properties[2].type == 'L';
 		if (validConnectionNode)
 		{
+			const string connectionType = sanitizeFbxText(childNode.properties[0].stringValue);
 			const FbxObjectIdentifier childIdentifier = childNode.properties[1].integerValue;
 			const FbxObjectIdentifier parentIdentifier = childNode.properties[2].integerValue;
-
-			auto foundGeometry = outSceneData.geometryByIdentifier.find(childIdentifier);
-			if (foundGeometry != outSceneData.geometryByIdentifier.end())
+			FbxConnectionData connectionData = {
+				.connectionType = connectionType,
+				.childIdentifier = childIdentifier,
+				.parentIdentifier = parentIdentifier,
+			};
+			if (connectionType == "OP" && childNode.properties.size() >= 4 && childNode.properties[3].type == 'S')
 			{
-				outSceneData.geometryToModelIdentifiers[childIdentifier].push_back(parentIdentifier);
+				connectionData.propertyName = sanitizeFbxText(childNode.properties[3].stringValue);
 			}
 
-			auto foundModel = outSceneData.modelByIdentifier.find(childIdentifier);
-			if (foundModel != outSceneData.modelByIdentifier.end())
+			outSceneData.connections.push_back(moveValue(connectionData));
+
+			if (connectionType == "OO")
 			{
-				foundModel->second.parentModelIdentifier = parentIdentifier;
+				auto foundGeometry = outSceneData.geometryByIdentifier.find(childIdentifier);
+				if (foundGeometry != outSceneData.geometryByIdentifier.end())
+				{
+					outSceneData.geometryToModelIdentifiers[childIdentifier].push_back(parentIdentifier);
+					outSceneData.modelToGeometryIdentifiers[parentIdentifier].push_back(childIdentifier);
+				}
+
+				auto foundModel = outSceneData.modelByIdentifier.find(childIdentifier);
+				if (foundModel != outSceneData.modelByIdentifier.end())
+				{
+					foundModel->second.parentModelIdentifier = parentIdentifier;
+				}
+
+				auto foundMaterial = outSceneData.materialByIdentifier.find(childIdentifier);
+				if (foundMaterial != outSceneData.materialByIdentifier.end())
+				{
+					outSceneData.modelToMaterialIdentifiers[parentIdentifier].push_back(childIdentifier);
+				}
 			}
 		}
 

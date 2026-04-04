@@ -34,6 +34,26 @@ struct float3x3
 	float value[9] = {};
 };
 
+struct FbxImportSectionSource
+{
+	uint32 polygonStartIndex = 0;
+	uint32 polygonCount = 0;
+	int32 materialSlotIndex = -1;
+	FbxObjectIdentifier materialIdentifier = 0;
+};
+
+struct FbxImportMeshNode
+{
+	const FbxGeometryData* geometryData = nullptr;
+	FbxObjectIdentifier geometryIdentifier = 0;
+	string geometryName = {};
+	FbxObjectIdentifier modelIdentifier = 0;
+	string modelName = {};
+	float4x4 worldMatrix = {};
+	vector<FbxObjectIdentifier> materialIdentifiers = {};
+	vector<FbxImportSectionSource> sections = {};
+};
+
 static bool failFbxMeshBuild(
 	const string& meshFilePath,
 	const string& reason,
@@ -232,10 +252,132 @@ static const FbxLayerElementFloat2* selectPrimaryFbxTexcoordLayer(const FbxGeome
 	return &geometryData.uvLayers[0];
 }
 
-static bool appendFbxGeometryToRawMeshData(
+static uint32 countFbxGeometryPolygons(const FbxGeometryData& geometryData)
+{
+	uint32 polygonCount = 0;
+	for (uint32 polygonVertexArrayIndex = 0; polygonVertexArrayIndex < static_cast<uint32>(geometryData.polygonVertexIndices.size()); ++polygonVertexArrayIndex)
+	{
+		if (geometryData.polygonVertexIndices[polygonVertexArrayIndex] < 0)
+		{
+			++polygonCount;
+		}
+	}
+
+	return polygonCount;
+}
+
+static bool resolveFbxMaterialSlotIndex(
+	const FbxLayerElementMaterial& materials,
+	const uint32 polygonIndex,
+	int32& outMaterialSlotIndex)
+{
+	outMaterialSlotIndex = 0;
+	if (materials.materialIndices.empty())
+	{
+		return true;
+	}
+
+	const string& referenceInformationType = materials.referenceInformationType;
+	if (!referenceInformationType.empty()
+		&& referenceInformationType != "IndexToDirect"
+		&& referenceInformationType != "Direct")
+	{
+		return false;
+	}
+
+	const string& mappingInformationType = materials.mappingInformationType;
+	if (mappingInformationType == "AllSame")
+	{
+		outMaterialSlotIndex = materials.materialIndices[0];
+		return true;
+	}
+
+	if (mappingInformationType == "ByPolygon")
+	{
+		if (polygonIndex >= static_cast<uint32>(materials.materialIndices.size()))
+		{
+			return false;
+		}
+
+		outMaterialSlotIndex = materials.materialIndices[polygonIndex];
+		return true;
+	}
+
+	return false;
+}
+
+static bool buildFbxImportSections(
+	const FbxGeometryData& geometryData,
+	const vector<FbxObjectIdentifier>& materialIdentifiers,
+	vector<FbxImportSectionSource>& outSections)
+{
+	outSections.clear();
+
+	const uint32 polygonCount = countFbxGeometryPolygons(geometryData);
+	if (polygonCount == 0)
+	{
+		return true;
+	}
+
+	int32 activeMaterialSlotIndex = -2;
+	FbxObjectIdentifier activeMaterialIdentifier = 0;
+	uint32 activePolygonStartIndex = 0;
+	uint32 activePolygonCount = 0;
+	for (uint32 polygonIndex = 0; polygonIndex < polygonCount; ++polygonIndex)
+	{
+		int32 materialSlotIndex = -1;
+		if (!resolveFbxMaterialSlotIndex(geometryData.materials, polygonIndex, materialSlotIndex))
+		{
+			return false;
+		}
+
+		const FbxObjectIdentifier materialIdentifier =
+			materialSlotIndex >= 0 && static_cast<uint32>(materialSlotIndex) < materialIdentifiers.size()
+				? materialIdentifiers[static_cast<uint32>(materialSlotIndex)]
+				: 0;
+		const bool continueActiveSection = materialSlotIndex == activeMaterialSlotIndex
+			&& materialIdentifier == activeMaterialIdentifier;
+		if (continueActiveSection)
+		{
+			++activePolygonCount;
+			continue;
+		}
+
+		if (activePolygonCount != 0)
+		{
+			outSections.push_back({
+				.polygonStartIndex = activePolygonStartIndex,
+				.polygonCount = activePolygonCount,
+				.materialSlotIndex = activeMaterialSlotIndex,
+				.materialIdentifier = activeMaterialIdentifier,
+			});
+		}
+
+		activePolygonStartIndex = polygonIndex;
+		activePolygonCount = 1;
+		activeMaterialSlotIndex = materialSlotIndex;
+		activeMaterialIdentifier = materialIdentifier;
+	}
+
+	if (activePolygonCount != 0)
+	{
+		outSections.push_back({
+			.polygonStartIndex = activePolygonStartIndex,
+			.polygonCount = activePolygonCount,
+			.materialSlotIndex = activeMaterialSlotIndex,
+			.materialIdentifier = activeMaterialIdentifier,
+		});
+	}
+
+	return !outSections.empty();
+}
+
+static bool appendFbxGeometryPolygonRangeToRawMeshData(
 	const FbxGeometryData& geometryData,
 	const float4x4& worldMatrix,
 	const float3x3& normalMatrix,
+	const uint32 polygonStartIndex,
+	const uint32 polygonCount,
 	RawMeshData& inOutRawMeshData)
 {
 	const uint32 controlPointCount = static_cast<uint32>(geometryData.vertices.size() / 3);
@@ -244,6 +386,7 @@ static bool appendFbxGeometryToRawMeshData(
 	const uint32 texcoordDirectValueCount = primaryTexcoordLayer != nullptr
 		? static_cast<uint32>(primaryTexcoordLayer->directValues.size() / 2)
 		: 0;
+	const uint32 polygonEndIndex = polygonStartIndex + polygonCount;
 
 	unordered_map<FbxVertexKey, uint32, FbxVertexKeyHasher> localVertexMap = {};
 	localVertexMap.reserve(geometryData.polygonVertexIndices.size());
@@ -251,9 +394,10 @@ static bool appendFbxGeometryToRawMeshData(
 	vector<uint32> faceIndices = {};
 	faceIndices.reserve(4);
 	uint32 polygonVertexIndex = 0;
-	for (uint32 polygonIndex = 0; polygonIndex < static_cast<uint32>(geometryData.polygonVertexIndices.size()); ++polygonIndex)
+	uint32 currentPolygonIndex = 0;
+	for (uint32 polygonVertexArrayIndex = 0; polygonVertexArrayIndex < static_cast<uint32>(geometryData.polygonVertexIndices.size()); ++polygonVertexArrayIndex)
 	{
-		const int32 polygonVertexControlPointValue = geometryData.polygonVertexIndices[polygonIndex];
+		const int32 polygonVertexControlPointValue = geometryData.polygonVertexIndices[polygonVertexArrayIndex];
 		const bool polygonEnds = polygonVertexControlPointValue < 0;
 		const uint32 controlPointIndex = static_cast<uint32>(polygonEnds
 			? (-polygonVertexControlPointValue) - 1
@@ -263,8 +407,10 @@ static bool appendFbxGeometryToRawMeshData(
 			return false;
 		}
 
+		const bool polygonSelected = currentPolygonIndex >= polygonStartIndex && currentPolygonIndex < polygonEndIndex;
+
 		uint32 normalIndex = uint32MaxValue;
-		if (!geometryData.normals.directValues.empty())
+		if (polygonSelected && !geometryData.normals.directValues.empty())
 		{
 			if (!resolveFbxMappedValueIndex(
 				geometryData.normals.mappingInformationType,
@@ -280,7 +426,7 @@ static bool appendFbxGeometryToRawMeshData(
 		}
 
 		uint32 texcoordIndex = uint32MaxValue;
-		if (primaryTexcoordLayer != nullptr && !primaryTexcoordLayer->directValues.empty())
+		if (polygonSelected && primaryTexcoordLayer != nullptr && !primaryTexcoordLayer->directValues.empty())
 		{
 			if (!resolveFbxMappedValueIndex(
 				primaryTexcoordLayer->mappingInformationType,
@@ -295,42 +441,45 @@ static bool appendFbxGeometryToRawMeshData(
 			}
 		}
 
-		const FbxVertexKey vertexKey = { controlPointIndex, normalIndex, texcoordIndex };
-		auto foundVertex = localVertexMap.find(vertexKey);
-		if (foundVertex == localVertexMap.end())
+		if (polygonSelected)
 		{
-			PositionData positionVertex = {};
-			positionVertex.x = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 0]);
-			positionVertex.y = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 1]);
-			positionVertex.z = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 2]);
-			positionVertex = transformFbxPosition(positionVertex, worldMatrix);
-
-			NormalData normalVertex = {};
-			if (normalIndex != uint32MaxValue)
+			const FbxVertexKey vertexKey = { controlPointIndex, normalIndex, texcoordIndex };
+			auto foundVertex = localVertexMap.find(vertexKey);
+			if (foundVertex == localVertexMap.end())
 			{
-				normalVertex.x = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 0]);
-				normalVertex.y = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 1]);
-				normalVertex.z = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 2]);
-				normalVertex = normalizeFbxVector(transformFbxVector(normalVertex, normalMatrix));
-			}
+				PositionData positionVertex = {};
+				positionVertex.x = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 0]);
+				positionVertex.y = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 1]);
+				positionVertex.z = static_cast<float>(geometryData.vertices[static_cast<size_t>(controlPointIndex) * 3 + 2]);
+				positionVertex = transformFbxPosition(positionVertex, worldMatrix);
 
-			TexcoordData texcoordVertex = {};
-			if (primaryTexcoordLayer != nullptr && texcoordIndex != uint32MaxValue)
+				NormalData normalVertex = {};
+				if (normalIndex != uint32MaxValue)
+				{
+					normalVertex.x = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 0]);
+					normalVertex.y = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 1]);
+					normalVertex.z = static_cast<float>(geometryData.normals.directValues[static_cast<size_t>(normalIndex) * 3 + 2]);
+					normalVertex = normalizeFbxVector(transformFbxVector(normalVertex, normalMatrix));
+				}
+
+				TexcoordData texcoordVertex = {};
+				if (primaryTexcoordLayer != nullptr && texcoordIndex != uint32MaxValue)
+				{
+					texcoordVertex.x = static_cast<float>(primaryTexcoordLayer->directValues[static_cast<size_t>(texcoordIndex) * 2 + 0]);
+					texcoordVertex.y = static_cast<float>(primaryTexcoordLayer->directValues[static_cast<size_t>(texcoordIndex) * 2 + 1]);
+				}
+
+				const uint32 newVertexIndex = static_cast<uint32>(inOutRawMeshData.positionVertices.size());
+				inOutRawMeshData.positionVertices.push_back(positionVertex);
+				inOutRawMeshData.normalVertices.push_back(normalVertex);
+				inOutRawMeshData.texcoordVertices.push_back(texcoordVertex);
+				localVertexMap.emplace(vertexKey, newVertexIndex);
+				faceIndices.push_back(newVertexIndex);
+			}
+			else
 			{
-				texcoordVertex.x = static_cast<float>(primaryTexcoordLayer->directValues[static_cast<size_t>(texcoordIndex) * 2 + 0]);
-				texcoordVertex.y = static_cast<float>(primaryTexcoordLayer->directValues[static_cast<size_t>(texcoordIndex) * 2 + 1]);
+				faceIndices.push_back(foundVertex->second);
 			}
-
-			const uint32 newVertexIndex = static_cast<uint32>(inOutRawMeshData.positionVertices.size());
-			inOutRawMeshData.positionVertices.push_back(positionVertex);
-			inOutRawMeshData.normalVertices.push_back(normalVertex);
-			inOutRawMeshData.texcoordVertices.push_back(texcoordVertex);
-			localVertexMap.emplace(vertexKey, newVertexIndex);
-			faceIndices.push_back(newVertexIndex);
-		}
-		else
-		{
-			faceIndices.push_back(foundVertex->second);
 		}
 
 		++polygonVertexIndex;
@@ -339,40 +488,35 @@ static bool appendFbxGeometryToRawMeshData(
 			continue;
 		}
 
-		if (faceIndices.size() < 3)
+		if (polygonSelected && faceIndices.size() < 3)
 		{
 			return false;
 		}
 
-		for (uint32 triangleIndex = 1; triangleIndex + 1 < static_cast<uint32>(faceIndices.size()); ++triangleIndex)
+		if (polygonSelected)
 		{
-			inOutRawMeshData.indices.push_back(faceIndices[0]);
-			inOutRawMeshData.indices.push_back(faceIndices[triangleIndex]);
-			inOutRawMeshData.indices.push_back(faceIndices[triangleIndex + 1]);
+			for (uint32 triangleIndex = 1; triangleIndex + 1 < static_cast<uint32>(faceIndices.size()); ++triangleIndex)
+			{
+				inOutRawMeshData.indices.push_back(faceIndices[0]);
+				inOutRawMeshData.indices.push_back(faceIndices[triangleIndex]);
+				inOutRawMeshData.indices.push_back(faceIndices[triangleIndex + 1]);
+			}
 		}
 
 		faceIndices.clear();
+		++currentPolygonIndex;
 	}
 
-	return faceIndices.empty();
+	return faceIndices.empty() && currentPolygonIndex == countFbxGeometryPolygons(geometryData);
 }
 
-bool FbxMeshParserStub::parse(
-	const string& meshFilePath,
-	const uint32 lodLevel,
-	MeshAsset& outMeshAsset,
-	string& outErrorText) const
+static bool buildFbxImportMeshNodes(
+	const FbxSceneData& sceneData,
+	vector<FbxImportMeshNode>& outMeshNodes,
+	string& outErrorText)
 {
-	outMeshAsset = {};
 	outErrorText.clear();
-	RawMeshData& rawMeshData = outMeshAsset.getRawMeshData(lodLevel);
-	rawMeshData.empty();
-
-	FbxSceneData sceneData = {};
-	if (!parseFbxSceneData(meshFilePath, sceneData, outErrorText))
-	{
-		return false;
-	}
+	outMeshNodes.clear();
 
 	unordered_map<FbxObjectIdentifier, float4x4> modelWorldMatrixByIdentifier = {};
 	auto buildModelWorldMatrix = [&](const auto& recursiveBuild, const FbxObjectIdentifier modelIdentifier, float4x4& outWorldMatrix) -> bool
@@ -408,41 +552,123 @@ bool FbxMeshParserStub::parse(
 		return true;
 	};
 
-	for (auto geometryIterator = sceneData.geometryByIdentifier.begin();
-		geometryIterator != sceneData.geometryByIdentifier.end();
-		++geometryIterator)
+	for (auto modelIterator = sceneData.modelToGeometryIdentifiers.begin();
+		modelIterator != sceneData.modelToGeometryIdentifiers.end();
+		++modelIterator)
 	{
-		const FbxObjectIdentifier geometryIdentifier = geometryIterator->first;
-		const FbxGeometryData& geometryData = geometryIterator->second;
-		auto foundModelIdentifiers = sceneData.geometryToModelIdentifiers.find(geometryIdentifier);
-		if (foundModelIdentifiers == sceneData.geometryToModelIdentifiers.end())
+		const FbxObjectIdentifier modelIdentifier = modelIterator->first;
+		auto foundModel = sceneData.modelByIdentifier.find(modelIdentifier);
+		if (foundModel == sceneData.modelByIdentifier.end())
 		{
 			continue;
 		}
 
-		for (uint32 modelIndex = 0; modelIndex < static_cast<uint32>(foundModelIdentifiers->second.size()); ++modelIndex)
+		float4x4 worldMatrix = {};
+		if (!buildModelWorldMatrix(buildModelWorldMatrix, modelIdentifier, worldMatrix))
 		{
-			const FbxObjectIdentifier modelIdentifier = foundModelIdentifiers->second[modelIndex];
-			float4x4 worldMatrix = {};
-			if (!buildModelWorldMatrix(buildModelWorldMatrix, modelIdentifier, worldMatrix))
+			continue;
+		}
+
+		const auto foundModelMaterials = sceneData.modelToMaterialIdentifiers.find(modelIdentifier);
+		const vector<FbxObjectIdentifier>& modelMaterialIdentifiers =
+			foundModelMaterials != sceneData.modelToMaterialIdentifiers.end()
+				? foundModelMaterials->second
+				: vector<FbxObjectIdentifier>();
+		for (uint32 geometryIndex = 0; geometryIndex < static_cast<uint32>(modelIterator->second.size()); ++geometryIndex)
+		{
+			const FbxObjectIdentifier geometryIdentifier = modelIterator->second[geometryIndex];
+			auto foundGeometry = sceneData.geometryByIdentifier.find(geometryIdentifier);
+			if (foundGeometry == sceneData.geometryByIdentifier.end())
 			{
 				continue;
 			}
 
-			float3x3 normalMatrix = {};
-			if (!buildInverseTranspose3x3(worldMatrix, normalMatrix))
+			FbxImportMeshNode meshNode = {
+				.geometryData = &foundGeometry->second,
+				.geometryIdentifier = geometryIdentifier,
+				.geometryName = foundGeometry->second.name,
+				.modelIdentifier = modelIdentifier,
+				.modelName = foundModel->second.name,
+				.worldMatrix = worldMatrix,
+				.materialIdentifiers = modelMaterialIdentifiers,
+			};
+			if (!buildFbxImportSections(foundGeometry->second, meshNode.materialIdentifiers, meshNode.sections))
 			{
-				buildFallbackNormalMatrix(worldMatrix, normalMatrix);
+				outErrorText = "fbx_material_section_mapping_invalid";
+				return false;
 			}
 
+			outMeshNodes.push_back(moveValue(meshNode));
+		}
+	}
+
+	return true;
+}
+
+bool FbxMeshParserStub::parse(
+	const string& meshFilePath,
+	const uint32 lodLevel,
+	MeshAsset& outMeshAsset,
+	string& outErrorText) const
+{
+	outMeshAsset = {};
+	outErrorText.clear();
+	RawMeshData& rawMeshData = outMeshAsset.getRawMeshData(lodLevel);
+	rawMeshData.empty();
+
+	FbxSceneData sceneData = {};
+	if (!parseFbxSceneData(meshFilePath, sceneData, outErrorText))
+	{
+		return false;
+	}
+
+	vector<FbxImportMeshNode> meshNodes = {};
+	if (!buildFbxImportMeshNodes(sceneData, meshNodes, outErrorText))
+	{
+		return false;
+	}
+
+	for (uint32 meshNodeIndex = 0; meshNodeIndex < static_cast<uint32>(meshNodes.size()); ++meshNodeIndex)
+	{
+		const FbxImportMeshNode& meshNode = meshNodes[meshNodeIndex];
+		if (meshNode.geometryData == nullptr)
+		{
+			continue;
+		}
+
+		float3x3 normalMatrix = {};
+		if (!buildInverseTranspose3x3(meshNode.worldMatrix, normalMatrix))
+		{
+			buildFallbackNormalMatrix(meshNode.worldMatrix, normalMatrix);
+		}
+
+		for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(meshNode.sections.size()); ++sectionIndex)
+		{
+			const FbxImportSectionSource& section = meshNode.sections[sectionIndex];
 			const uint32 sectionStartIndex = static_cast<uint32>(rawMeshData.indices.size());
-			if (!appendFbxGeometryToRawMeshData(geometryData, worldMatrix, normalMatrix, rawMeshData))
+			if (!appendFbxGeometryPolygonRangeToRawMeshData(
+				*meshNode.geometryData,
+				meshNode.worldMatrix,
+				normalMatrix,
+				section.polygonStartIndex,
+				section.polygonCount,
+				rawMeshData))
 			{
 				continue;
 			}
 
 			const uint32 sectionIndexCount = static_cast<uint32>(rawMeshData.indices.size()) - sectionStartIndex;
-			outMeshAsset.addSectionRange(lodLevel, sectionStartIndex, sectionIndexCount);
+			if (sectionIndexCount != 0)
+			{
+				uint16 materialSlotIndex = RawMeshData::invalidMaterialSlotIndex;
+				if (section.materialSlotIndex >= 0)
+				{
+					assert(static_cast<uint32>(section.materialSlotIndex) < static_cast<uint32>(RawMeshData::invalidMaterialSlotIndex) && "[FbxMeshParserStub][Assert] reason=material_slot_index_out_of_range");
+					materialSlotIndex = static_cast<uint16>(section.materialSlotIndex);
+				}
+
+				outMeshAsset.addSectionRange(lodLevel, sectionStartIndex, sectionIndexCount, materialSlotIndex);
+			}
 		}
 	}
 
