@@ -2,6 +2,6 @@
   <guid></guid>
   <name>BistroInterior</name>
   <hasBinary>1</hasBinary>
-  <version>3</version>
-  <source>Meshes/Bistro/BistroInterior.fbx</source>
+  <version>5</version>
+  <source>Meshes\Bistro\BistroInterior.fbx</source>
 </deasset>

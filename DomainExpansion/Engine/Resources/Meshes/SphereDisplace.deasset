@@ -2,6 +2,6 @@
   <guid></guid>
   <name>SphereDisplace</name>
   <hasBinary>1</hasBinary>
-  <version>3</version>
-  <source>Meshes/SphereDisplace.obj</source>
+  <version>5</version>
+  <source>Meshes\SphereDisplace.obj</source>
 </deasset>

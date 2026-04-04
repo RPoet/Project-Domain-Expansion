@@ -2,6 +2,6 @@
   <guid></guid>
   <name>SphereHigh</name>
   <hasBinary>1</hasBinary>
-  <version>3</version>
-  <source>Meshes/SphereHigh.obj</source>
+  <version>5</version>
+  <source>Meshes\SphereHigh.obj</source>
 </deasset>
