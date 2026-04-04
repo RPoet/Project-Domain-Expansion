@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <memory_resource>
@@ -64,6 +65,7 @@ using std::filesystem::exists;
 using std::filesystem::is_directory;
 using std::filesystem::remove_all;
 using std::getline;
+using std::sort;
 using std::terminate;
 using std::tolower;
 using std::to_string;
@@ -96,11 +98,63 @@ inline void platformInitializeFailFastAssertBehavior();
 #undef assert
 #endif
 #define assert(expression) ((expression) ? (void)0 : platformAssertFailFast(#expression, __FILE__, static_cast<int32>(__LINE__), __func__))
-template <typename signature>
-using function = std::function<signature>;
 
 template <typename type_name>
-using vector = std::vector<type_name>;
+constexpr decltype(auto) moveValue(type_name&& value) noexcept
+{
+	return std::move(value);
+}
+
+template <typename type_name>
+constexpr decltype(auto) forwardValue(std::remove_reference_t<type_name>& value) noexcept
+{
+	return static_cast<type_name&&>(value);
+}
+
+template <typename type_name>
+constexpr decltype(auto) forwardValue(std::remove_reference_t<type_name>&& value) noexcept
+{
+	return static_cast<type_name&&>(value);
+}
+
+template <typename value_type, typename... argument_types>
+inline value_type* constructAt(value_type* address, argument_types&&... arguments)
+{
+	return std::construct_at(address, forwardValue<argument_types>(arguments)...);
+}
+
+template <typename value_type>
+inline void destroyAt(value_type* address)
+{
+	std::destroy_at(address);
+}
+
+template <typename value_type>
+inline void swapValue(value_type& left, value_type& right)
+{
+	value_type temporary = moveValue(left);
+	left = moveValue(right);
+	right = moveValue(temporary);
+}
+
+template <typename value_type>
+using initializer_list = std::initializer_list<value_type>;
+
+template <bool enabled, typename value_type = void>
+using enable_if = std::enable_if_t<enabled, value_type>;
+
+template <typename value_type>
+inline constexpr bool is_trivially_copyable = std::is_trivially_copyable_v<value_type>;
+
+template <decltype(sizeof(0)) storage_size, decltype(sizeof(0)) storage_alignment>
+using aligned_storage = std::aligned_storage_t<storage_size, storage_alignment>;
+
+using max_align_storage = std::max_align_t;
+
+#include "Engine/Common/Container/Vector.h"
+
+template <typename signature>
+using function = std::function<signature>;
 
 template <typename left_type_name, typename right_type_name>
 using pair = std::pair<left_type_name, right_type_name>;
@@ -116,12 +170,6 @@ using pooled_vector = std::pmr::vector<type_name>;
 
 template <typename... type_names>
 using unordered_map = std::unordered_map<type_names...>;
-
-template <typename type_name>
-constexpr decltype(auto) moveValue(type_name&& value) noexcept
-{
-	return std::move(value);
-}
 
 inline memory_resource* getDefaultMemoryResource()
 {
