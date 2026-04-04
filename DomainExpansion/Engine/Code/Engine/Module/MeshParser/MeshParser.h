@@ -5,6 +5,8 @@
 #include "Engine/Module/MeshParser/FbxMeshParserStub.h"
 #include "Engine/Module/MeshParser/ObjMeshParser.h"
 
+class World;
+
 class MeshParser final : public Singleton<MeshParser>
 {
 public:
@@ -28,6 +30,12 @@ public:
 		uint32 lodLevel,
 		const string& meshAssetPath,
 		MeshAsset& outMeshAsset,
+		string& outErrorText) const;
+	bool importSceneFromFile(
+		const string& meshFilePath,
+		const string& meshAssetDirectoryPath,
+		World& outWorld,
+		uint32 parentEntityIndex,
 		string& outErrorText) const;
 	static void registerCLICommands();
 

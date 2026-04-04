@@ -1,5 +1,9 @@
 #include "Engine/Module/MeshParser/FbxMeshParserStub.h"
 
+#include "Engine/Framework/MeshComponent.h"
+#include "Engine/Framework/PlaceableEntity.h"
+#include "Engine/Framework/World.h"
+#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/MeshParser/FbxBinaryParser.h"
 
 static constexpr float fbxDegreesToRadians = 3.1415926535f / 180.0f;
@@ -77,6 +81,58 @@ static float4x4 buildFbxModelLocalMatrix(const FbxModelData& modelData)
 	rotationInRadians.y = toFbxRadians(modelData.rotationInDegrees.y);
 	rotationInRadians.z = toFbxRadians(modelData.rotationInDegrees.z);
 	return buildWorldMatrix4x4(modelData.translation, rotationInRadians, modelData.scaling);
+}
+
+static bool buildFbxModelWorldMatrices(
+	const FbxSceneData& sceneData,
+	unordered_map<FbxObjectIdentifier, float4x4>& outModelWorldMatrices)
+{
+	outModelWorldMatrices.clear();
+	auto buildModelWorldMatrix = [&](const auto& recursiveBuild, const FbxObjectIdentifier modelIdentifier, float4x4& outWorldMatrix) -> bool
+	{
+		const auto foundCachedMatrix = outModelWorldMatrices.find(modelIdentifier);
+		if (foundCachedMatrix != outModelWorldMatrices.end())
+		{
+			outWorldMatrix = foundCachedMatrix->second;
+			return true;
+		}
+
+		const auto foundModel = sceneData.modelByIdentifier.find(modelIdentifier);
+		if (foundModel == sceneData.modelByIdentifier.end())
+		{
+			return false;
+		}
+
+		const float4x4 localMatrix = buildFbxModelLocalMatrix(foundModel->second);
+		outWorldMatrix = localMatrix;
+		const FbxObjectIdentifier parentModelIdentifier = foundModel->second.parentModelIdentifier;
+		if (parentModelIdentifier != 0 && sceneData.modelByIdentifier.find(parentModelIdentifier) != sceneData.modelByIdentifier.end())
+		{
+			float4x4 parentWorldMatrix = {};
+			if (!recursiveBuild(recursiveBuild, parentModelIdentifier, parentWorldMatrix))
+			{
+				return false;
+			}
+
+			outWorldMatrix = multiplyMatrix4x4(localMatrix, parentWorldMatrix);
+		}
+
+		outModelWorldMatrices.emplace(modelIdentifier, outWorldMatrix);
+		return true;
+	};
+
+	for (auto modelIterator = sceneData.modelByIdentifier.begin();
+		modelIterator != sceneData.modelByIdentifier.end();
+		++modelIterator)
+	{
+		float4x4 worldMatrix = {};
+		if (!buildModelWorldMatrix(buildModelWorldMatrix, modelIterator->first, worldMatrix))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 static bool buildInverseTranspose3x3(const float4x4& matrix, float3x3& outMatrix)
@@ -372,6 +428,48 @@ static bool buildFbxImportSections(
 	return !outSections.empty();
 }
 
+static bool buildTransformFromFbxWorldMatrix(const float4x4& worldMatrix, Transform& outTransform)
+{
+	const float row0LengthSquared = worldMatrix.value[0] * worldMatrix.value[0]
+		+ worldMatrix.value[1] * worldMatrix.value[1]
+		+ worldMatrix.value[2] * worldMatrix.value[2];
+	const float row1LengthSquared = worldMatrix.value[4] * worldMatrix.value[4]
+		+ worldMatrix.value[5] * worldMatrix.value[5]
+		+ worldMatrix.value[6] * worldMatrix.value[6];
+	const float row2LengthSquared = worldMatrix.value[8] * worldMatrix.value[8]
+		+ worldMatrix.value[9] * worldMatrix.value[9]
+		+ worldMatrix.value[10] * worldMatrix.value[10];
+
+	outTransform = {};
+	outTransform.positionX = worldMatrix.value[12];
+	outTransform.positionY = worldMatrix.value[13];
+	outTransform.positionZ = worldMatrix.value[14];
+	outTransform.scaleX = sqrtf(row0LengthSquared);
+	outTransform.scaleY = sqrtf(row1LengthSquared);
+	outTransform.scaleZ = sqrtf(row2LengthSquared);
+	if (row0LengthSquared <= 0.000001f || row1LengthSquared <= 0.000001f || row2LengthSquared <= 0.000001f)
+	{
+		outTransform.rotationPitch = 0.0f;
+		outTransform.rotationYaw = 0.0f;
+		outTransform.rotationRoll = 0.0f;
+		return true;
+	}
+
+	const float inverseScaleX = 1.0f / outTransform.scaleX;
+	const float inverseScaleY = 1.0f / outTransform.scaleY;
+	const float inverseScaleZ = 1.0f / outTransform.scaleZ;
+	const float r00 = worldMatrix.value[0] * inverseScaleX;
+	const float r01 = worldMatrix.value[1] * inverseScaleX;
+	const float r02 = worldMatrix.value[2] * inverseScaleX;
+	const float r12 = worldMatrix.value[6] * inverseScaleY;
+	const float r22 = worldMatrix.value[10] * inverseScaleZ;
+	const float yawInput = r02 < -1.0f ? 1.0f : (r02 > 1.0f ? -1.0f : -r02);
+	outTransform.rotationPitch = atan2f(r12, r22);
+	outTransform.rotationYaw = asinf(yawInput);
+	outTransform.rotationRoll = atan2f(r01, r00);
+	return true;
+}
+
 static bool appendFbxGeometryPolygonRangeToRawMeshData(
 	const FbxGeometryData& geometryData,
 	const float4x4& worldMatrix,
@@ -510,6 +608,70 @@ static bool appendFbxGeometryPolygonRangeToRawMeshData(
 	return faceIndices.empty() && currentPolygonIndex == countFbxGeometryPolygons(geometryData);
 }
 
+static bool appendFbxMeshSectionsToRawMeshData(
+	const string& meshFilePath,
+	const FbxGeometryData& geometryData,
+	const vector<FbxImportSectionSource>& sections,
+	const float4x4& worldMatrix,
+	const bool skipFailedSections,
+	RawMeshData& inOutRawMeshData,
+	string& outErrorText)
+{
+	float3x3 normalMatrix = {};
+	if (!buildInverseTranspose3x3(worldMatrix, normalMatrix))
+	{
+		buildFallbackNormalMatrix(worldMatrix, normalMatrix);
+	}
+
+	for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sections.size()); ++sectionIndex)
+	{
+		const FbxImportSectionSource& section = sections[sectionIndex];
+		const uint32 sectionStartIndex = static_cast<uint32>(inOutRawMeshData.indices.size());
+		if (!appendFbxGeometryPolygonRangeToRawMeshData(
+			geometryData,
+			worldMatrix,
+			normalMatrix,
+			section.polygonStartIndex,
+			section.polygonCount,
+			inOutRawMeshData))
+		{
+			if (!skipFailedSections)
+			{
+				return failFbxMeshBuild(meshFilePath, "fbx_geometry_append_failed", outErrorText);
+			}
+
+			error << "[FbxMeshParserStub][Warning] path=" << meshFilePath
+				  << " geometry=" << geometryData.name
+				  << " reason=fbx_geometry_append_failed"
+				  << " polygonStart=" << section.polygonStartIndex
+				  << " polygonCount=" << section.polygonCount
+				  << lineBreak;
+			continue;
+		}
+
+		const uint32 sectionIndexCount = static_cast<uint32>(inOutRawMeshData.indices.size()) - sectionStartIndex;
+		if (sectionIndexCount == 0)
+		{
+			continue;
+		}
+
+		uint16 materialSlotIndex = RawMeshData::invalidMaterialSlotIndex;
+		if (section.materialSlotIndex >= 0)
+		{
+			assert(static_cast<uint32>(section.materialSlotIndex) < static_cast<uint32>(RawMeshData::invalidMaterialSlotIndex) && "[FbxMeshParserStub][Assert] reason=material_slot_index_out_of_range");
+			materialSlotIndex = static_cast<uint16>(section.materialSlotIndex);
+		}
+
+		inOutRawMeshData.sectionRanges.push_back({
+			.startIndex = sectionStartIndex,
+			.indexCount = sectionIndexCount,
+		});
+		inOutRawMeshData.sectionMaterialSlotIndices.push_back(materialSlotIndex);
+	}
+
+	return true;
+}
+
 static bool buildFbxImportMeshNodes(
 	const FbxSceneData& sceneData,
 	vector<FbxImportMeshNode>& outMeshNodes,
@@ -519,38 +681,11 @@ static bool buildFbxImportMeshNodes(
 	outMeshNodes.clear();
 
 	unordered_map<FbxObjectIdentifier, float4x4> modelWorldMatrixByIdentifier = {};
-	auto buildModelWorldMatrix = [&](const auto& recursiveBuild, const FbxObjectIdentifier modelIdentifier, float4x4& outWorldMatrix) -> bool
+	if (!buildFbxModelWorldMatrices(sceneData, modelWorldMatrixByIdentifier))
 	{
-		auto foundCachedMatrix = modelWorldMatrixByIdentifier.find(modelIdentifier);
-		if (foundCachedMatrix != modelWorldMatrixByIdentifier.end())
-		{
-			outWorldMatrix = foundCachedMatrix->second;
-			return true;
-		}
-
-		auto foundModel = sceneData.modelByIdentifier.find(modelIdentifier);
-		if (foundModel == sceneData.modelByIdentifier.end())
-		{
-			return false;
-		}
-
-		const float4x4 localMatrix = buildFbxModelLocalMatrix(foundModel->second);
-		outWorldMatrix = localMatrix;
-		const FbxObjectIdentifier parentModelIdentifier = foundModel->second.parentModelIdentifier;
-		if (parentModelIdentifier != 0 && sceneData.modelByIdentifier.find(parentModelIdentifier) != sceneData.modelByIdentifier.end())
-		{
-			float4x4 parentWorldMatrix = {};
-			if (!recursiveBuild(recursiveBuild, parentModelIdentifier, parentWorldMatrix))
-			{
-				return false;
-			}
-
-			outWorldMatrix = multiplyMatrix4x4(localMatrix, parentWorldMatrix);
-		}
-
-		modelWorldMatrixByIdentifier.emplace(modelIdentifier, outWorldMatrix);
-		return true;
-	};
+		outErrorText = "fbx_model_world_matrix_build_failed";
+		return false;
+	}
 
 	for (auto modelIterator = sceneData.modelToGeometryIdentifiers.begin();
 		modelIterator != sceneData.modelToGeometryIdentifiers.end();
@@ -563,12 +698,13 @@ static bool buildFbxImportMeshNodes(
 			continue;
 		}
 
-		float4x4 worldMatrix = {};
-		if (!buildModelWorldMatrix(buildModelWorldMatrix, modelIdentifier, worldMatrix))
+		const auto foundWorldMatrix = modelWorldMatrixByIdentifier.find(modelIdentifier);
+		if (foundWorldMatrix == modelWorldMatrixByIdentifier.end())
 		{
 			continue;
 		}
 
+		const float4x4 worldMatrix = foundWorldMatrix->second;
 		const auto foundModelMaterials = sceneData.modelToMaterialIdentifiers.find(modelIdentifier);
 		const vector<FbxObjectIdentifier>& modelMaterialIdentifiers =
 			foundModelMaterials != sceneData.modelToMaterialIdentifiers.end()
@@ -636,39 +772,16 @@ bool FbxMeshParserStub::parse(
 			continue;
 		}
 
-		float3x3 normalMatrix = {};
-		if (!buildInverseTranspose3x3(meshNode.worldMatrix, normalMatrix))
+		if (!appendFbxMeshSectionsToRawMeshData(
+			meshFilePath,
+			*meshNode.geometryData,
+			meshNode.sections,
+			meshNode.worldMatrix,
+			true,
+			rawMeshData,
+			outErrorText))
 		{
-			buildFallbackNormalMatrix(meshNode.worldMatrix, normalMatrix);
-		}
-
-		for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(meshNode.sections.size()); ++sectionIndex)
-		{
-			const FbxImportSectionSource& section = meshNode.sections[sectionIndex];
-			const uint32 sectionStartIndex = static_cast<uint32>(rawMeshData.indices.size());
-			if (!appendFbxGeometryPolygonRangeToRawMeshData(
-				*meshNode.geometryData,
-				meshNode.worldMatrix,
-				normalMatrix,
-				section.polygonStartIndex,
-				section.polygonCount,
-				rawMeshData))
-			{
-				continue;
-			}
-
-			const uint32 sectionIndexCount = static_cast<uint32>(rawMeshData.indices.size()) - sectionStartIndex;
-			if (sectionIndexCount != 0)
-			{
-				uint16 materialSlotIndex = RawMeshData::invalidMaterialSlotIndex;
-				if (section.materialSlotIndex >= 0)
-				{
-					assert(static_cast<uint32>(section.materialSlotIndex) < static_cast<uint32>(RawMeshData::invalidMaterialSlotIndex) && "[FbxMeshParserStub][Assert] reason=material_slot_index_out_of_range");
-					materialSlotIndex = static_cast<uint16>(section.materialSlotIndex);
-				}
-
-				outMeshAsset.addSectionRange(lodLevel, sectionStartIndex, sectionIndexCount, materialSlotIndex);
-			}
+			return false;
 		}
 	}
 
@@ -684,5 +797,407 @@ bool FbxMeshParserStub::parse(
 
 	outMeshAsset.setName(meshFilePath + ":LOD" + to_string(lodLevel));
 	outMeshAsset.setSource(meshFilePath);
+	return true;
+}
+
+bool FbxMeshParserStub::importEntityHierarchy(
+	const string& meshFilePath,
+	const string& meshAssetDirectoryPath,
+	World& outWorld,
+	const uint32 parentEntityIndex,
+	string& outErrorText) const
+{
+	outErrorText.clear();
+	assert(!meshAssetDirectoryPath.empty() && "[FbxMeshParserStub][Assert] reason=mesh_asset_directory_path_missing");
+
+	FbxSceneData sceneData = {};
+	if (!parseFbxSceneData(meshFilePath, sceneData, outErrorText))
+	{
+		return false;
+	}
+
+	unordered_map<FbxObjectIdentifier, float4x4> modelWorldMatrixByIdentifier = {};
+	if (!buildFbxModelWorldMatrices(sceneData, modelWorldMatrixByIdentifier))
+	{
+		return failFbxMeshBuild(meshFilePath, "fbx_model_world_matrix_build_failed", outErrorText);
+	}
+
+	unordered_map<FbxObjectIdentifier, bool> relevantModelIdentifiers = {};
+	for (auto modelIterator = sceneData.modelToGeometryIdentifiers.begin();
+		modelIterator != sceneData.modelToGeometryIdentifiers.end();
+		++modelIterator)
+	{
+		FbxObjectIdentifier traversalModelIdentifier = modelIterator->first;
+		while (traversalModelIdentifier != 0)
+		{
+			if (relevantModelIdentifiers.find(traversalModelIdentifier) != relevantModelIdentifiers.end())
+			{
+				break;
+			}
+
+			relevantModelIdentifiers.emplace(traversalModelIdentifier, true);
+			const auto foundModel = sceneData.modelByIdentifier.find(traversalModelIdentifier);
+			if (foundModel == sceneData.modelByIdentifier.end())
+			{
+				break;
+			}
+
+			traversalModelIdentifier = foundModel->second.parentModelIdentifier;
+		}
+	}
+
+	if (relevantModelIdentifiers.empty())
+	{
+		return failFbxMeshBuild(meshFilePath, "fbx_scene_no_mesh_models", outErrorText);
+	}
+
+	const Entity* parentEntity = outWorld.getEntityByIndex(parentEntityIndex);
+	assert(parentEntity != nullptr && "[FbxMeshParserStub][Assert] reason=parent_entity_missing");
+	if (parentEntity == nullptr)
+	{
+		return failFbxMeshBuild(meshFilePath, "fbx_scene_parent_entity_missing", outErrorText);
+	}
+
+	float4x4 importParentWorldMatrix = buildIdentityMatrix4x4();
+	const PlaceableEntity* parentPlaceableEntity = dynamic_cast<const PlaceableEntity*>(parentEntity);
+	if (parentPlaceableEntity != nullptr)
+	{
+		const float3 parentPosition = {
+			parentPlaceableEntity->transform.positionX,
+			parentPlaceableEntity->transform.positionY,
+			parentPlaceableEntity->transform.positionZ,
+		};
+		const float3 parentRotation = {
+			parentPlaceableEntity->transform.rotationPitch,
+			parentPlaceableEntity->transform.rotationYaw,
+			parentPlaceableEntity->transform.rotationRoll,
+		};
+		const float3 parentScale = {
+			parentPlaceableEntity->transform.scaleX,
+			parentPlaceableEntity->transform.scaleY,
+			parentPlaceableEntity->transform.scaleZ,
+		};
+		importParentWorldMatrix = buildWorldMatrix4x4(parentPosition, parentRotation, parentScale);
+	}
+
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	assert(diskLoaderModule != nullptr && "[FbxMeshParserStub][Assert] reason=disk_loader_module_missing");
+
+	unordered_map<FbxObjectIdentifier, bool> uniqueGeometryIdentifiers = {};
+	vector<FbxObjectIdentifier> geometryIdentifiers = {};
+	for (auto modelIterator = sceneData.modelToGeometryIdentifiers.begin();
+		modelIterator != sceneData.modelToGeometryIdentifiers.end();
+		++modelIterator)
+	{
+		if (relevantModelIdentifiers.find(modelIterator->first) == relevantModelIdentifiers.end())
+		{
+			continue;
+		}
+
+		for (uint32 geometryIndex = 0; geometryIndex < static_cast<uint32>(modelIterator->second.size()); ++geometryIndex)
+		{
+			const FbxObjectIdentifier geometryIdentifier = modelIterator->second[geometryIndex];
+			if (uniqueGeometryIdentifiers.find(geometryIdentifier) != uniqueGeometryIdentifiers.end())
+			{
+				continue;
+			}
+
+			uniqueGeometryIdentifiers.emplace(geometryIdentifier, true);
+			geometryIdentifiers.push_back(geometryIdentifier);
+		}
+	}
+
+	sort(
+		geometryIdentifiers.begin(),
+		geometryIdentifiers.end(),
+		[&sceneData](const FbxObjectIdentifier left, const FbxObjectIdentifier right)
+		{
+			const auto foundLeftGeometry = sceneData.geometryByIdentifier.find(left);
+			const auto foundRightGeometry = sceneData.geometryByIdentifier.find(right);
+			const string& leftName = foundLeftGeometry != sceneData.geometryByIdentifier.end() ? foundLeftGeometry->second.name : string();
+			const string& rightName = foundRightGeometry != sceneData.geometryByIdentifier.end() ? foundRightGeometry->second.name : string();
+			return leftName == rightName ? left < right : leftName < rightName;
+		});
+
+	unordered_map<FbxObjectIdentifier, string> geometryAssetPathByIdentifier = {};
+	for (uint32 geometryArrayIndex = 0; geometryArrayIndex < static_cast<uint32>(geometryIdentifiers.size()); ++geometryArrayIndex)
+	{
+		const FbxObjectIdentifier geometryIdentifier = geometryIdentifiers[geometryArrayIndex];
+		const auto foundGeometry = sceneData.geometryByIdentifier.find(geometryIdentifier);
+		if (foundGeometry == sceneData.geometryByIdentifier.end())
+		{
+			return failFbxMeshBuild(meshFilePath, "fbx_geometry_missing", outErrorText);
+		}
+
+		vector<FbxImportSectionSource> sections = {};
+		const vector<FbxObjectIdentifier> materialIdentifiers = {};
+		if (!buildFbxImportSections(foundGeometry->second, materialIdentifiers, sections))
+		{
+			return failFbxMeshBuild(meshFilePath, "fbx_material_section_mapping_invalid", outErrorText);
+		}
+
+		MeshAsset meshAsset = {};
+		meshAsset.ensureLODCount(1);
+		RawMeshData& rawMeshData = meshAsset.getRawMeshData(0);
+		rawMeshData.empty();
+		if (!appendFbxMeshSectionsToRawMeshData(
+			meshFilePath,
+			foundGeometry->second,
+			sections,
+			buildIdentityMatrix4x4(),
+			true,
+			rawMeshData,
+			outErrorText))
+		{
+			return false;
+		}
+
+		if (rawMeshData.positionVertices.empty() || rawMeshData.indices.empty())
+		{
+			error << "[FbxMeshParserStub][Warning] path=" << meshFilePath
+				  << " geometry=" << foundGeometry->second.name
+				  << " reason=fbx_geometry_mesh_data_empty"
+				  << lineBreak;
+			continue;
+		}
+
+		if (!rawMeshData.isValid())
+		{
+			error << "[FbxMeshParserStub][Warning] path=" << meshFilePath
+				  << " geometry=" << foundGeometry->second.name
+				  << " reason=fbx_mesh_vertex_stream_mismatch"
+				  << lineBreak;
+			continue;
+		}
+
+		const string geometryName = !foundGeometry->second.name.empty()
+			? foundGeometry->second.name
+			: "Geometry_" + to_string(geometryIdentifier);
+		const string geometryFileStem = diskLoaderModule->sanitizeFileName(geometryName, "Geometry");
+		const string meshAssetPath = (filesystem_path(meshAssetDirectoryPath) / (geometryFileStem + "_" + to_string(geometryIdentifier) + ".deasset"))
+			.lexically_normal()
+			.generic_string();
+		meshAsset.setName(geometryName);
+		meshAsset.setSource(meshFilePath);
+		meshAsset.setAssetPath(meshAssetPath);
+
+		OutputFileStream meshAssetFileStream =
+			diskLoaderModule->openOutputFileStream(diskLoaderModule->resolveAbsolutePathFromResources(meshAssetPath), false, true);
+		meshAsset.writeProperty(meshAssetFileStream);
+		geometryAssetPathByIdentifier.emplace(geometryIdentifier, meshAssetPath);
+	}
+
+	if (geometryAssetPathByIdentifier.empty())
+	{
+		return failFbxMeshBuild(meshFilePath, "fbx_scene_geometry_import_empty", outErrorText);
+	}
+
+	unordered_map<FbxObjectIdentifier, vector<FbxObjectIdentifier>> childModelIdentifiers = {};
+	vector<FbxObjectIdentifier> rootModelIdentifiers = {};
+	for (auto relevantModelIterator = relevantModelIdentifiers.begin();
+		relevantModelIterator != relevantModelIdentifiers.end();
+		++relevantModelIterator)
+	{
+		const auto foundModel = sceneData.modelByIdentifier.find(relevantModelIterator->first);
+		if (foundModel == sceneData.modelByIdentifier.end())
+		{
+			continue;
+		}
+
+		const FbxObjectIdentifier parentModelIdentifier = foundModel->second.parentModelIdentifier;
+		if (parentModelIdentifier != 0 && relevantModelIdentifiers.find(parentModelIdentifier) != relevantModelIdentifiers.end())
+		{
+			childModelIdentifiers[parentModelIdentifier].push_back(relevantModelIterator->first);
+			continue;
+		}
+
+		rootModelIdentifiers.push_back(relevantModelIterator->first);
+	}
+
+	for (auto childModelIterator = childModelIdentifiers.begin();
+		childModelIterator != childModelIdentifiers.end();
+		++childModelIterator)
+	{
+		vector<FbxObjectIdentifier>& childIdentifiers = childModelIterator->second;
+		sort(
+			childIdentifiers.begin(),
+			childIdentifiers.end(),
+			[&sceneData](const FbxObjectIdentifier left, const FbxObjectIdentifier right)
+			{
+				const auto foundLeftModel = sceneData.modelByIdentifier.find(left);
+				const auto foundRightModel = sceneData.modelByIdentifier.find(right);
+				const string& leftName = foundLeftModel != sceneData.modelByIdentifier.end() ? foundLeftModel->second.name : string();
+				const string& rightName = foundRightModel != sceneData.modelByIdentifier.end() ? foundRightModel->second.name : string();
+				return leftName == rightName ? left < right : leftName < rightName;
+			});
+	}
+
+	sort(
+		rootModelIdentifiers.begin(),
+		rootModelIdentifiers.end(),
+		[&sceneData](const FbxObjectIdentifier left, const FbxObjectIdentifier right)
+		{
+			const auto foundLeftModel = sceneData.modelByIdentifier.find(left);
+			const auto foundRightModel = sceneData.modelByIdentifier.find(right);
+			const string& leftName = foundLeftModel != sceneData.modelByIdentifier.end() ? foundLeftModel->second.name : string();
+			const string& rightName = foundRightModel != sceneData.modelByIdentifier.end() ? foundRightModel->second.name : string();
+			return leftName == rightName ? left < right : leftName < rightName;
+		});
+
+	auto importModelEntity = [&](const auto& recursiveImport, const FbxObjectIdentifier modelIdentifier, const uint32 destinationParentEntityIndex) -> bool
+	{
+		const auto foundModel = sceneData.modelByIdentifier.find(modelIdentifier);
+		const auto foundWorldMatrix = modelWorldMatrixByIdentifier.find(modelIdentifier);
+		if (foundModel == sceneData.modelByIdentifier.end() || foundWorldMatrix == modelWorldMatrixByIdentifier.end())
+		{
+			return false;
+		}
+
+		const uint32 modelEntityIndex = outWorld.createPlaceableEntity();
+		PlaceableEntity* modelEntity = dynamic_cast<PlaceableEntity*>(outWorld.getEntityByIndex(modelEntityIndex));
+		assert(modelEntity != nullptr && "[FbxMeshParserStub][Assert] reason=model_entity_create_failed");
+		if (modelEntity == nullptr)
+		{
+			return false;
+		}
+
+		const string modelName = !foundModel->second.name.empty()
+			? foundModel->second.name
+			: "Model_" + to_string(modelIdentifier);
+		modelEntity->setName(modelName);
+
+		const float4x4 importedWorldMatrix = multiplyMatrix4x4(foundWorldMatrix->second, importParentWorldMatrix);
+		if (!buildTransformFromFbxWorldMatrix(importedWorldMatrix, modelEntity->transform))
+		{
+			outErrorText = "fbx_model_transform_decompose_failed";
+			return false;
+		}
+
+		const bool addedModelEntity = outWorld.addChildEntity(destinationParentEntityIndex, modelEntityIndex);
+		assert(addedModelEntity && "[FbxMeshParserStub][Assert] reason=model_entity_attach_failed");
+		if (!addedModelEntity)
+		{
+			return false;
+		}
+
+		auto foundModelGeometries = sceneData.modelToGeometryIdentifiers.find(modelIdentifier);
+		if (foundModelGeometries != sceneData.modelToGeometryIdentifiers.end() && !foundModelGeometries->second.empty())
+		{
+			vector<FbxObjectIdentifier> modelGeometryIdentifiers = foundModelGeometries->second;
+			sort(
+				modelGeometryIdentifiers.begin(),
+				modelGeometryIdentifiers.end(),
+				[&sceneData](const FbxObjectIdentifier left, const FbxObjectIdentifier right)
+				{
+					const auto foundLeftGeometry = sceneData.geometryByIdentifier.find(left);
+					const auto foundRightGeometry = sceneData.geometryByIdentifier.find(right);
+					const string& leftName = foundLeftGeometry != sceneData.geometryByIdentifier.end() ? foundLeftGeometry->second.name : string();
+					const string& rightName = foundRightGeometry != sceneData.geometryByIdentifier.end() ? foundRightGeometry->second.name : string();
+					return leftName == rightName ? left < right : leftName < rightName;
+				});
+
+			if (modelGeometryIdentifiers.size() == 1)
+			{
+				const auto foundMeshAssetPath = geometryAssetPathByIdentifier.find(modelGeometryIdentifiers[0]);
+				if (foundMeshAssetPath == geometryAssetPathByIdentifier.end())
+				{
+					error << "[FbxMeshParserStub][Warning] path=" << meshFilePath
+						  << " model=" << modelName
+						  << " reason=model_geometry_mesh_asset_missing"
+						  << lineBreak;
+				}
+				else
+				{
+					unique_pointer<MeshComponent> meshComponent(new MeshComponent());
+					meshComponent->setMeshAssetPath(foundMeshAssetPath->second);
+					const bool attachedMeshComponent = outWorld.attachComponent(modelEntityIndex, moveValue(meshComponent));
+					assert(attachedMeshComponent && "[FbxMeshParserStub][Assert] reason=model_mesh_component_attach_failed");
+					if (!attachedMeshComponent)
+					{
+						return false;
+					}
+				}
+			}
+			else
+			{
+				for (uint32 geometryArrayIndex = 0; geometryArrayIndex < static_cast<uint32>(modelGeometryIdentifiers.size()); ++geometryArrayIndex)
+				{
+					const FbxObjectIdentifier geometryIdentifier = modelGeometryIdentifiers[geometryArrayIndex];
+					const auto foundGeometry = sceneData.geometryByIdentifier.find(geometryIdentifier);
+					const auto foundMeshAssetPath = geometryAssetPathByIdentifier.find(geometryIdentifier);
+					if (foundGeometry == sceneData.geometryByIdentifier.end() || foundMeshAssetPath == geometryAssetPathByIdentifier.end())
+					{
+						error << "[FbxMeshParserStub][Warning] path=" << meshFilePath
+							  << " model=" << modelName
+							  << " reason=model_geometry_mesh_asset_missing"
+							  << lineBreak;
+						continue;
+					}
+
+					const uint32 meshEntityIndex = outWorld.createPlaceableEntity();
+					PlaceableEntity* meshEntity = dynamic_cast<PlaceableEntity*>(outWorld.getEntityByIndex(meshEntityIndex));
+					assert(meshEntity != nullptr && "[FbxMeshParserStub][Assert] reason=model_geometry_entity_create_failed");
+					if (meshEntity == nullptr)
+					{
+						return false;
+					}
+
+					meshEntity->setName(!foundGeometry->second.name.empty()
+						? foundGeometry->second.name
+						: "Geometry_" + to_string(geometryIdentifier));
+					if (!buildTransformFromFbxWorldMatrix(importedWorldMatrix, meshEntity->transform))
+					{
+						outErrorText = "fbx_model_transform_decompose_failed";
+						return false;
+					}
+
+					const bool addedMeshEntity = outWorld.addChildEntity(modelEntityIndex, meshEntityIndex);
+					assert(addedMeshEntity && "[FbxMeshParserStub][Assert] reason=model_geometry_entity_attach_failed");
+					if (!addedMeshEntity)
+					{
+						return false;
+					}
+
+					unique_pointer<MeshComponent> meshComponent(new MeshComponent());
+					meshComponent->setMeshAssetPath(foundMeshAssetPath->second);
+					const bool attachedMeshComponent = outWorld.attachComponent(meshEntityIndex, moveValue(meshComponent));
+					assert(attachedMeshComponent && "[FbxMeshParserStub][Assert] reason=model_geometry_mesh_component_attach_failed");
+					if (!attachedMeshComponent)
+					{
+						return false;
+					}
+				}
+			}
+		}
+		const auto foundChildModels = childModelIdentifiers.find(modelIdentifier);
+		if (foundChildModels == childModelIdentifiers.end())
+		{
+			return true;
+		}
+
+		for (uint32 childIndex = 0; childIndex < static_cast<uint32>(foundChildModels->second.size()); ++childIndex)
+		{
+			if (!recursiveImport(recursiveImport, foundChildModels->second[childIndex], modelEntityIndex))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	};
+
+	for (uint32 rootModelIndex = 0; rootModelIndex < static_cast<uint32>(rootModelIdentifiers.size()); ++rootModelIndex)
+	{
+		if (!importModelEntity(importModelEntity, rootModelIdentifiers[rootModelIndex], parentEntityIndex))
+		{
+			if (outErrorText.empty())
+			{
+				outErrorText = "fbx_scene_entity_import_failed";
+			}
+
+			return failFbxMeshBuild(meshFilePath, outErrorText.empty() ? "fbx_scene_entity_import_failed" : outErrorText, outErrorText);
+		}
+	}
+
 	return true;
 }

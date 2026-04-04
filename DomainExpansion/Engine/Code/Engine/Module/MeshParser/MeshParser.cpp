@@ -1,5 +1,6 @@
 #include "Engine/Module/MeshParser/MeshParser.h"
 
+#include "Engine/Framework/World.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/CLI/CLIModule.h"
 
@@ -131,4 +132,37 @@ bool MeshParser::importFromFile(
 
 	outMeshAsset.writeProperty(meshAssetFileStream);
 	return true;
+}
+
+bool MeshParser::importSceneFromFile(
+	const string& meshFilePath,
+	const string& meshAssetDirectoryPath,
+	World& outWorld,
+	const uint32 parentEntityIndex,
+	string& outErrorText) const
+{
+	outErrorText.clear();
+
+	string resolvedMeshFilePath = meshFilePath;
+	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	string absoluteMeshFilePath = {};
+	if (diskLoaderModule->resolvePathFromResources(meshFilePath, absoluteMeshFilePath))
+	{
+		resolvedMeshFilePath = absoluteMeshFilePath;
+	}
+
+	const filesystem_path meshPath(resolvedMeshFilePath);
+	const string extension = meshPath.extension().string();
+	if (extension == ".fbx" || extension == ".FBX")
+	{
+		return fbxMeshParserStub.importEntityHierarchy(
+			resolvedMeshFilePath,
+			meshAssetDirectoryPath,
+			outWorld,
+			parentEntityIndex,
+			outErrorText);
+	}
+
+	outErrorText = "unsupported_extension";
+	assert(false && "[MeshParser][Assert] reason=unsupported_scene_import_extension");
 }
