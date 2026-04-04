@@ -2,26 +2,10 @@
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/RenderBackendDefinitions.h"
-#include "Render/Backends/RenderBackend.h"
 #include "Render/Backends/Dx12/Dx12Converter.h"
 #include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
-
-static D3D12_COMMAND_LIST_TYPE getDx12CommandListType(const CommandListType commandListType)
-{
-	switch (commandListType)
-	{
-	case CommandListType::graphics:
-		return D3D12_COMMAND_LIST_TYPE_DIRECT;
-	case CommandListType::compute:
-		return D3D12_COMMAND_LIST_TYPE_COMPUTE;
-	case CommandListType::copy:
-		return D3D12_COMMAND_LIST_TYPE_COPY;
-	default:
-		return D3D12_COMMAND_LIST_TYPE_DIRECT;
-	}
-}
 
 static D3D_PRIMITIVE_TOPOLOGY getDx12PrimitiveTopology(const PrimitiveTopology primitiveTopology)
 {
@@ -51,63 +35,51 @@ static DXGI_FORMAT getDx12IndexFormat(const IndexElementSize elementSize)
 
 bool Dx12CommandList::initialize(const CommandListInitializeOptions& initializeOptions)
 {
+	unused(initializeOptions);
 	shutdown();
-
-	if (initializeOptions.renderBackend == nullptr)
-	{
-		return false;
-	}
-
-	ID3D12Device* device = static_cast<ID3D12Device*>(initializeOptions.renderBackend->getNativeGraphicsDevice());
-	if (device == nullptr)
-	{
-		return false;
-	}
-
-	const D3D12_COMMAND_LIST_TYPE commandListType = getDx12CommandListType(initializeOptions.commandListType);
-	if (FAILED(device->CreateCommandAllocator(
-		commandListType,
-		IID_PPV_ARGS(&commandAllocator))))
-	{
-		shutdown();
-		return false;
-	}
-
-	if (FAILED(device->CreateCommandList(
-		0,
-		commandListType,
-		commandAllocator.Get(),
-		nullptr,
-		IID_PPV_ARGS(&commandList))))
-	{
-		shutdown();
-		return false;
-	}
-
-	if (FAILED(commandList->Close()))
-	{
-		shutdown();
-		return false;
-	}
-
 	return true;
 }
 
 void Dx12CommandList::shutdown()
 {
-	commandList.Reset();
-	commandAllocator.Reset();
+	commandAllocator = nullptr;
+	commandList = nullptr;
 	recordingAvailable = false;
+}
+
+void Dx12CommandList::assignCommandAllocator(ID3D12CommandAllocator* commandAllocator)
+{
+	this->commandAllocator = commandAllocator;
+	recordingAvailable = false;
+}
+
+ID3D12CommandAllocator* Dx12CommandList::detachCommandAllocator()
+{
+	ID3D12CommandAllocator* detachedCommandAllocator = commandAllocator;
+	commandAllocator = nullptr;
+	recordingAvailable = false;
+	return detachedCommandAllocator;
+}
+
+void Dx12CommandList::assignCommandList(ID3D12GraphicsCommandList* commandList)
+{
+	this->commandList = commandList;
+	recordingAvailable = false;
+}
+
+ID3D12GraphicsCommandList* Dx12CommandList::detachCommandList()
+{
+	ID3D12GraphicsCommandList* detachedCommandList = commandList;
+	commandList = nullptr;
+	recordingAvailable = false;
+	return detachedCommandList;
 }
 
 void Dx12CommandList::reset()
 {
 	recordingAvailable = false;
 
-	if (commandList == nullptr || commandAllocator == nullptr)
-	{
-		return;
-	}
+	assert(commandList != nullptr && commandAllocator != nullptr);
 
 	if (FAILED(commandAllocator->Reset()))
 	{
@@ -115,7 +87,7 @@ void Dx12CommandList::reset()
 	}
 
 	if (FAILED(commandList->Reset(
-		commandAllocator.Get(),
+		commandAllocator,
 		nullptr)))
 	{
 		return;
@@ -463,7 +435,7 @@ void Dx12CommandList::close()
 
 ID3D12GraphicsCommandList* Dx12CommandList::getNativeCommandList() const
 {
-	return commandList.Get();
+	return commandList;
 }
 
 bool Dx12CommandList::isRecordingReady() const

@@ -46,6 +46,36 @@ inline D3D12_HEAP_TYPE getDx12BufferHeapType(const BufferObjectMemoryType memory
 	}
 }
 
+inline D3D12_COMMAND_LIST_TYPE getDx12CommandAllocatorType(const CommandListType commandListType)
+{
+	switch (commandListType)
+	{
+	case CommandListType::graphics:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	case CommandListType::compute:
+		return D3D12_COMMAND_LIST_TYPE_COMPUTE;
+	case CommandListType::copy:
+		return D3D12_COMMAND_LIST_TYPE_COPY;
+	default:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	}
+}
+
+inline D3D12_COMMAND_LIST_TYPE getDx12CommandListType(const CommandListType commandListType)
+{
+	switch (commandListType)
+	{
+	case CommandListType::graphics:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	case CommandListType::compute:
+		return D3D12_COMMAND_LIST_TYPE_COMPUTE;
+	case CommandListType::copy:
+		return D3D12_COMMAND_LIST_TYPE_COPY;
+	default:
+		return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	}
+}
+
 inline D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryType memoryType)
 {
 	switch (memoryType)

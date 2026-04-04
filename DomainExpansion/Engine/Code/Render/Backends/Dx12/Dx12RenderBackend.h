@@ -2,7 +2,9 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include "Render/Backends/ObjectPool.h"
 #include "Render/Backends/RenderBackend.h"
+#include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateDesc.h"
 #include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
@@ -11,7 +13,6 @@
 #include "Render/PipelineStateManager.h"
 #include "Render/RootSignatureManager.h"
 
-class Dx12CommandList;
 class Dx12CommandQueue;
 class Dx12SwapChain;
 class Dx12SyncObject;
@@ -42,14 +43,14 @@ public:
 	DepthStencilView* createDepthStencilView(TextureResourceObject* textureResourceObject) override;
 	void destroyDepthStencilView(DepthStencilView* depthStencilView) override;
 	void queueRenderTargetViewForDestroy(RenderTargetView* renderTargetView) override;
-	void finalizeQueuedSubmissions() override;
-	void releaseQueuedRenderResources() override;
+	void discardPendingSubmissionBatch() override;
 	bool reportDebugErrorsIfAny() override;
 	void beginFrame(CommandList& commandList) override;
 	void endFrame(CommandList& commandList) override;
 	float getGpuFrameTimeMilliseconds() const override;
 	HandleWindow getWindowHandle() const override;
 	void* getNativeGraphicsDevice() override;
+	ID3D12Device4* getNativeGraphicsDevice4() const;
 	void* getNativeGraphicsFactory() override;
 	void* getNativeGraphicsCommandQueue() override;
 
@@ -69,36 +70,50 @@ protected:
 	void beforeDestroy() override;
 
 private:
+	struct DeferredReuseBatch
+	{
+		vector<ID3D12CommandAllocator*> commandAllocators;
+		vector<RenderTargetView*> renderTargetViews;
+	};
+
 	// TO DO : move all this initialize stuff into common interface like init().
 	bool createFactory(bool enableDebugLayer);
 	bool createCommandResources();
+	ID3D12CommandList* createGraphicsCommandListObject(CommandListType commandListType);
+	ID3D12CommandAllocator* createGraphicsCommandAllocator(CommandListType commandListType);
+	void releaseDeferredReuseBatch(DeferredReuseBatch& deferredReuseBatch);
 
 	// TO DO : this can be common interface
 	bool waitForGpuIdle();
 
-	void resetCommandListPoolUsage();
-
-	static constexpr uint32 graphicsCommandListPoolCapacity = 4;
+	static constexpr uint32 nativeCommandListPoolCapacity = 8;
+	static constexpr uint32 nativeCommandAllocatorPoolCapacity = 12;
+	static constexpr uint32 commandListPoolCapacity = 8;
+	static constexpr uint32 maxPendingFrameCount = 2;
+	static constexpr uint32 invalidFrameBatchIndex = 0xFFFFFFFFu;
 
 	HandleWindow windowHandle = nullptr;
 
 	com_pointer<IDXGIFactory6> dxgiFactory;
 	com_pointer<ID3D12Device> device;
-	com_pointer<ID3D12QueryHeap> frameTimestampQueryHeap;
-	com_pointer<ID3D12Resource> frameTimestampReadbackBuffer;
-	com_pointer<ID3D12Fence> frameTimestampFence;
+	com_pointer<ID3D12Device4> device4;
+	com_pointer<ID3D12QueryHeap> frameTimestampQueryHeaps[maxPendingFrameCount] = {};
+	com_pointer<ID3D12Resource> frameTimestampReadbackBuffers[maxPendingFrameCount] = {};
+	bool frameTimestampReadbackPending[maxPendingFrameCount] = {};
 	uint64 frameTimestampFrequency = 0;
-	uint64 nextFrameTimestampFenceValue = 1;
-	uint64 pendingFrameTimestampFenceValue = 0;
 	bool frameGpuTimingActive = false;
 	float gpuFrameTimeMilliseconds = 0.0f;
 
-	vector<unique_pointer<Dx12CommandList>> graphicsCommandListPool;
-	vector<bool> graphicsCommandListInUse;
 	RootSignatureManager<Dx12RootSignatureDesc, Dx12RootSignatureObject> rootSignatureManager;
 	PipelineStateManager<Dx12PipelineStateDesc, Dx12PipelineStateObject> pipelineStateManager;
-	vector<CommandList*> queuedCommandLists;
-	vector<RenderTargetView*> queuedRenderTargetViews;
-	unique_pointer<CommandQueue> commandQueue;
-	unique_pointer<SwapChain> swapChain;
+	DeferredReuseBatch deferredReuseBatches[maxPendingFrameCount] = {};
+	uint32 currentFrameBatchIndex = invalidFrameBatchIndex;
+	uint32 nextFrameBatchIndex = 0;
+	unique_pointer<Dx12CommandQueue> commandQueue;
+	unique_pointer<Dx12SwapChain> swapChain;
+
+	// TO DO : CommandList type must be considered when implements compute and copy
+	ObjectPool<Dx12CommandList> commandListPool;
+	ObjectPool<ID3D12CommandList> nativeCommandListPool;
+	ObjectPool<ID3D12CommandAllocator> nativeCommandAllocatorPool;
 };

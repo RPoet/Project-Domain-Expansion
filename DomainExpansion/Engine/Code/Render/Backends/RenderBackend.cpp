@@ -49,8 +49,8 @@ bool RenderBackend::create(const RenderBackendCreateOptions& options)
 void RenderBackend::destroy()
 {
 	beforeDestroy();
-	destroySyncObject();
 	destroyBackendResources();
+	destroySyncObject();
 	destroySwapChain();
 	destroyCommandQueue();
 	destroyDevice();

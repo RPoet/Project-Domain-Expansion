@@ -10,6 +10,11 @@ public:
 	bool initialize(const CommandListInitializeOptions& initializeOptions) override;
 	void shutdown() override;
 
+	void assignCommandAllocator(ID3D12CommandAllocator* commandAllocator);
+	ID3D12CommandAllocator* detachCommandAllocator();
+	void assignCommandList(ID3D12GraphicsCommandList* commandList);
+	ID3D12GraphicsCommandList* detachCommandList();
+
 	void reset() override;
 	void resourceBarrier(
 		ResourceObject* resourceObject,
@@ -62,7 +67,7 @@ public:
 private:
 	bool isRecordingReady() const;
 
-	com_pointer<ID3D12CommandAllocator> commandAllocator;
-	com_pointer<ID3D12GraphicsCommandList> commandList;
+	ID3D12CommandAllocator* commandAllocator = nullptr;
+	ID3D12GraphicsCommandList* commandList = nullptr;
 	bool recordingAvailable = false;
 };

@@ -83,6 +83,7 @@ private:
 
 	// TO DO : Change as signal
 	uint64 consumedWorldUpdateSerial = 0;
+	uint64 lastSubmittedFrameSyncValue = 0;
 	RenderWorldUpdateResult updateResult = {};
 	Temp_RenderWorldView view = {};
 };

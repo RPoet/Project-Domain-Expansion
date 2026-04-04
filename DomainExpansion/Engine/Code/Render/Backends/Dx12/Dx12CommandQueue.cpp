@@ -40,10 +40,7 @@ void Dx12CommandQueue::executeQueued()
 		return;
 	}
 
-	commandQueue->ExecuteCommandLists(
-		static_cast<uint32>(queuedCommandLists.size()),
-		queuedCommandLists.data());
-	queuedCommandLists.clear();
+	commandQueue->ExecuteCommandLists(static_cast<uint32>(queuedCommandLists.size()), queuedCommandLists.data());
 }
 
 void Dx12CommandQueue::clearQueued()

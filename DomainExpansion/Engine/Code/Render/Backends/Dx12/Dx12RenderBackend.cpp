@@ -37,13 +37,9 @@ Dx12RenderBackend::Dx12RenderBackend()
 	swapChain.reset(new Dx12SwapChain());
 	syncObject.reset(new Dx12SyncObject());
 
-	graphicsCommandListPool.reserve(graphicsCommandListPoolCapacity);
-	graphicsCommandListInUse.reserve(graphicsCommandListPoolCapacity);
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPoolCapacity; ++commandListIndex)
-	{
-		graphicsCommandListPool.push_back(unique_pointer<Dx12CommandList>(new Dx12CommandList()));
-		graphicsCommandListInUse.push_back(false);
-	}
+	commandListPool.reserve(commandListPoolCapacity);
+	nativeCommandListPool.reserve(nativeCommandListPoolCapacity);
+	nativeCommandAllocatorPool.reserve(nativeCommandAllocatorPoolCapacity);
 }
 
 CommandList* Dx12RenderBackend::acquireCommandList()
@@ -58,30 +54,28 @@ CommandList* Dx12RenderBackend::acquireCommandList(const CommandListType command
 		return nullptr;
 	}
 
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
+	ID3D12CommandList* nativeCommandList = nativeCommandListPool.acquireOrCreate([this, commandListType]()
 	{
-		if (graphicsCommandListInUse[commandListIndex])
-		{
-			continue;
-		}
+		return createGraphicsCommandListObject(commandListType);
+	});
+	assert(nativeCommandList);
 
-		graphicsCommandListInUse[commandListIndex] = true;
-		return graphicsCommandListPool[commandListIndex].get();
-	}
-
-	CommandListInitializeOptions initializeOptions = {
-		.renderBackend = this,
-		.commandListType = commandListType,
-	};
-	unique_pointer<Dx12CommandList> dx12CommandList(new Dx12CommandList());
-	if (!dx12CommandList->initialize(initializeOptions))
+	ID3D12CommandAllocator* commandAllocator = nativeCommandAllocatorPool.acquireOrCreate([this, commandListType]()
 	{
-		return nullptr;
-	}
+		return createGraphicsCommandAllocator(commandListType);
+	});
+	assert(commandAllocator);
 
-	graphicsCommandListPool.push_back(moveValue(dx12CommandList));
-	graphicsCommandListInUse.push_back(true);
-	return graphicsCommandListPool.back().get();
+	Dx12CommandList* dx12CommandList = commandListPool.acquireOrCreate([]()
+	{
+		return new Dx12CommandList();
+	});
+	assert(dx12CommandList);
+
+	dx12CommandList->shutdown();
+	dx12CommandList->assignCommandList(static_cast<ID3D12GraphicsCommandList*>(nativeCommandList));
+	dx12CommandList->assignCommandAllocator(commandAllocator);
+	return dx12CommandList;
 }
 
 bool Dx12RenderBackend::supportsCommandListType(const CommandListType commandListType) const
@@ -96,16 +90,22 @@ void Dx12RenderBackend::releaseCommandList(CommandList* commandList)
 		return;
 	}
 
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
-	{
-		if (graphicsCommandListPool[commandListIndex].get() != commandList)
-		{
-			continue;
-		}
+	Dx12CommandList* dx12CommandList = static_cast<Dx12CommandList*>(commandList);
+	assert(dx12CommandList);
 
-		graphicsCommandListInUse[commandListIndex] = false;
-		return;
+	ID3D12CommandAllocator* commandAllocator = dx12CommandList->detachCommandAllocator();
+	if (commandAllocator != nullptr)
+	{
+		nativeCommandAllocatorPool.retreieve(commandAllocator);
 	}
+
+	ID3D12GraphicsCommandList* nativeCommandList = dx12CommandList->detachCommandList();
+	if (nativeCommandList != nullptr)
+	{
+		nativeCommandListPool.retreieve(nativeCommandList);
+	}
+
+	commandListPool.retreieve(dx12CommandList);
 }
 
 void Dx12RenderBackend::queueCommandList(CommandList* commandList)
@@ -115,33 +115,38 @@ void Dx12RenderBackend::queueCommandList(CommandList* commandList)
 		return;
 	}
 
+	Dx12CommandList* dx12CommandList = static_cast<Dx12CommandList*>(commandList);
+	assert(dx12CommandList != nullptr && "[Dx12RenderBackend][Assert] reason=queued_command_list_type_invalid");
+
+	assert(currentFrameBatchIndex != invalidFrameBatchIndex && "[Dx12RenderBackend][Assert] reason=frame_batch_not_initialized");
 	commandQueue->enqueue(commandList);
-	queuedCommandLists.push_back(commandList);
+
+	DeferredReuseBatch& deferredReuseBatch = deferredReuseBatches[currentFrameBatchIndex];
+
+	ID3D12CommandAllocator* commandAllocator = dx12CommandList->detachCommandAllocator();
+	if (commandAllocator != nullptr)
+	{
+		deferredReuseBatch.commandAllocators.push_back(commandAllocator);
+	}
+
+	commandListPool.retreieve(dx12CommandList);
 }
 
 void Dx12RenderBackend::executeQueuedCommandLists()
 {
-	if (commandQueue == nullptr)
+	assert(commandQueue);
+	assert(currentFrameBatchIndex != invalidFrameBatchIndex && "[Dx12RenderBackend][Assert] reason=frame_batch_not_initialized");
+
 	{
-		return;
+		commandQueue->executeQueued();
+		for (uint32 commandListIndex = 0; commandListIndex < commandQueue->getQueuedCommandLists().size(); ++commandListIndex)
+		{
+			nativeCommandListPool.retreieve(commandQueue->getQueuedCommandLists()[commandListIndex]);
+		}
+		commandQueue->clearQueued();
 	}
 
-	commandQueue->executeQueued();
-
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
-	if (frameTimestampFence == nullptr || pendingFrameTimestampFenceValue == 0 || dx12CommandQueue == nullptr || dx12CommandQueue->getNativeCommandQueue() == nullptr)
-	{
-		return;
-	}
-
-	if (FAILED(dx12CommandQueue->getNativeCommandQueue()->Signal(frameTimestampFence.Get(), pendingFrameTimestampFenceValue)))
-	{
-		pendingFrameTimestampFenceValue = 0;
-		gpuFrameTimeMilliseconds = 0.0f;
-		return;
-	}
-
-	nextFrameTimestampFenceValue = pendingFrameTimestampFenceValue + 1;
+	currentFrameBatchIndex = invalidFrameBatchIndex;
 }
 
 CommandQueue* Dx12RenderBackend::getCommandQueue()
@@ -156,12 +161,11 @@ SwapChain* Dx12RenderBackend::getSwapChain()
 
 unique_pointer<SyncObject> Dx12RenderBackend::createSyncObject()
 {
-	Dx12CommandQueue* dx12CommandQueue = static_cast<Dx12CommandQueue*>(commandQueue.get());
-	const bool validStandaloneSyncContext = device != nullptr && dx12CommandQueue != nullptr;
+	const bool validStandaloneSyncContext = device != nullptr && commandQueue != nullptr;
 	assert(validStandaloneSyncContext && "[Dx12RenderBackend][Assert] reason=standalone_sync_context_invalid");
 
 	unique_pointer<Dx12SyncObject> createdSyncObject(new Dx12SyncObject());
-	const bool standaloneSyncInitialized = createdSyncObject->initialize(device, dx12CommandQueue);
+	const bool standaloneSyncInitialized = createdSyncObject->initialize(device, commandQueue.get());
 	assert(standaloneSyncInitialized && "[Dx12RenderBackend][Assert] reason=standalone_sync_initialize_failed");
 	return moveValue(createdSyncObject);
 }
@@ -657,30 +661,23 @@ void Dx12RenderBackend::queueRenderTargetViewForDestroy(RenderTargetView* render
 		return;
 	}
 
-	queuedRenderTargetViews.push_back(renderTargetView);
+	assert(currentFrameBatchIndex != invalidFrameBatchIndex && "[Dx12RenderBackend][Assert] reason=frame_batch_not_initialized");
+	deferredReuseBatches[currentFrameBatchIndex].renderTargetViews.push_back(renderTargetView);
 }
 
-void Dx12RenderBackend::finalizeQueuedSubmissions()
+void Dx12RenderBackend::discardPendingSubmissionBatch()
 {
-	for (uint32 commandListIndex = 0; commandListIndex < queuedCommandLists.size(); ++commandListIndex)
+	if (currentFrameBatchIndex == invalidFrameBatchIndex)
 	{
-		releaseCommandList(queuedCommandLists[commandListIndex]);
+		return;
 	}
-	queuedCommandLists.clear();
 
+	releaseDeferredReuseBatch(deferredReuseBatches[currentFrameBatchIndex]);
 	if (commandQueue != nullptr)
 	{
 		commandQueue->clearQueued();
 	}
-}
-
-void Dx12RenderBackend::releaseQueuedRenderResources()
-{
-	for (uint32 renderTargetViewIndex = 0; renderTargetViewIndex < queuedRenderTargetViews.size(); ++renderTargetViewIndex)
-	{
-		destroyRenderTargetView(queuedRenderTargetViews[renderTargetViewIndex]);
-	}
-	queuedRenderTargetViews.clear();
+	currentFrameBatchIndex = invalidFrameBatchIndex;
 }
 
 bool Dx12RenderBackend::reportDebugErrorsIfAny()
@@ -736,14 +733,23 @@ bool Dx12RenderBackend::reportDebugErrorsIfAny()
 
 void Dx12RenderBackend::beginFrame(CommandList& commandList)
 {
-	if (pendingFrameTimestampFenceValue != 0)
+	assert(currentFrameBatchIndex == invalidFrameBatchIndex && "[Dx12RenderBackend][Assert] reason=frame_batch_already_active");
+	currentFrameBatchIndex = nextFrameBatchIndex;
+	nextFrameBatchIndex = (nextFrameBatchIndex + 1) % maxPendingFrameCount;
+
+	DeferredReuseBatch& deferredReuseBatch = deferredReuseBatches[currentFrameBatchIndex];
+	releaseDeferredReuseBatch(deferredReuseBatch);
+	assert(deferredReuseBatch.commandAllocators.empty() && deferredReuseBatch.renderTargetViews.empty() && "[Dx12RenderBackend][Assert] reason=deferred_reuse_batch_not_empty");
+
+	ID3D12QueryHeap* frameTimestampQueryHeap = frameTimestampQueryHeaps[currentFrameBatchIndex].Get();
+	ID3D12Resource* frameTimestampReadbackBuffer = frameTimestampReadbackBuffers[currentFrameBatchIndex].Get();
+	if (frameTimestampReadbackPending[currentFrameBatchIndex])
 	{
-		if (frameTimestampFence == nullptr || frameTimestampReadbackBuffer == nullptr || frameTimestampFrequency == 0)
+		if (frameTimestampQueryHeap == nullptr || frameTimestampReadbackBuffer == nullptr || frameTimestampFrequency == 0)
 		{
 			gpuFrameTimeMilliseconds = 0.0f;
-			pendingFrameTimestampFenceValue = 0;
 		}
-		else if (frameTimestampFence->GetCompletedValue() >= pendingFrameTimestampFenceValue)
+		else
 		{
 			void* mappedData = nullptr;
 			D3D12_RANGE readRange = { 0, sizeof(uint64) * 2u };
@@ -769,30 +775,28 @@ void Dx12RenderBackend::beginFrame(CommandList& commandList)
 				D3D12_RANGE writeRange = { 0, 0 };
 				frameTimestampReadbackBuffer->Unmap(0, &writeRange);
 			}
-
-			pendingFrameTimestampFenceValue = 0;
 		}
+
+		frameTimestampReadbackPending[currentFrameBatchIndex] = false;
 	}
 
 	if (frameTimestampQueryHeap == nullptr
 		|| frameTimestampReadbackBuffer == nullptr
-		|| frameTimestampFence == nullptr
-		|| pendingFrameTimestampFenceValue != 0
 		|| frameTimestampFrequency == 0)
 	{
 		frameGpuTimingActive = false;
 		return;
 	}
 
-	Dx12CommandList* dx12CommandList = dynamic_cast<Dx12CommandList*>(&commandList);
-	if (dx12CommandList == nullptr || dx12CommandList->getNativeCommandList() == nullptr)
+	Dx12CommandList* dx12CommandList = static_cast<Dx12CommandList*>(&commandList);
+	if (dx12CommandList->getNativeCommandList() == nullptr)
 	{
 		frameGpuTimingActive = false;
 		return;
 	}
 
 	dx12CommandList->getNativeCommandList()->EndQuery(
-		frameTimestampQueryHeap.Get(),
+		frameTimestampQueryHeap,
 		D3D12_QUERY_TYPE_TIMESTAMP,
 		0);
 	frameGpuTimingActive = true;
@@ -801,16 +805,23 @@ void Dx12RenderBackend::beginFrame(CommandList& commandList)
 void Dx12RenderBackend::endFrame(CommandList& commandList)
 {
 	if (!frameGpuTimingActive
-		|| frameTimestampQueryHeap == nullptr
-		|| frameTimestampReadbackBuffer == nullptr
+		|| currentFrameBatchIndex == invalidFrameBatchIndex
 		|| frameTimestampFrequency == 0)
 	{
 		frameGpuTimingActive = false;
 		return;
 	}
 
-	Dx12CommandList* dx12CommandList = dynamic_cast<Dx12CommandList*>(&commandList);
-	if (dx12CommandList == nullptr || dx12CommandList->getNativeCommandList() == nullptr)
+	ID3D12QueryHeap* frameTimestampQueryHeap = frameTimestampQueryHeaps[currentFrameBatchIndex].Get();
+	ID3D12Resource* frameTimestampReadbackBuffer = frameTimestampReadbackBuffers[currentFrameBatchIndex].Get();
+	if (frameTimestampQueryHeap == nullptr || frameTimestampReadbackBuffer == nullptr)
+	{
+		frameGpuTimingActive = false;
+		return;
+	}
+
+	Dx12CommandList* dx12CommandList = static_cast<Dx12CommandList*>(&commandList);
+	if (dx12CommandList->getNativeCommandList() == nullptr)
 	{
 		frameGpuTimingActive = false;
 		return;
@@ -818,18 +829,18 @@ void Dx12RenderBackend::endFrame(CommandList& commandList)
 
 	ID3D12GraphicsCommandList* nativeCommandList = dx12CommandList->getNativeCommandList();
 	nativeCommandList->EndQuery(
-		frameTimestampQueryHeap.Get(),
+		frameTimestampQueryHeap,
 		D3D12_QUERY_TYPE_TIMESTAMP,
 		1);
 	nativeCommandList->ResolveQueryData(
-		frameTimestampQueryHeap.Get(),
+		frameTimestampQueryHeap,
 		D3D12_QUERY_TYPE_TIMESTAMP,
 		0,
 		2,
-		frameTimestampReadbackBuffer.Get(),
+		frameTimestampReadbackBuffer,
 		0);
 	frameGpuTimingActive = false;
-	pendingFrameTimestampFenceValue = nextFrameTimestampFenceValue;
+	frameTimestampReadbackPending[currentFrameBatchIndex] = true;
 }
 
 float Dx12RenderBackend::getGpuFrameTimeMilliseconds() const
@@ -845,6 +856,11 @@ HandleWindow Dx12RenderBackend::getWindowHandle() const
 void* Dx12RenderBackend::getNativeGraphicsDevice()
 {
 	return device.Get();
+}
+
+ID3D12Device4* Dx12RenderBackend::getNativeGraphicsDevice4() const
+{
+	return device4.Get();
 }
 
 void* Dx12RenderBackend::getNativeGraphicsFactory()
@@ -902,16 +918,29 @@ bool Dx12RenderBackend::createDevice()
 
 	if (selectedAdapter != nullptr)
 	{
-		return SUCCEEDED(D3D12CreateDevice(
+		if (FAILED(D3D12CreateDevice(
 			selectedAdapter.Get(),
 			D3D_FEATURE_LEVEL_11_0,
-			IID_PPV_ARGS(&device)));
+			IID_PPV_ARGS(&device))))
+		{
+			return false;
+		}
 	}
-
-	return SUCCEEDED(D3D12CreateDevice(
+	else if (FAILED(D3D12CreateDevice(
 		nullptr,
 		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&device)));
+		IID_PPV_ARGS(&device))))
+	{
+		return false;
+	}
+
+	if (FAILED(device->QueryInterface(IID_PPV_ARGS(device4.ReleaseAndGetAddressOf()))) || device4 == nullptr)
+	{
+		device.Reset();
+		return false;
+	}
+
+	return true;
 }
 
 bool Dx12RenderBackend::createCommandQueue()
@@ -961,25 +990,15 @@ bool Dx12RenderBackend::createBackendResources()
 		return false;
 	}
 
-	frameTimestampQueryHeap.Reset();
-	frameTimestampReadbackBuffer.Reset();
-	frameTimestampFence.Reset();
+	for (uint32 frameBatchIndex = 0; frameBatchIndex < maxPendingFrameCount; ++frameBatchIndex)
+	{
+		frameTimestampQueryHeaps[frameBatchIndex].Reset();
+		frameTimestampReadbackBuffers[frameBatchIndex].Reset();
+		frameTimestampReadbackPending[frameBatchIndex] = false;
+	}
 	frameGpuTimingActive = false;
-	nextFrameTimestampFenceValue = 1;
-	pendingFrameTimestampFenceValue = 0;
 	gpuFrameTimeMilliseconds = 0.0f;
 	assert(device != nullptr && "[Dx12RenderBackend][Assert] reason=device_missing_during_backend_resource_create");
-
-	D3D12_QUERY_HEAP_DESC queryHeapDescription = {};
-	queryHeapDescription.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-	queryHeapDescription.Count = 2;
-	queryHeapDescription.NodeMask = 0;
-	if (FAILED(device->CreateQueryHeap(&queryHeapDescription, IID_PPV_ARGS(&frameTimestampQueryHeap))))
-	{
-		frameTimestampQueryHeap.Reset();
-		frameTimestampReadbackBuffer.Reset();
-		return true;
-	}
 
 	D3D12_HEAP_PROPERTIES readbackHeapProperties = {};
 	readbackHeapProperties.Type = D3D12_HEAP_TYPE_READBACK;
@@ -987,6 +1006,11 @@ bool Dx12RenderBackend::createBackendResources()
 	readbackHeapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 	readbackHeapProperties.CreationNodeMask = 1;
 	readbackHeapProperties.VisibleNodeMask = 1;
+
+	D3D12_QUERY_HEAP_DESC queryHeapDescription = {};
+	queryHeapDescription.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+	queryHeapDescription.Count = 2;
+	queryHeapDescription.NodeMask = 0;
 
 	D3D12_RESOURCE_DESC readbackResourceDescription = {};
 	readbackResourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -1000,51 +1024,65 @@ bool Dx12RenderBackend::createBackendResources()
 	readbackResourceDescription.SampleDesc.Quality = 0;
 	readbackResourceDescription.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	readbackResourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
-	if (FAILED(device->CreateCommittedResource(
-		&readbackHeapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&readbackResourceDescription,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
-		IID_PPV_ARGS(&frameTimestampReadbackBuffer))))
+	for (uint32 frameBatchIndex = 0; frameBatchIndex < maxPendingFrameCount; ++frameBatchIndex)
 	{
-		frameTimestampQueryHeap.Reset();
-		frameTimestampReadbackBuffer.Reset();
-		frameTimestampFence.Reset();
-		return true;
-	}
+		if (FAILED(device->CreateQueryHeap(&queryHeapDescription, IID_PPV_ARGS(&frameTimestampQueryHeaps[frameBatchIndex]))))
+		{
+			for (uint32 clearIndex = 0; clearIndex < maxPendingFrameCount; ++clearIndex)
+			{
+				frameTimestampQueryHeaps[clearIndex].Reset();
+				frameTimestampReadbackBuffers[clearIndex].Reset();
+				frameTimestampReadbackPending[clearIndex] = false;
+			}
+			return true;
+		}
 
-	if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&frameTimestampFence))))
-	{
-		frameTimestampQueryHeap.Reset();
-		frameTimestampReadbackBuffer.Reset();
-		frameTimestampFence.Reset();
+		if (FAILED(device->CreateCommittedResource(
+			&readbackHeapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&readbackResourceDescription,
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&frameTimestampReadbackBuffers[frameBatchIndex]))))
+		{
+			for (uint32 clearIndex = 0; clearIndex < maxPendingFrameCount; ++clearIndex)
+			{
+				frameTimestampQueryHeaps[clearIndex].Reset();
+				frameTimestampReadbackBuffers[clearIndex].Reset();
+				frameTimestampReadbackPending[clearIndex] = false;
+			}
+			return true;
+		}
 	}
 	return true;
 }
 
 void Dx12RenderBackend::destroyBackendResources()
 {
-	frameTimestampQueryHeap.Reset();
-	frameTimestampReadbackBuffer.Reset();
-	frameTimestampFence.Reset();
+	const bool gpuIdleWaitSucceeded = waitForGpuIdle();
+	assert(gpuIdleWaitSucceeded && "[Dx12RenderBackend][Assert] reason=wait_for_gpu_idle_failed_before_backend_resource_destroy");
+
+	discardPendingSubmissionBatch();
+	for (uint32 deferredReuseBatchIndex = 0; deferredReuseBatchIndex < maxPendingFrameCount; ++deferredReuseBatchIndex)
+	{
+		releaseDeferredReuseBatch(deferredReuseBatches[deferredReuseBatchIndex]);
+	}
+	
+	for (uint32 frameBatchIndex = 0; frameBatchIndex < maxPendingFrameCount; ++frameBatchIndex)
+	{
+		frameTimestampQueryHeaps[frameBatchIndex].Reset();
+		frameTimestampReadbackBuffers[frameBatchIndex].Reset();
+		frameTimestampReadbackPending[frameBatchIndex] = false;
+	}
 	frameGpuTimingActive = false;
-	nextFrameTimestampFenceValue = 1;
-	pendingFrameTimestampFenceValue = 0;
 	gpuFrameTimeMilliseconds = 0.0f;
 	clearPipelineStateObjects();
 	clearRootSignatureObjects();
-
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
-	{
-		Dx12CommandList* dx12CommandList = graphicsCommandListPool[commandListIndex].get();
-		if (dx12CommandList != nullptr)
-		{
-			dx12CommandList->shutdown();
-		}
-	}
-
-	resetCommandListPoolUsage();
+	commandListPool.clear();
+	nativeCommandListPool.clear();
+	nativeCommandAllocatorPool.clear();
+	currentFrameBatchIndex = invalidFrameBatchIndex;
+	nextFrameBatchIndex = 0;
 }
 
 void Dx12RenderBackend::destroySyncObject()
@@ -1076,6 +1114,7 @@ void Dx12RenderBackend::destroyCommandQueue()
 
 void Dx12RenderBackend::destroyDevice()
 {
+	device4.Reset();
 	device.Reset();
 	dxgiFactory.Reset();
 	windowHandle = nullptr;
@@ -1084,14 +1123,6 @@ void Dx12RenderBackend::destroyDevice()
 
 void Dx12RenderBackend::beforeDestroy()
 {
-	if (!isCreated())
-	{
-		return;
-	}
-
-	waitForGpuIdle();
-	finalizeQueuedSubmissions();
-	releaseQueuedRenderResources();
 }
 
 bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
@@ -1113,26 +1144,85 @@ bool Dx12RenderBackend::createFactory(const bool enableDebugLayer)
 
 bool Dx12RenderBackend::createCommandResources()
 {
-	CommandListInitializeOptions initializeOptions = {};
-	initializeOptions.renderBackend = this;
-	initializeOptions.commandListType = CommandListType::graphics;
-
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListPool.size(); ++commandListIndex)
+	for (uint32 commandListIndex = 0; commandListIndex < nativeCommandListPoolCapacity; ++commandListIndex)
 	{
-		Dx12CommandList* dx12CommandList = graphicsCommandListPool[commandListIndex].get();
-		if (dx12CommandList == nullptr)
+		ID3D12CommandList* nativeCommandList = nativeCommandListPool.acquireOrCreate([this]()
+		{
+			return createGraphicsCommandListObject(CommandListType::graphics);
+		});
+		if (nativeCommandList == nullptr)
 		{
 			return false;
 		}
 
-		if (!dx12CommandList->initialize(initializeOptions))
-		{
-			return false;
-		}
+		nativeCommandListPool.retreieve(nativeCommandList);
 	}
 
-	resetCommandListPoolUsage();
+	for (uint32 commandAllocatorIndex = 0; commandAllocatorIndex < nativeCommandAllocatorPoolCapacity; ++commandAllocatorIndex)
+	{
+		ID3D12CommandAllocator* commandAllocator = nativeCommandAllocatorPool.acquireOrCreate([this]()
+		{
+			return createGraphicsCommandAllocator(CommandListType::graphics);
+		});
+		if (commandAllocator == nullptr)
+		{
+			return false;
+		}
+
+		nativeCommandAllocatorPool.retreieve(commandAllocator);
+	}
+
 	return true;
+}
+
+ID3D12CommandList* Dx12RenderBackend::createGraphicsCommandListObject(const CommandListType commandListType)
+{
+	assert(device4 != nullptr && "[Dx12RenderBackend][Assert] reason=device4_missing_for_command_list");
+
+	ID3D12GraphicsCommandList* commandList = nullptr;
+	// Use CreateCommandList1 so the list can be created in a closed state without a bootstrap allocator.
+	// The real command allocator is assigned later from the backend pool right before reset/recording.
+	if (FAILED(device4->CreateCommandList1(
+		0,
+		getDx12CommandListType(commandListType),
+		D3D12_COMMAND_LIST_FLAG_NONE,
+		IID_PPV_ARGS(&commandList))))
+	{
+		return nullptr;
+	}
+
+	return static_cast<ID3D12CommandList*>(commandList);
+}
+
+ID3D12CommandAllocator* Dx12RenderBackend::createGraphicsCommandAllocator(const CommandListType commandListType)
+{
+	assert(device != nullptr && "[Dx12RenderBackend][Assert] reason=device_missing_for_command_allocator");
+
+	ID3D12CommandAllocator* commandAllocator = nullptr;
+	if (FAILED(device->CreateCommandAllocator(
+		getDx12CommandAllocatorType(commandListType),
+		IID_PPV_ARGS(&commandAllocator))))
+	{
+		return nullptr;
+	}
+
+	return commandAllocator;
+}
+
+void Dx12RenderBackend::releaseDeferredReuseBatch(DeferredReuseBatch& deferredReuseBatch)
+{
+	for (uint32 commandAllocatorIndex = 0; commandAllocatorIndex < deferredReuseBatch.commandAllocators.size(); ++commandAllocatorIndex)
+	{
+		nativeCommandAllocatorPool.retreieve(deferredReuseBatch.commandAllocators[commandAllocatorIndex]);
+	}
+
+	for (uint32 renderTargetViewIndex = 0; renderTargetViewIndex < deferredReuseBatch.renderTargetViews.size(); ++renderTargetViewIndex)
+	{
+		destroyRenderTargetView(deferredReuseBatch.renderTargetViews[renderTargetViewIndex]);
+	}
+
+	deferredReuseBatch.commandAllocators.clear();
+	deferredReuseBatch.renderTargetViews.clear();
 }
 
 bool Dx12RenderBackend::waitForGpuIdle()
@@ -1144,12 +1234,4 @@ bool Dx12RenderBackend::waitForGpuIdle()
 	}
 
 	return dx12SyncObject->waitForGpuIdle();
-}
-
-void Dx12RenderBackend::resetCommandListPoolUsage()
-{
-	for (uint32 commandListIndex = 0; commandListIndex < graphicsCommandListInUse.size(); ++commandListIndex)
-	{
-		graphicsCommandListInUse[commandListIndex] = false;
-	}
 }

@@ -15,6 +15,7 @@ public:
 	bool waitForGpuIdle();
 
 	void wait() override;
+	void wait(uint64 targetSyncValue) override;
 	uint64 signal() override;
 	uint64 getCompletedSyncValue() const override final;
 

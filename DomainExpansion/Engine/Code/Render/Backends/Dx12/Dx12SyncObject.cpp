@@ -78,20 +78,25 @@ bool Dx12SyncObject::waitForGpuIdle()
 
 void Dx12SyncObject::wait()
 {
+	wait(lastSubmittedFenceValue);
+}
+
+void Dx12SyncObject::wait(const uint64 targetSyncValue)
+{
 	if (frameFence == nullptr
 		|| frameFenceEvent == nullptr
-		|| lastSubmittedFenceValue == 0)
+		|| targetSyncValue == 0)
 	{
 		return;
 	}
 
-	if (frameFence->GetCompletedValue() >= lastSubmittedFenceValue)
+	if (frameFence->GetCompletedValue() >= targetSyncValue)
 	{
 		return;
 	}
 
 	if (FAILED(frameFence->SetEventOnCompletion(
-		lastSubmittedFenceValue,
+		targetSyncValue,
 		frameFenceEvent)))
 	{
 		return;

@@ -14,6 +14,7 @@ public:
 	void executeQueued() override;
 	void clearQueued() override;
 
+	vector<ID3D12CommandList*>& getQueuedCommandLists() { return queuedCommandLists; }
 private:
 	com_pointer<ID3D12CommandQueue> commandQueue;
 	vector<ID3D12CommandList*> queuedCommandLists;

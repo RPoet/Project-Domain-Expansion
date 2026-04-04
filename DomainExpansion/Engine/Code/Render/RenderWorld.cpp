@@ -281,6 +281,7 @@ bool RenderWorld::initialize(WindowsWindowObject& windowObject)
 {
 	this->windowObject = &windowObject;
 	consumedWorldUpdateSerial = 0;
+	lastSubmittedFrameSyncValue = 0;
 	view.depthTextureObject.reset();
 	view.depthStencilView = nullptr;
 	view.width = 0;
@@ -312,6 +313,7 @@ void RenderWorld::shutdown()
 	view.height = 0;
 	windowObject = nullptr;
 	consumedWorldUpdateSerial = 0;
+	lastSubmittedFrameSyncValue = 0;
 }
 
 void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
@@ -391,25 +393,23 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		RenderCommand& renderCommand = RenderCommand::get();
 		shared_pointer<RenderWorldDrawPrepareResult> drawPrepareResultHandle(new RenderWorldDrawPrepareResult(moveValue(drawPrepareResult)));
 		const BridgeHandle cameraHandle = !buildResult.cameraHandles.empty() ? buildResult.cameraHandles[0] : invalidBridgeHandle;
-		renderCommand.enqueue("BeginFrame", [](string&& commandName, RenderBackend& renderBackendReference)
+
+		renderCommand.enqueue("WaitForGPU", [this](string&& commandName, RenderBackend& renderBackendReference)
+		{
+			SyncObject* syncObject = renderBackendReference.getSyncObject();
+			assert(syncObject);
+
+			if (lastSubmittedFrameSyncValue > 1)
+			{
+				syncObject->wait(lastSubmittedFrameSyncValue - 1);
+			}
+		});
+
+		renderCommand.enqueue("BeginFrame", [this](string&& commandName, RenderBackend& renderBackendReference)
 		{
 			unused(commandName);
-
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			if (syncObject == nullptr)
-			{
-				return;
-			}
-
-			syncObject->wait();
-			renderBackendReference.finalizeQueuedSubmissions();
-			renderBackendReference.releaseQueuedRenderResources();
-
 			CommandList* commandList = renderBackendReference.acquireCommandList();
-			if (commandList == nullptr)
-			{
-				return;
-			}
+			assert(commandList);
 
 			commandList->reset();
 			renderBackendReference.beginFrame(*commandList);
@@ -575,7 +575,7 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			renderBackendReference.queueCommandList(commandList);
 		});
 
-		renderCommand.enqueue("Present", [](string&& commandName, RenderBackend& renderBackendReference)
+		renderCommand.enqueue("Present", [this](string&& commandName, RenderBackend& renderBackendReference)
 		{
 			unused(commandName);
 
@@ -584,24 +584,21 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			SyncObject* syncObject = renderBackendReference.getSyncObject();
 			if (commandQueue == nullptr || swapChain == nullptr || syncObject == nullptr || !swapChain->isRenderable())
 			{
-				renderBackendReference.finalizeQueuedSubmissions();
-				renderBackendReference.releaseQueuedRenderResources();
+				renderBackendReference.discardPendingSubmissionBatch();
 				return;
 			}
 
 			TextureResourceObject* outputResource = swapChain->getCurrentBackBufferResource();
 			if (outputResource == nullptr)
 			{
-				renderBackendReference.finalizeQueuedSubmissions();
-				renderBackendReference.releaseQueuedRenderResources();
+				renderBackendReference.discardPendingSubmissionBatch();
 				return;
 			}
 
 			CommandList* commandList = renderBackendReference.acquireCommandList();
 			if (commandList == nullptr)
 			{
-				renderBackendReference.finalizeQueuedSubmissions();
-				renderBackendReference.releaseQueuedRenderResources();
+				renderBackendReference.discardPendingSubmissionBatch();
 				return;
 			}
 
@@ -611,8 +608,9 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 			renderBackendReference.queueCommandList(commandList);
 			renderBackendReference.executeQueuedCommandLists();
+			lastSubmittedFrameSyncValue = syncObject->signal();
+			assert(lastSubmittedFrameSyncValue != 0 && "[RenderWorld][Assert] reason=frame_sync_signal_failed");
 			swapChain->present();
-			syncObject->signal();
 		});
 	}
 
