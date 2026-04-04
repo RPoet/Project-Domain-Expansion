@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Beverages_Table21</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity2557.deasset</parentAssetPath>
+  <positionX>-14.356388</positionX>
+  <positionY>-0.033000</positionY>
+  <positionZ>6.465210</positionZ>
+  <rotationPitch>0.000000</rotationPitch>
+  <rotationYaw>-1.496629</rotationYaw>
+  <rotationRoll>0.000000</rotationRoll>
+  <scaleX>0.014610</scaleX>
+  <scaleY>0.014610</scaleY>
+  <scaleZ>0.014610</scaleZ>
+</deasset>

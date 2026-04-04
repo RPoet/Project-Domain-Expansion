@@ -1,0 +1,9 @@
+<deasset type="MeshComponent">
+  <guid></guid>
+  <name></name>
+  <hasBinary>0</hasBinary>
+  <ownerEntityAssetPath>Scenes/BistroTest/Entity1014.deasset</ownerEntityAssetPath>
+  <meshAssetPath>Meshes/Bistro/BistroExteriorScene/Geometry_1684713040032_1684713040032.deasset</meshAssetPath>
+  <lodLevel>0</lodLevel>
+  <visible>1</visible>
+</deasset>

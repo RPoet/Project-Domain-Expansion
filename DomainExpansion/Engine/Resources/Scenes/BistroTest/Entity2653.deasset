@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Beer1</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity2652.deasset</parentAssetPath>
+  <positionX>-26.115421</positionX>
+  <positionY>1.679529</positionY>
+  <positionZ>-14.580600</positionZ>
+  <rotationPitch>3.141593</rotationPitch>
+  <rotationYaw>-0.011557</rotationYaw>
+  <rotationRoll>3.141593</rotationRoll>
+  <scaleX>0.055246</scaleX>
+  <scaleY>0.058931</scaleY>
+  <scaleZ>0.055246</scaleZ>
+</deasset>

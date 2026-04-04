@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Bistro_Research_Exterior_Paris_Building_01_paris_building_01_bottom_185</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity4.deasset</parentAssetPath>
+  <positionX>26.165976</positionX>
+  <positionY>1.984309</positionY>
+  <positionZ>41.815205</positionZ>
+  <rotationPitch>3.124141</rotationPitch>
+  <rotationYaw>-0.936809</rotationYaw>
+  <rotationRoll>1.273192</rotationRoll>
+  <scaleX>0.016000</scaleX>
+  <scaleY>0.016000</scaleY>
+  <scaleZ>0.016000</scaleZ>
+</deasset>

@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Water_Glass_2</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity2581.deasset</parentAssetPath>
+  <positionX>-27.421436</positionX>
+  <positionY>1.843002</positionY>
+  <positionZ>-11.000319</positionZ>
+  <rotationPitch>3.141593</rotationPitch>
+  <rotationYaw>0.023982</rotationYaw>
+  <rotationRoll>3.141593</rotationRoll>
+  <scaleX>0.052952</scaleX>
+  <scaleY>0.056483</scaleY>
+  <scaleZ>0.052952</scaleZ>
+</deasset>

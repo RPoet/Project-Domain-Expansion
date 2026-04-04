@@ -1,16 +1,16 @@
 <deasset type="PlaceableEntity">
   <guid></guid>
-  <name>EditorCamera</name>
+  <name>BistroExterior</name>
   <hasBinary>0</hasBinary>
   <active>1</active>
   <parentAssetPath></parentAssetPath>
-  <positionX>0</positionX>
-  <positionY>40</positionY>
-  <positionZ>-300</positionZ>
-  <rotationPitch>0</rotationPitch>
-  <rotationYaw>0</rotationYaw>
-  <rotationRoll>0</rotationRoll>
-  <scaleX>1</scaleX>
-  <scaleY>1</scaleY>
-  <scaleZ>1</scaleZ>
+  <positionX>0.000000</positionX>
+  <positionY>0.000000</positionY>
+  <positionZ>0.000000</positionZ>
+  <rotationPitch>0.000000</rotationPitch>
+  <rotationYaw>0.000000</rotationYaw>
+  <rotationRoll>0.000000</rotationRoll>
+  <scaleX>1.000000</scaleX>
+  <scaleY>1.000000</scaleY>
+  <scaleZ>1.000000</scaleZ>
 </deasset>

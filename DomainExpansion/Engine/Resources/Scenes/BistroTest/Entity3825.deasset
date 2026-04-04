@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>WineGlass4</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity3818.deasset</parentAssetPath>
+  <positionX>1.784712</positionX>
+  <positionY>2.023816</positionY>
+  <positionZ>7.952852</positionZ>
+  <rotationPitch>0.000000</rotationPitch>
+  <rotationYaw>0.000000</rotationYaw>
+  <rotationRoll>0.000000</rotationRoll>
+  <scaleX>0.000565</scaleX>
+  <scaleY>0.000854</scaleY>
+  <scaleZ>0.000565</scaleZ>
+</deasset>

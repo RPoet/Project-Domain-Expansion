@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>StringLight_Wind_15</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity4.deasset</parentAssetPath>
+  <positionX>-3.986585</positionX>
+  <positionY>8.518552</positionY>
+  <positionZ>10.007464</positionZ>
+  <rotationPitch>-1.644834</rotationPitch>
+  <rotationYaw>-0.610555</rotationYaw>
+  <rotationRoll>-0.098337</rotationRoll>
+  <scaleX>0.017393</scaleX>
+  <scaleY>0.017786</scaleY>
+  <scaleZ>0.017719</scaleZ>
+</deasset>

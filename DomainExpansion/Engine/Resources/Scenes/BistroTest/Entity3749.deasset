@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Ice1</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity3747.deasset</parentAssetPath>
+  <positionX>9.657565</positionX>
+  <positionY>2.520251</positionY>
+  <positionZ>-5.911995</positionZ>
+  <rotationPitch>0.452596</rotationPitch>
+  <rotationYaw>-0.017017</rotationYaw>
+  <rotationRoll>0.124988</rotationRoll>
+  <scaleX>0.030022</scaleX>
+  <scaleY>0.030024</scaleY>
+  <scaleZ>0.030062</scaleZ>
+</deasset>

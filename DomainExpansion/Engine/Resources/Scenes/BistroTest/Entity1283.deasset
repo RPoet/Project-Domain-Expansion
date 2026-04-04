@@ -1,0 +1,16 @@
+<deasset type="PlaceableEntity">
+  <guid></guid>
+  <name>Lantern_Wind_23</name>
+  <hasBinary>0</hasBinary>
+  <active>1</active>
+  <parentAssetPath>Scenes/BistroTest/Entity4.deasset</parentAssetPath>
+  <positionX>-1.763514</positionX>
+  <positionY>5.105185</positionY>
+  <positionZ>-7.583004</positionZ>
+  <rotationPitch>-1.380394</rotationPitch>
+  <rotationYaw>1.061538</rotationYaw>
+  <rotationRoll>0.217223</rotationRoll>
+  <scaleX>0.016000</scaleX>
+  <scaleY>0.016000</scaleY>
+  <scaleZ>0.016000</scaleZ>
+</deasset>
