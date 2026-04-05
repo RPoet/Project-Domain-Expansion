@@ -78,18 +78,24 @@ void CameraComponent::generateCameraBridgeHandle()
 	Entity* ownerEntity = ownerWorld != nullptr ? ownerWorld->getEntityByIndex(getOwnerEntityIndex()) : nullptr;
 	PlaceableEntity* ownerPlaceableEntity = dynamic_cast<PlaceableEntity*>(ownerEntity);
 	assert(ownerPlaceableEntity != nullptr && "[CameraComponent][Assert] reason=camera_requires_placeable_entity");
+	assert(ownerWorld != nullptr && "[CameraComponent][Assert] reason=owner_world_missing");
 
 	const BridgeHandle entityHandle = getOwnerEntityHandle();
 	assert(entityHandle != invalidBridgeHandle);
 
+	// TODO: Remove this TEMP_ world-transform query after Entity caches world transform directly.
+	Transform worldTransform = {};
+	const bool hasWorldTransform = ownerWorld->TEMP_tryGetEntityWorldTransform(getOwnerEntityIndex(), worldTransform);
+	assert(hasWorldTransform && "[CameraComponent][Assert] reason=world_transform_build_failed");
+
 	float3 cameraPosition = {};
-	cameraPosition.x = ownerPlaceableEntity->transform.positionX;
-	cameraPosition.y = ownerPlaceableEntity->transform.positionY;
-	cameraPosition.z = ownerPlaceableEntity->transform.positionZ;
+	cameraPosition.x = worldTransform.positionX;
+	cameraPosition.y = worldTransform.positionY;
+	cameraPosition.z = worldTransform.positionZ;
 	float3 cameraRotation = {};
-	cameraRotation.x = ownerPlaceableEntity->transform.rotationPitch;
-	cameraRotation.y = ownerPlaceableEntity->transform.rotationYaw;
-	cameraRotation.z = ownerPlaceableEntity->transform.rotationRoll;
+	cameraRotation.x = worldTransform.rotationPitch;
+	cameraRotation.y = worldTransform.rotationYaw;
+	cameraRotation.z = worldTransform.rotationRoll;
 	const float4x4 viewMatrix = buildViewMatrix4x4(cameraPosition, cameraRotation);
 
 	bool recreateCameraBridge = !cameraHandleReference.isValid();

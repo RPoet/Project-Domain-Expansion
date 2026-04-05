@@ -1,5 +1,17 @@
 #include "Engine/Framework/World.h"
 
+// TODO: Replace this TEMP_ hierarchy traversal with cached subtree world-transform propagation.
+static float4x4 TEMP_buildEntityLocalMatrix(const Entity& entity)
+{
+	if (entity.getEntityType() != EntityType::placeableEntity)
+	{
+		return buildIdentityMatrix4x4();
+	}
+
+	const PlaceableEntity& placeableEntity = static_cast<const PlaceableEntity&>(entity);
+	return TEMP_buildTransformMatrix4x4(placeableEntity.transform);
+}
+
 World::World(const string& worldName)
 {
 	setName(worldName);
@@ -618,6 +630,25 @@ const Component* World::getComponentByIndex(const uint32 componentIndex) const
 	return componentStorage[componentIndex].get();
 }
 
+bool World::TEMP_tryGetEntityWorldTransform(const uint32 entityIndex, Transform& outTransform) const
+{
+	outTransform = {};
+
+	const Entity* entity = getEntity(entityIndex);
+	if (entity == nullptr || entity->getEntityType() != EntityType::placeableEntity)
+	{
+		return false;
+	}
+
+	float4x4 worldMatrix = {};
+	if (!TEMP_buildEntityWorldMatrix(entityIndex, worldMatrix))
+	{
+		return false;
+	}
+
+	return TEMP_buildTransformFromMatrix4x4(worldMatrix, outTransform);
+}
+
 bool World::isValidEntityIndex(const uint32 entityIndex) const
 {
 	return entityIndex < static_cast<uint32>(entityStorage.size());
@@ -641,6 +672,31 @@ const Entity* World::getEntity(const uint32 entityIndex) const
 	}
 
 	return entityStorage[entityIndex].get();
+}
+
+bool World::TEMP_buildEntityWorldMatrix(const uint32 entityIndex, float4x4& outWorldMatrix) const
+{
+	const Entity* entity = getEntity(entityIndex);
+	if (entity == nullptr)
+	{
+		return false;
+	}
+
+	outWorldMatrix = TEMP_buildEntityLocalMatrix(*entity);
+	const uint32 parentEntityIndex = entity->getParentEntityIndex();
+	if (parentEntityIndex == invalidEntityIndex)
+	{
+		return true;
+	}
+
+	float4x4 parentWorldMatrix = {};
+	if (!TEMP_buildEntityWorldMatrix(parentEntityIndex, parentWorldMatrix))
+	{
+		return false;
+	}
+
+	outWorldMatrix = multiplyMatrix4x4(outWorldMatrix, parentWorldMatrix);
+	return true;
 }
 
 bool World::removeComponentIndexFromEntity(Entity& entity, const uint32 componentIndex)

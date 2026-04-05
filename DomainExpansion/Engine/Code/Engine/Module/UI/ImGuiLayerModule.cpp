@@ -1533,50 +1533,52 @@ void ImGuiLayerModule::DetailPanel::build(ImGuiLayerModule& owner, World* world)
 
 	if (placeableEntity != nullptr)
 	{
-		Transform updatedTransform = placeableEntity->transform;
-		bool transformChanged = false;
-		float position[3] = {
-			updatedTransform.positionX,
-			updatedTransform.positionY,
-			updatedTransform.positionZ};
-		float rotation[3] = {
-			updatedTransform.rotationPitch,
-			updatedTransform.rotationYaw,
-			updatedTransform.rotationRoll};
-		float scale[3] = {
-			updatedTransform.scaleX,
-			updatedTransform.scaleY,
-			updatedTransform.scaleZ};
+		if (owner.TEMP_transformEditState.entityIndex != owner.selectedEntityIndex || !owner.TEMP_transformEditState.editingActive)
+		{
+			owner.TEMP_transformEditState.entityIndex = owner.selectedEntityIndex;
+			owner.TEMP_transformEditState.position[0] = placeableEntity->transform.positionX;
+			owner.TEMP_transformEditState.position[1] = placeableEntity->transform.positionY;
+			owner.TEMP_transformEditState.position[2] = placeableEntity->transform.positionZ;
+			owner.TEMP_transformEditState.rotation[0] = placeableEntity->transform.rotationPitch;
+			owner.TEMP_transformEditState.rotation[1] = placeableEntity->transform.rotationYaw;
+			owner.TEMP_transformEditState.rotation[2] = placeableEntity->transform.rotationRoll;
+			owner.TEMP_transformEditState.scale[0] = placeableEntity->transform.scaleX;
+			owner.TEMP_transformEditState.scale[1] = placeableEntity->transform.scaleY;
+			owner.TEMP_transformEditState.scale[2] = placeableEntity->transform.scaleZ;
+		}
+
+		// TODO: Replace this TEMP_ edit buffer path once transform editing is rebuilt on top of the final cached-world-transform flow.
+		bool transformCommitRequested = false;
+		bool transformInputActive = false;
 
 		ImGui::Separator();
 		ImGui::TextUnformatted("Transform");
 
-		if (ImGui::InputFloat3("Position", position, "%.3f"))
-		{
-			updatedTransform.positionX = position[0];
-			updatedTransform.positionY = position[1];
-			updatedTransform.positionZ = position[2];
-			transformChanged = true;
-		}
+		ImGui::InputFloat3("Position", owner.TEMP_transformEditState.position, "%.3f");
+		transformCommitRequested = transformCommitRequested || ImGui::IsItemDeactivatedAfterEdit();
+		transformInputActive = transformInputActive || ImGui::IsItemActive();
 
-		if (ImGui::InputFloat3("Rotation", rotation, "%.3f"))
-		{
-			updatedTransform.rotationPitch = rotation[0];
-			updatedTransform.rotationYaw = rotation[1];
-			updatedTransform.rotationRoll = rotation[2];
-			transformChanged = true;
-		}
+		ImGui::InputFloat3("Rotation", owner.TEMP_transformEditState.rotation, "%.3f");
+		transformCommitRequested = transformCommitRequested || ImGui::IsItemDeactivatedAfterEdit();
+		transformInputActive = transformInputActive || ImGui::IsItemActive();
 
-		if (ImGui::InputFloat3("Scale", scale, "%.3f"))
-		{
-			updatedTransform.scaleX = scale[0];
-			updatedTransform.scaleY = scale[1];
-			updatedTransform.scaleZ = scale[2];
-			transformChanged = true;
-		}
+		ImGui::InputFloat3("Scale", owner.TEMP_transformEditState.scale, "%.3f");
+		transformCommitRequested = transformCommitRequested || ImGui::IsItemDeactivatedAfterEdit();
+		transformInputActive = transformInputActive || ImGui::IsItemActive();
+		owner.TEMP_transformEditState.editingActive = transformInputActive;
 
-		if (transformChanged)
+		if (transformCommitRequested)
 		{
+			Transform updatedTransform = placeableEntity->transform;
+			updatedTransform.positionX = owner.TEMP_transformEditState.position[0];
+			updatedTransform.positionY = owner.TEMP_transformEditState.position[1];
+			updatedTransform.positionZ = owner.TEMP_transformEditState.position[2];
+			updatedTransform.rotationPitch = owner.TEMP_transformEditState.rotation[0];
+			updatedTransform.rotationYaw = owner.TEMP_transformEditState.rotation[1];
+			updatedTransform.rotationRoll = owner.TEMP_transformEditState.rotation[2];
+			updatedTransform.scaleX = owner.TEMP_transformEditState.scale[0];
+			updatedTransform.scaleY = owner.TEMP_transformEditState.scale[1];
+			updatedTransform.scaleZ = owner.TEMP_transformEditState.scale[2];
 			placeableEntity->transform = updatedTransform;
 			if (owner.saveActiveWorldImmediate())
 			{

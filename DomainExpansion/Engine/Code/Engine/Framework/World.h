@@ -36,6 +36,8 @@ public:
 	const Entity* getEntityByIndex(uint32 entityIndex) const;
 	Component* getComponentByIndex(uint32 componentIndex);
 	const Component* getComponentByIndex(uint32 componentIndex) const;
+	// TODO: Remove this TEMP_ query path after cached world transforms live on Entity and update in World::tick().
+	bool TEMP_tryGetEntityWorldTransform(uint32 entityIndex, Transform& outTransform) const;
 
 private:
 	friend class AssetLoader;
@@ -50,6 +52,7 @@ private:
 	bool isValidEntityIndex(uint32 entityIndex) const;
 	Entity* getEntity(uint32 entityIndex);
 	const Entity* getEntity(uint32 entityIndex) const;
+	bool TEMP_buildEntityWorldMatrix(uint32 entityIndex, float4x4& outWorldMatrix) const;
 	bool removeComponentIndexFromEntity(Entity& entity, uint32 componentIndex);
 	bool replaceComponentIndexInEntity(Entity& entity, uint32 fromComponentIndex, uint32 toComponentIndex);
 

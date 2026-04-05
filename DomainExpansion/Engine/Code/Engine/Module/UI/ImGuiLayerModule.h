@@ -217,6 +217,15 @@ private:
 		virtual bool renderDrawData(CommandList* commandList) = 0;
 	};
 	struct Dx12BackendBridge;
+	// TODO: Remove this TEMP_ edit buffer once transform editing is rebuilt on top of the final cached-world-transform flow.
+	struct TEMP_TransformEditState
+	{
+		uint32 entityIndex = invalidEntityIndex;
+		bool editingActive = false;
+		float position[3] = {};
+		float rotation[3] = {};
+		float scale[3] = { 1.0f, 1.0f, 1.0f };
+	};
 
 	bool initializeContext();
 	void shutdownContext();
@@ -240,6 +249,7 @@ private:
 	bool uiScaleInitialized = false;
 	string imguiIniFilePath = {};
 	string lastEditorActionStatus = {};
+	TEMP_TransformEditState TEMP_transformEditState = {};
 	unique_pointer<ImportPanel> importPanel;
 	unique_pointer<OutlinerPanel> outlinerPanel;
 	unique_pointer<DetailPanel> detailPanel;

@@ -428,48 +428,6 @@ static bool buildFbxImportSections(
 	return !outSections.empty();
 }
 
-static bool buildTransformFromFbxWorldMatrix(const float4x4& worldMatrix, Transform& outTransform)
-{
-	const float row0LengthSquared = worldMatrix.value[0] * worldMatrix.value[0]
-		+ worldMatrix.value[1] * worldMatrix.value[1]
-		+ worldMatrix.value[2] * worldMatrix.value[2];
-	const float row1LengthSquared = worldMatrix.value[4] * worldMatrix.value[4]
-		+ worldMatrix.value[5] * worldMatrix.value[5]
-		+ worldMatrix.value[6] * worldMatrix.value[6];
-	const float row2LengthSquared = worldMatrix.value[8] * worldMatrix.value[8]
-		+ worldMatrix.value[9] * worldMatrix.value[9]
-		+ worldMatrix.value[10] * worldMatrix.value[10];
-
-	outTransform = {};
-	outTransform.positionX = worldMatrix.value[12];
-	outTransform.positionY = worldMatrix.value[13];
-	outTransform.positionZ = worldMatrix.value[14];
-	outTransform.scaleX = sqrtf(row0LengthSquared);
-	outTransform.scaleY = sqrtf(row1LengthSquared);
-	outTransform.scaleZ = sqrtf(row2LengthSquared);
-	if (row0LengthSquared <= 0.000001f || row1LengthSquared <= 0.000001f || row2LengthSquared <= 0.000001f)
-	{
-		outTransform.rotationPitch = 0.0f;
-		outTransform.rotationYaw = 0.0f;
-		outTransform.rotationRoll = 0.0f;
-		return true;
-	}
-
-	const float inverseScaleX = 1.0f / outTransform.scaleX;
-	const float inverseScaleY = 1.0f / outTransform.scaleY;
-	const float inverseScaleZ = 1.0f / outTransform.scaleZ;
-	const float r00 = worldMatrix.value[0] * inverseScaleX;
-	const float r01 = worldMatrix.value[1] * inverseScaleX;
-	const float r02 = worldMatrix.value[2] * inverseScaleX;
-	const float r12 = worldMatrix.value[6] * inverseScaleY;
-	const float r22 = worldMatrix.value[10] * inverseScaleZ;
-	const float yawInput = r02 < -1.0f ? 1.0f : (r02 > 1.0f ? -1.0f : -r02);
-	outTransform.rotationPitch = atan2f(r12, r22);
-	outTransform.rotationYaw = asinf(yawInput);
-	outTransform.rotationRoll = atan2f(r01, r00);
-	return true;
-}
-
 static bool appendFbxGeometryPolygonRangeToRawMeshData(
 	const FbxGeometryData& geometryData,
 	const float4x4& worldMatrix,
@@ -816,12 +774,6 @@ bool FbxMeshParserStub::importEntityHierarchy(
 		return false;
 	}
 
-	unordered_map<FbxObjectIdentifier, float4x4> modelWorldMatrixByIdentifier = {};
-	if (!buildFbxModelWorldMatrices(sceneData, modelWorldMatrixByIdentifier))
-	{
-		return failFbxMeshBuild(meshFilePath, "fbx_model_world_matrix_build_failed", outErrorText);
-	}
-
 	unordered_map<FbxObjectIdentifier, bool> relevantModelIdentifiers = {};
 	for (auto modelIterator = sceneData.modelToGeometryIdentifiers.begin();
 		modelIterator != sceneData.modelToGeometryIdentifiers.end();
@@ -856,28 +808,6 @@ bool FbxMeshParserStub::importEntityHierarchy(
 	if (parentEntity == nullptr)
 	{
 		return failFbxMeshBuild(meshFilePath, "fbx_scene_parent_entity_missing", outErrorText);
-	}
-
-	float4x4 importParentWorldMatrix = buildIdentityMatrix4x4();
-	const PlaceableEntity* parentPlaceableEntity = dynamic_cast<const PlaceableEntity*>(parentEntity);
-	if (parentPlaceableEntity != nullptr)
-	{
-		const float3 parentPosition = {
-			parentPlaceableEntity->transform.positionX,
-			parentPlaceableEntity->transform.positionY,
-			parentPlaceableEntity->transform.positionZ,
-		};
-		const float3 parentRotation = {
-			parentPlaceableEntity->transform.rotationPitch,
-			parentPlaceableEntity->transform.rotationYaw,
-			parentPlaceableEntity->transform.rotationRoll,
-		};
-		const float3 parentScale = {
-			parentPlaceableEntity->transform.scaleX,
-			parentPlaceableEntity->transform.scaleY,
-			parentPlaceableEntity->transform.scaleZ,
-		};
-		importParentWorldMatrix = buildWorldMatrix4x4(parentPosition, parentRotation, parentScale);
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
@@ -1047,8 +977,7 @@ bool FbxMeshParserStub::importEntityHierarchy(
 	auto importModelEntity = [&](const auto& recursiveImport, const FbxObjectIdentifier modelIdentifier, const uint32 destinationParentEntityIndex) -> bool
 	{
 		const auto foundModel = sceneData.modelByIdentifier.find(modelIdentifier);
-		const auto foundWorldMatrix = modelWorldMatrixByIdentifier.find(modelIdentifier);
-		if (foundModel == sceneData.modelByIdentifier.end() || foundWorldMatrix == modelWorldMatrixByIdentifier.end())
+		if (foundModel == sceneData.modelByIdentifier.end())
 		{
 			return false;
 		}
@@ -1065,13 +994,16 @@ bool FbxMeshParserStub::importEntityHierarchy(
 			? foundModel->second.name
 			: "Model_" + to_string(modelIdentifier);
 		modelEntity->setName(modelName);
-
-		const float4x4 importedWorldMatrix = multiplyMatrix4x4(foundWorldMatrix->second, importParentWorldMatrix);
-		if (!buildTransformFromFbxWorldMatrix(importedWorldMatrix, modelEntity->transform))
-		{
-			outErrorText = "fbx_model_transform_decompose_failed";
-			return false;
-		}
+		// TODO: Replace this TEMP_ local-transform import path once the final runtime hierarchy transform flow is settled.
+		modelEntity->transform.positionX = foundModel->second.translation.x;
+		modelEntity->transform.positionY = foundModel->second.translation.y;
+		modelEntity->transform.positionZ = foundModel->second.translation.z;
+		modelEntity->transform.rotationPitch = toFbxRadians(foundModel->second.rotationInDegrees.x);
+		modelEntity->transform.rotationYaw = toFbxRadians(foundModel->second.rotationInDegrees.y);
+		modelEntity->transform.rotationRoll = toFbxRadians(foundModel->second.rotationInDegrees.z);
+		modelEntity->transform.scaleX = foundModel->second.scaling.x;
+		modelEntity->transform.scaleY = foundModel->second.scaling.y;
+		modelEntity->transform.scaleZ = foundModel->second.scaling.z;
 
 		const bool addedModelEntity = outWorld.addChildEntity(destinationParentEntityIndex, modelEntityIndex);
 		assert(addedModelEntity && "[FbxMeshParserStub][Assert] reason=model_entity_attach_failed");
@@ -1145,11 +1077,8 @@ bool FbxMeshParserStub::importEntityHierarchy(
 					meshEntity->setName(!foundGeometry->second.name.empty()
 						? foundGeometry->second.name
 						: "Geometry_" + to_string(geometryIdentifier));
-					if (!buildTransformFromFbxWorldMatrix(importedWorldMatrix, meshEntity->transform))
-					{
-						outErrorText = "fbx_model_transform_decompose_failed";
-						return false;
-					}
+					// TODO: Replace this TEMP_ identity child transform once the final runtime hierarchy transform flow is settled.
+					meshEntity->transform = {};
 
 					const bool addedMeshEntity = outWorld.addChildEntity(modelEntityIndex, meshEntityIndex);
 					assert(addedMeshEntity && "[FbxMeshParserStub][Assert] reason=model_geometry_entity_attach_failed");

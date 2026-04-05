@@ -1,5 +1,7 @@
 #include "Engine/Framework/PlaceableEntity.h"
 
+#include "Engine/Framework/World.h"
+
 PlaceableEntity::PlaceableEntity(memory_resource* componentIndexMemoryResource)
 	: Entity(componentIndexMemoryResource)
 {
@@ -15,7 +17,14 @@ void PlaceableEntity::buildEntityBridgeDynamicData(EntityBridge::DynamicData& dy
 {
 	Entity::buildEntityBridgeDynamicData(dynamicData);
 	dynamicData.hasTransform = true;
-	dynamicData.transform = transform;
+	// TODO: Remove this TEMP_ bridge fallback after Entity caches world transform directly.
+	assert(ownerWorld != nullptr && "[PlaceableEntity][Assert] reason=owner_world_missing");
+	const bool hasWorldTransform = ownerWorld->TEMP_tryGetEntityWorldTransform(ownerEntityIndex, dynamicData.transform);
+	assert(hasWorldTransform && "[PlaceableEntity][Assert] reason=world_transform_build_failed");
+	if (!hasWorldTransform)
+	{
+		dynamicData.transform = transform;
+	}
 }
 
 void PlaceableEntity::writeAssetProperty(OutputFileStream& fileStream) const
