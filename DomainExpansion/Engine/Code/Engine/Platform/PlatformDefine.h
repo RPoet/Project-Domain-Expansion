@@ -195,6 +195,8 @@ inline void tolower(string& text)
 #error PlatformDefine.h requires a supported platform implementation.
 #endif
 
+#include "Engine/Common/PlatformComPointer.h"
+
 template <typename type_name>
 using com_pointer = platform_com_pointer<type_name>;
 

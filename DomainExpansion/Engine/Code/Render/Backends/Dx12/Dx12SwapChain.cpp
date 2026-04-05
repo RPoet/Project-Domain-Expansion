@@ -63,7 +63,7 @@ bool Dx12SwapChain::initialize(
 	}
 
 	nativeDxgiFactory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER);
-	if (FAILED(intermediateSwapChain.As(addressof(swapChain))))
+	if (FAILED(intermediateSwapChain->QueryInterface(IID_PPV_ARGS(swapChain.ReleaseAndGetAddressOf()))))
 	{
 		shutdown();
 		return false;
