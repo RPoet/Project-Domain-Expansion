@@ -88,6 +88,7 @@ static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
 bool DiskLoaderModule::init(Framework& framework)
 {
 	unused(framework);
+	cachedResourcesRootPath.clear();
 	return true;
 }
 
@@ -101,6 +102,7 @@ void DiskLoaderModule::postUpdate()
 
 void DiskLoaderModule::shutdown()
 {
+	cachedResourcesRootPath.clear();
 }
 
 bool DiskLoaderModule::openInputFileStream(
@@ -237,6 +239,11 @@ bool DiskLoaderModule::ensureParentDirectory(const string& filePath) const
 bool DiskLoaderModule::resolveResourcesRootPath(string& outResourcesRootPath) const
 {
 	outResourcesRootPath.clear();
+	if (!cachedResourcesRootPath.empty())
+	{
+		outResourcesRootPath = cachedResourcesRootPath;
+		return true;
+	}
 
 	error_code currentPathErrorCode;
 	filesystem_path currentPath = current_path(currentPathErrorCode);
@@ -251,7 +258,8 @@ bool DiskLoaderModule::resolveResourcesRootPath(string& outResourcesRootPath) co
 		error_code candidateErrorCode;
 		if (exists(candidatePath, candidateErrorCode) && is_directory(candidatePath, candidateErrorCode))
 		{
-			outResourcesRootPath = candidatePath.lexically_normal().string();
+			cachedResourcesRootPath = candidatePath.lexically_normal().string();
+			outResourcesRootPath = cachedResourcesRootPath;
 			return true;
 		}
 

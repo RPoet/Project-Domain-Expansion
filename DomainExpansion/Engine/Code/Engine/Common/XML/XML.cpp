@@ -642,9 +642,17 @@ static XMLParseCode recordXMLTagValue(
 	const bool hasChildElements,
 	const string& rawTextValue)
 {
-	const string trimmedTextValue = trimXMLText(rawTextValue);
-	const string elementValue = unescapeXMLText(trimmedTextValue);
-	const string elementPath = buildXMLPath(pathSegments, tagData.name);
+	string trimmedTextValue = {};
+	string elementValue = {};
+	if (!rawTextValue.empty())
+	{
+		trimmedTextValue = trimXMLText(rawTextValue);
+		if (!trimmedTextValue.empty())
+		{
+			elementValue = unescapeXMLText(trimmedTextValue);
+		}
+	}
+
 	const auto foundKeyAttribute = tagData.attributeValueByName.find("key");
 	const auto foundNameAttribute = tagData.attributeValueByName.find("name");
 	const auto foundValueAttribute = tagData.attributeValueByName.find("value");
@@ -671,6 +679,7 @@ static XMLParseCode recordXMLTagValue(
 		return insertXMLKeyValue(document, foundNameAttribute->second, foundValueAttribute->second);
 	}
 
+	const string elementPath = buildXMLPath(pathSegments, tagData.name);
 	XMLParseCode parseCode = recordXMLTagAttributes(document, tagData, elementPath);
 	if (parseCode != XMLParseCode::succeeded)
 	{
@@ -769,8 +778,13 @@ static XMLParseCode parseXMLElement(
 			continue;
 		}
 
-		textContent += xmlText[inOutCharacterIndex];
-		++inOutCharacterIndex;
+		const size_t textBeginIndex = inOutCharacterIndex;
+		while (inOutCharacterIndex < xmlText.length() && xmlText[inOutCharacterIndex] != '<')
+		{
+			++inOutCharacterIndex;
+		}
+
+		textContent.append(xmlText, textBeginIndex, inOutCharacterIndex - textBeginIndex);
 	}
 }
 

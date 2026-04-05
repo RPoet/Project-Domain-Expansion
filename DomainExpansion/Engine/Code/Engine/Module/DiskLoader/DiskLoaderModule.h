@@ -60,4 +60,7 @@ public:
 	bool TEMP_saveRuntimeWindowResolution(uint32 clientWidth, uint32 clientHeight) const;
 	bool loadBinaryFile(const string& absolutePath, vector<char>& outBinaryData) const;
 	bool saveBinaryFile(const string& absolutePath, const vector<char>& binaryData) const;
+
+private:
+	mutable string cachedResourcesRootPath = {};
 };
