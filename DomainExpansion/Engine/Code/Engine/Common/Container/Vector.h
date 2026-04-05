@@ -181,9 +181,12 @@ public:
 	{
 		if (requestedSize < elementCount)
 		{
-			for (size_type elementIndex = requestedSize; elementIndex < elementCount; ++elementIndex)
+			if constexpr (!std::is_trivially_destructible_v<value_type>)
 			{
-				destroyAt(storage + elementIndex);
+				for (size_type elementIndex = requestedSize; elementIndex < elementCount; ++elementIndex)
+				{
+					destroyAt(storage + elementIndex);
+				}
 			}
 
 			elementCount = requestedSize;
@@ -206,9 +209,12 @@ public:
 	{
 		if (requestedSize < elementCount)
 		{
-			for (size_type elementIndex = requestedSize; elementIndex < elementCount; ++elementIndex)
+			if constexpr (!std::is_trivially_destructible_v<value_type>)
 			{
-				destroyAt(storage + elementIndex);
+				for (size_type elementIndex = requestedSize; elementIndex < elementCount; ++elementIndex)
+				{
+					destroyAt(storage + elementIndex);
+				}
 			}
 
 			elementCount = requestedSize;
@@ -225,6 +231,19 @@ public:
 
 			elementCount = requestedSize;
 		}
+	}
+
+	template <typename overwrite_value_type = value_type>
+	enable_if<is_trivially_copyable<overwrite_value_type>, void>
+	resizeUninitialized(const size_type requestedSize)
+	{
+		assert(elementCount == 0 && "[vector][Assert] reason=overwrite_resize_requires_cleared_vector");
+		if (requestedSize > storageCapacity)
+		{
+			reallocate(requestedSize);
+		}
+
+		elementCount = requestedSize;
 	}
 
 	template <typename... argument_types>
@@ -335,9 +354,12 @@ public:
 
 	void clear()
 	{
-		for (size_type elementIndex = 0; elementIndex < elementCount; ++elementIndex)
+		if constexpr (!std::is_trivially_destructible_v<value_type>)
 		{
-			destroyAt(storage + elementIndex);
+			for (size_type elementIndex = 0; elementIndex < elementCount; ++elementIndex)
+			{
+				destroyAt(storage + elementIndex);
+			}
 		}
 
 		elementCount = 0;
@@ -481,7 +503,7 @@ operator>>(InputFileStream& fileStream, vector<value_type>& values)
 		return fileStream;
 	}
 
-	values.resize(valueCount);
+	values.resizeUninitialized(valueCount);
 	fileStream.read(reinterpret_cast<char*>(values.data()), static_cast<stream_size>(sizeof(value_type) * values.size()));
 	return fileStream;
 }
