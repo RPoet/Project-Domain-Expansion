@@ -1,7 +1,0 @@
-<deasset type="EditorCameraMovementComponent">
-  <guid></guid>
-  <name></name>
-  <hasBinary>0</hasBinary>
-  <ownerEntityAssetPath>Scenes/EditorWorldTemplate/Entity0.deasset</ownerEntityAssetPath>
-  <movementSpeed>4</movementSpeed>
-</deasset>

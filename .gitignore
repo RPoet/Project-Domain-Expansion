@@ -9,12 +9,12 @@
 DomainExpansion/Engine/Artifacts/Bin/
 DomainExpansion/Engine/Artifacts/Intermediate/
 DomainExpansion/Engine/Artifacts/Logs/RunLoop.log
+DomainExpansion/Engine/Resources/
 DomainExpansion/EngineTests/
 DomainExpansion/EngineRuntime/Artifacts/
 
 # MSVC generated files
 *.obj
-!/DomainExpansion/Engine/Resources/Meshes/*.obj
 *.pdb
 *.ilk
 *.idb
