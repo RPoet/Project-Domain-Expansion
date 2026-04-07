@@ -1,6 +1,8 @@
 #include "Engine/Common/XML/XML.h"
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
+#include "Engine/Module/Profiler/ProfilerModule.h"
+#include "Engine/Module/Timer/Timer.h"
 
 struct XMLTagData
 {
@@ -18,6 +20,83 @@ struct XMLWriteElementNode
 };
 
 using XMLParseCode = XML::ParseCode;
+
+struct XMLReadMetrics
+{
+	uint64 fileSizeBytes = 0;
+	double readMilliseconds = 0.0;
+	double parseMilliseconds = 0.0;
+};
+
+static const char* getXMLParseCodeText(const XML::ParseCode parseCode)
+{
+	switch (parseCode)
+	{
+	case XML::ParseCode::succeeded:
+		return "succeeded";
+	case XML::ParseCode::fileOpenFailed:
+		return "file_open_failed";
+	case XML::ParseCode::malformedDocument:
+		return "malformed_document";
+	case XML::ParseCode::duplicateKey:
+		return "duplicate_key";
+	default:
+		return "unknown";
+	}
+}
+
+static XML::ParseCode readXMLDocumentStream(
+	const XML& xml,
+	InputFileStream& fileStream,
+	XMLKeyValueDocument& outDocument,
+	XMLReadMetrics* outReadMetrics)
+{
+	outDocument.clear();
+	if (outReadMetrics != nullptr)
+	{
+		*outReadMetrics = {};
+	}
+
+	fileStream.seekg(0, InputFileStream::end);
+	const stream_position fileSize = fileStream.tellg();
+	if (fileSize < 0)
+	{
+		return XML::ParseCode::fileOpenFailed;
+	}
+
+	string xmlText = {};
+	xmlText.resize(static_cast<size_t>(fileSize));
+	if (outReadMetrics != nullptr)
+	{
+		outReadMetrics->fileSizeBytes = static_cast<uint64>(xmlText.size());
+	}
+
+	fileStream.seekg(0, InputFileStream::beg);
+	if (!xmlText.empty())
+	{
+		PROFILE_SCOPE("xml", "XML::readDocumentBytes");
+		Stopwatch readStopwatch = {};
+		fileStream.read(xmlText.data(), static_cast<stream_size>(xmlText.size()));
+		if (outReadMetrics != nullptr)
+		{
+			outReadMetrics->readMilliseconds = readStopwatch.getElapsedMilliseconds();
+		}
+	}
+
+	if (!fileStream && !xmlText.empty())
+	{
+		return XML::ParseCode::fileOpenFailed;
+	}
+
+	Stopwatch parseStopwatch = {};
+	const XML::ParseCode parseCode = xml.readDocumentText(xmlText, outDocument);
+	if (outReadMetrics != nullptr)
+	{
+		outReadMetrics->parseMilliseconds = parseStopwatch.getElapsedMilliseconds();
+	}
+
+	return parseCode;
+}
 
 string XML::escapeText(const string& text) const
 {
@@ -913,21 +992,40 @@ bool XML::writeDocumentFile(const string& filePath, const XMLKeyValueDocument& d
 
 XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument& outDocument) const
 {
+	PROFILE_SCOPE_DETAIL("xml", "XML::readDocumentFile", filePath);
 	outDocument.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	string absoluteFilePath = {};
 	if (!diskLoaderModule->resolvePathFromResources(filePath, absoluteFilePath))
 	{
+		ProfilerModule::get()->recordXMLDocumentLoad({
+			.filePath = filePath,
+			.parseResult = getXMLParseCodeText(ParseCode::fileOpenFailed),
+		});
 		return ParseCode::fileOpenFailed;
 	}
 
 	InputFileStream fileStream = {};
 	if (!diskLoaderModule->openInputFileStream(absoluteFilePath, fileStream, true))
 	{
+		ProfilerModule::get()->recordXMLDocumentLoad({
+			.filePath = filePath,
+			.parseResult = getXMLParseCodeText(ParseCode::fileOpenFailed),
+		});
 		return ParseCode::fileOpenFailed;
 	}
 
-	return readDocument(fileStream, outDocument);
+	XMLReadMetrics readMetrics = {};
+	const ParseCode parseCode = readXMLDocumentStream(*this, fileStream, outDocument, &readMetrics);
+	ProfilerModule::get()->recordXMLDocumentLoad({
+		.filePath = filePath,
+		.parseResult = getXMLParseCodeText(parseCode),
+		.fileSizeBytes = readMetrics.fileSizeBytes,
+		.keyCount = static_cast<uint64>(outDocument.valueByKey.size()),
+		.readMilliseconds = readMetrics.readMilliseconds,
+		.parseMilliseconds = readMetrics.parseMilliseconds,
+	});
+	return parseCode;
 }
 
 XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
@@ -940,29 +1038,7 @@ XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
 
 XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
 {
-	outDocument.clear();
-
-	fileStream.seekg(0, InputFileStream::end);
-	const stream_position fileSize = fileStream.tellg();
-	if (fileSize < 0)
-	{
-		return ParseCode::fileOpenFailed;
-	}
-
-	string xmlText = {};
-	xmlText.resize(static_cast<size_t>(fileSize));
-	fileStream.seekg(0, InputFileStream::beg);
-	if (!xmlText.empty())
-	{
-		fileStream.read(xmlText.data(), static_cast<stream_size>(xmlText.size()));
-	}
-
-	if (!fileStream && !xmlText.empty())
-	{
-		return ParseCode::fileOpenFailed;
-	}
-
-	return readDocumentText(xmlText, outDocument);
+	return readXMLDocumentStream(*this, fileStream, outDocument, nullptr);
 }
 
 XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
@@ -975,6 +1051,7 @@ XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
 
 XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
 {
+	PROFILE_SCOPE("xml", "XML::readDocumentText");
 	outDocument.clear();
 
 	size_t characterIndex = 0;

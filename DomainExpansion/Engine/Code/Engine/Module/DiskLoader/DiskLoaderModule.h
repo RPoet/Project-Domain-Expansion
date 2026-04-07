@@ -52,6 +52,10 @@ public:
 	bool TEMP_resolveSolutionRootPath(string& outSolutionRootPath) const;
 	bool TEMP_resolveImGuiIniFilePath(string& outIniFilePath) const;
 	string resolveAssetPath(const string& path, AssetFileType assetFileType) const;
+	filesystem_path buildWorldAssetDirectory(const string& worldAssetPath) const;
+	bool isWorldOwnedAssetPath(const string& worldAssetPath, const string& assetPath) const;
+	string buildGeneratedWorldEntityAssetPath(const string& worldAssetPath, uint32 entityIndex) const;
+	string buildGeneratedWorldComponentAssetPath(const string& worldAssetPath, uint32 componentIndex) const;
 	bool resolveAbsolutePathFromResources(const string& pathText, string& outAbsolutePath) const;
 	string resolveAbsolutePathFromResources(const string& pathText) const;
 	bool resolvePathFromResources(const string& pathText, string& outAbsolutePath) const;

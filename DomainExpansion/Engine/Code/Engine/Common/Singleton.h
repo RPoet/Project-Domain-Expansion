@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Profiler/ProfilerScope.h"
+
 template<typename type_name>
 class Singleton
 {

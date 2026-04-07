@@ -11,11 +11,23 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\Code\Engine\Application\ApplicationSession.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Code\Engine\Application\ApplicationRunOptions.cpp">
+      <Filter>Code Files</Filter>
+    </ClCompile>
     <ClCompile Include="Engine\Code\Engine\Main.cpp">
       <Filter>Code Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Application\ApplicationSession.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Application\ApplicationRunOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Assets\MeshAsset.h">
       <Filter>Header Files</Filter>
     </ClInclude>

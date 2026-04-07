@@ -1,6 +1,7 @@
 #include "Engine/Framework/Framework.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
+#include "Engine/Module/Profiler/ProfilerModule.h"
 #include "Engine/Module/Shader/ShaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Bridge/BridgeModule.h"
@@ -21,14 +22,15 @@ void Framework::registerModule(const FrameworkInitializeOptions& initializeOptio
 
 	editorUIEnabled = initializeOptions.editorUIEnabled;
 
+	addModule(ProfilerModule::get());
 	addModule(Timer::get());
 	addModule(InputModule::get());
 	addModule(CLIModule::get());
 	addModule(ReplayModule::get());
-	addModule(MeshStreaming::get());
 	addModule(BridgeModule::get());
 	addModule(RenderBackendModule::get());
 	addModule(GPUUploader::get());
+	addModule(MeshStreaming::get());
 	addModule(DiskLoaderModule::get());
 	addModule(ShaderModule::get());
 	addModule(ShaderPackageModule::get());

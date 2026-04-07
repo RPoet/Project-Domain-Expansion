@@ -97,6 +97,8 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\Code\Engine\Application\ApplicationSession.cpp" />
+    <ClCompile Include="Engine\Code\Engine\Application\ApplicationRunOptions.cpp" />
     <ClCompile Include="Engine\Code\Engine\Main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -105,6 +107,8 @@ copy /Y "$(ProjectDir)Engine\Code\ThirdParty\D3D12Agility\1.619.0\bin\x64\d3d12S
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Code\Engine\Application\ApplicationSession.h" />
+    <ClInclude Include="Engine\Code\Engine\Application\ApplicationRunOptions.h" />
     <ClInclude Include="Engine\Code\Engine\Assets\MeshAsset.h" />
     <ClInclude Include="Engine\Code\Bridge\BaseBridge.h" />
     <ClInclude Include="Engine\Code\Bridge\BridgeHandle.h" />

@@ -3,8 +3,10 @@
 #include "Engine/Framework/BackendValidation.h"
 #include "Engine/Framework/FrameworkConstants.h"
 #include "Engine/Framework/World.h"
-#include "Engine/Window/WindowsWindowObject.h"
 #include "Engine/Module/Module.h"
+#include "Engine/Profiler/ProfilerBackend.h"
+#include "Engine/Profiler/ProfilerScope.h"
+#include "Engine/Window/WindowsWindowObject.h"
 
 #include "Render/Backends/RenderBackend.h"
 
@@ -16,11 +18,18 @@ struct FrameworkBackendOptions
 	BackendValidationInjectMode validationInjectMode = BackendValidationInjectMode::none;
 };
 
+struct FrameworkProfilerOptions
+{
+	ProfilerBackendType backendType = ProfilerBackendType::none;
+	string startupCaptureOutputFilePath = {};
+};
+
 struct FrameworkInitializeOptions
 {
 	bool bootstrapWorld = true;
 	bool editorUIEnabled = true;
 	FrameworkBackendOptions backendOptions = {};
+	FrameworkProfilerOptions profilerOptions = {};
 };
 
 struct FramePerformanceMetrics
@@ -61,6 +70,7 @@ public:
 	void update();
 	FrameworkRuntimeExitCode getRuntimeExitCode() const;
 	const FrameworkBackendOptions& getBackendOptions() const;
+	const FrameworkProfilerOptions& getProfilerOptions() const;
 	const FramePerformanceMetrics& getFramePerformanceMetrics() const;
 	WindowsWindowObject* getWindowObject();
 	const WindowsWindowObject* getWindowObject() const;
@@ -85,6 +95,7 @@ private:
 
 	WindowsWindowObject* windowsWindowObject = nullptr;
 	FrameworkBackendOptions backendOptions = {};
+	FrameworkProfilerOptions profilerOptions = {};
 	FramePerformanceMetrics framePerformanceMetrics = {};
 	uint64 worldUpdateSerial = 0;
 
