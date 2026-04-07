@@ -202,6 +202,7 @@ void MeshAsset::serialize(OutputFileStream& fileStream) const
 
 void MeshAsset::deserialize(InputFileStream& fileStream)
 {
+	TRACE_EVENT("asset", "MeshAsset::deserialize");
 	meshes.clear();
 
 	uint32 lodCount = 0;

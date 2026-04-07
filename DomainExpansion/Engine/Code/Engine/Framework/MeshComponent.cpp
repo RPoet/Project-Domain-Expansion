@@ -182,13 +182,14 @@ void MeshComponent::writeAssetProperty(OutputFileStream& fileStream) const
 
 void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
 {
+	TRACE_EVENT("mesh", "MeshComponent::readAssetProperty");
 	Component::readAssetProperty(document);
 
 	XML& xml = XML::get();
 	xml.readProperty(document, "deasset.meshAssetPath", meshAssetPath);
 	xml.readProperty(document, "deasset.lodLevel", lodLevel);
 	xml.readProperty(document, "deasset.visible", visible);
-	xml.readPropertyArray(document, "deasset.materialAssetPaths", materialAssetPaths);
+	xml.readStringPropertyArray(document, "deasset.materialAssetPaths", materialAssetPaths);
 
 	meshAsset.reset();
 	meshAssetHandle.reset();

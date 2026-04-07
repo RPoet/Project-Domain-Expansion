@@ -1,5 +1,6 @@
 #include "Engine/Framework/World.h"
 
+
 // TODO: Replace this TEMP_ hierarchy traversal with cached subtree world-transform propagation.
 static float4x4 TEMP_buildEntityLocalMatrix(const Entity& entity)
 {
@@ -80,6 +81,7 @@ uint32 World::createPlaceableEntity(const bool initializeEntity)
 
 uint32 World::addEntityObject(unique_pointer<Entity> entity, const bool initializeEntity)
 {
+	TRACE_EVENT("framework", "World::addEntityObject");
 	assert(entity != nullptr);
 	entityStorage.push_back(moveValue(entity));
 	const uint32 entityIndex = static_cast<uint32>(entityStorage.size() - 1);
@@ -98,22 +100,15 @@ uint32 World::addEntityObject(unique_pointer<Entity> entity, const bool initiali
 
 bool World::addChildEntity(const uint32 parentEntityIndex, const uint32 childEntityIndex)
 {
-	if (!isValidEntityIndex(parentEntityIndex) || !isValidEntityIndex(childEntityIndex))
-	{
-		return false;
-	}
-
-	if (parentEntityIndex == childEntityIndex)
+	if (!isValidEntityIndex(parentEntityIndex) || !isValidEntityIndex(childEntityIndex) || parentEntityIndex == childEntityIndex)
 	{
 		return false;
 	}
 
 	Entity* parentEntity = getEntity(parentEntityIndex);
 	Entity* childEntity = getEntity(childEntityIndex);
-	if (parentEntity == nullptr || childEntity == nullptr)
-	{
-		return false;
-	}
+	assert(parentEntity != nullptr && "[World][Assert] reason=parent_entity_missing");
+	assert(childEntity != nullptr && "[World][Assert] reason=child_entity_missing");
 
 	if (childEntity->parentEntityIndex != invalidEntityIndex)
 	{
@@ -181,10 +176,7 @@ bool World::reparentEntity(const uint32 childEntityIndex, const uint32 parentEnt
 		while (siblingEntityIndex != invalidEntityIndex && siblingCount < maxSiblingCount)
 		{
 			Entity* siblingEntity = getEntity(siblingEntityIndex);
-			if (siblingEntity == nullptr)
-			{
-				return false;
-			}
+			assert(siblingEntity != nullptr && "[World][Assert] reason=sibling_entity_missing");
 
 			lastChildSiblingEntityIndex = siblingEntityIndex;
 			siblingEntityIndex = siblingEntity->nextSiblingEntityIndex;
@@ -195,10 +187,7 @@ bool World::reparentEntity(const uint32 childEntityIndex, const uint32 parentEnt
 	if (childEntity->parentEntityIndex != invalidEntityIndex)
 	{
 		Entity* previousParentEntity = getEntity(childEntity->parentEntityIndex);
-		if (previousParentEntity == nullptr)
-		{
-			return false;
-		}
+		assert(previousParentEntity != nullptr && "[World][Assert] reason=previous_parent_entity_missing");
 
 		if (previousParentEntity->firstChildEntityIndex == childEntityIndex)
 		{
@@ -212,10 +201,7 @@ bool World::reparentEntity(const uint32 childEntityIndex, const uint32 parentEnt
 			while (previousSiblingEntityIndex != invalidEntityIndex && previousSiblingCount < maxPreviousSiblingCount)
 			{
 				Entity* previousSiblingEntity = getEntity(previousSiblingEntityIndex);
-				if (previousSiblingEntity == nullptr)
-				{
-					return false;
-				}
+				assert(previousSiblingEntity != nullptr && "[World][Assert] reason=previous_sibling_entity_missing");
 
 				if (previousSiblingEntity->nextSiblingEntityIndex == childEntityIndex)
 				{
@@ -248,10 +234,7 @@ bool World::reparentEntity(const uint32 childEntityIndex, const uint32 parentEnt
 	}
 
 	Entity* lastChildSiblingEntity = getEntity(lastChildSiblingEntityIndex);
-	if (lastChildSiblingEntity == nullptr)
-	{
-		return false;
-	}
+	assert(lastChildSiblingEntity != nullptr && "[World][Assert] reason=last_child_sibling_entity_missing");
 
 	lastChildSiblingEntity->nextSiblingEntityIndex = childEntityIndex;
 	return true;
@@ -267,16 +250,11 @@ bool World::attachComponent(
 	unique_pointer<Component> component,
 	const bool initializeComponent)
 {
-	if (component == nullptr)
-	{
-		return false;
-	}
+	TRACE_EVENT("framework", "World::attachComponent");
+	assert(component != nullptr && "[World][Assert] reason=component_missing");
 
 	Entity* entity = getEntity(entityIndex);
-	if (entity == nullptr)
-	{
-		return false;
-	}
+	assert(entity != nullptr && "[World][Assert] reason=entity_missing");
 
 	componentStorage.push_back(moveValue(component));
 	componentOwnerIndices.push_back(entityIndex);
@@ -296,6 +274,7 @@ bool World::attachComponent(
 
 void World::initializeRuntimeObjects()
 {
+	TRACE_EVENT("framework", "World::initializeRuntimeObjects");
 	for (uint32 entityIndex = 0; entityIndex < static_cast<uint32>(entityStorage.size()); ++entityIndex)
 	{
 		Entity* entity = entityStorage[entityIndex].get();
@@ -321,10 +300,7 @@ void World::initializeRuntimeObjects()
 bool World::removeEntity(const uint32 entityIndex)
 {
 	Entity* entity = getEntity(entityIndex);
-	if (entity == nullptr)
-	{
-		return false;
-	}
+	assert(entity != nullptr && "[World][Assert] reason=entity_missing");
 
 	if (entity->parentEntityIndex != invalidEntityIndex)
 	{
@@ -477,10 +453,7 @@ bool World::removeEntity(const uint32 entityIndex)
 bool World::removeComponent(const uint32 entityIndex, const uint32 componentIndex)
 {
 	Entity* entity = getEntity(entityIndex);
-	if (entity == nullptr)
-	{
-		return false;
-	}
+	assert(entity != nullptr && "[World][Assert] reason=entity_missing");
 
 	if (componentIndex >= static_cast<uint32>(componentStorage.size()))
 	{
@@ -677,10 +650,7 @@ const Entity* World::getEntity(const uint32 entityIndex) const
 bool World::TEMP_buildEntityWorldMatrix(const uint32 entityIndex, float4x4& outWorldMatrix) const
 {
 	const Entity* entity = getEntity(entityIndex);
-	if (entity == nullptr)
-	{
-		return false;
-	}
+	assert(entity != nullptr && "[World][Assert] reason=entity_missing");
 
 	outWorldMatrix = TEMP_buildEntityLocalMatrix(*entity);
 	const uint32 parentEntityIndex = entity->getParentEntityIndex();

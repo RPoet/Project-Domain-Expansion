@@ -120,6 +120,7 @@ void TextureAsset::serialize(OutputFileStream& fileStream) const
 
 void TextureAsset::deserialize(InputFileStream& fileStream)
 {
+	TRACE_EVENT("asset", "TextureAsset::deserialize");
 	pixelData.clear();
 	fileStream >> pixelData;
 	assert(isValid() && "[TextureAsset][Assert] reason=deserialize_texture_asset_invalid");

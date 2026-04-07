@@ -36,9 +36,7 @@ static void appendMaterialShaderHashText(uint64& inOutHashValue, const string& t
 	inOutHashValue = platformHashCombine(inOutHashValue, static_cast<uint64>(text.size()));
 	for (size_t characterIndex = 0; characterIndex < text.size(); ++characterIndex)
 	{
-		inOutHashValue = platformHashCombine(
-			inOutHashValue,
-			static_cast<uint64>(static_cast<unsigned char>(text[characterIndex])));
+		inOutHashValue = platformHashCombine(inOutHashValue, static_cast<uint64>(static_cast<unsigned char>(text[characterIndex])));
 	}
 }
 
@@ -75,11 +73,10 @@ static bool buildMaterialShaderCompileRequest(
 	outCompileRequest = {};
 	const ShaderLoadRequest& shaderLoadRequest = shaderVariant.getLoadRequest(shaderStage);
 	const ShaderBinaryLoadRequest& shaderBinaryLoadRequest = shaderVariant.getBinaryLoadRequest(shaderStage);
+	const bool hasEntryPoint = !shaderLoadRequest.entryPoint.empty();
+	const bool hasProfile = !shaderBinaryLoadRequest.profile.empty();
 	const bool validVariantCompileMetadata =
-		shaderLoadRequest.stage == shaderStage
-		&& shaderBinaryLoadRequest.targetPlatform == targetPlatform
-		&& !shaderLoadRequest.entryPoint.empty()
-		&& !shaderBinaryLoadRequest.profile.empty();
+		shaderLoadRequest.stage == shaderStage && shaderBinaryLoadRequest.targetPlatform == targetPlatform && hasEntryPoint && hasProfile;
 	assert(validVariantCompileMetadata && "[MaterialAsset][Assert] reason=variant_compile_metadata_missing");
 	if (!validVariantCompileMetadata)
 	{
@@ -129,10 +126,7 @@ bool MaterialAsset::buildShaderSourceText(string& outShaderSourceText) const
 {
 	outShaderSourceText.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr)
-	{
-		return false;
-	}
+	assert(diskLoaderModule != nullptr && "[MaterialAsset][Assert] reason=disk_loader_module_missing");
 
 	string shaderTemplateAbsolutePath = {};
 	if (!diskLoaderModule->resolvePathFromResources(shaderTemplatePath, shaderTemplateAbsolutePath))
@@ -189,6 +183,7 @@ bool MaterialAsset::getOrCompileEditedShaders(
 	}
 
 	ShaderCompiler shaderCompiler = {};
+	const char* shaderSource = shaderSourceText.c_str();
 	ShaderCompileRequest vertexCompileRequest = {};
 	if (!buildMaterialShaderCompileRequest(*this, shaderVariant, ShaderStage::vertex, targetPlatform, vertexCompileRequest))
 	{
@@ -196,10 +191,7 @@ bool MaterialAsset::getOrCompileEditedShaders(
 		return false;
 	}
 	ShaderCompileResult vertexCompileResult = {};
-	const bool compiledVertexShader = shaderCompiler.compileFromMemory(
-		vertexCompileRequest,
-		shaderSourceText.c_str(),
-		vertexCompileResult);
+	const bool compiledVertexShader = shaderCompiler.compileFromMemory(vertexCompileRequest, shaderSource, vertexCompileResult);
 	if (!compiledVertexShader || !vertexCompileResult.success || vertexCompileResult.shaderObject == nullptr)
 	{
 		error << "[MaterialAsset][CompileFailed] stage=vertex asset=" << assetPath
@@ -215,10 +207,7 @@ bool MaterialAsset::getOrCompileEditedShaders(
 		return false;
 	}
 	ShaderCompileResult pixelCompileResult = {};
-	const bool compiledPixelShader = shaderCompiler.compileFromMemory(
-		pixelCompileRequest,
-		shaderSourceText.c_str(),
-		pixelCompileResult);
+	const bool compiledPixelShader = shaderCompiler.compileFromMemory(pixelCompileRequest, shaderSource, pixelCompileResult);
 	if (!compiledPixelShader || !pixelCompileResult.success || pixelCompileResult.shaderObject == nullptr)
 	{
 		error << "[MaterialAsset][CompileFailed] stage=pixel asset=" << assetPath
@@ -275,18 +264,18 @@ bool MaterialAsset::resolveEffectiveShaders(
 		}
 	}
 
-	if (shaderVariant == nullptr)
+	const bool hasShaderVariant = shaderVariant != nullptr;
+	if (!hasShaderVariant)
 	{
 		return false;
 	}
 
-	if (materialAsset != nullptr && materialAsset->hasShaderEdits())
+	if (materialAsset != nullptr)
 	{
-		return materialAsset->getOrCompileEditedShaders(
-			targetPlatform,
-			*shaderVariant,
-			outVertexShader,
-			outPixelShader);
+		if (materialAsset->hasShaderEdits())
+		{
+			return materialAsset->getOrCompileEditedShaders(targetPlatform, *shaderVariant, outVertexShader, outPixelShader);
+		}
 	}
 
 	outVertexShader = shaderVariant->getShader(ShaderStage::vertex);
@@ -442,6 +431,7 @@ void MaterialAsset::serialize(OutputFileStream& fileStream) const
 
 void MaterialAsset::deserialize(InputFileStream& fileStream)
 {
+	TRACE_EVENT("asset", "MaterialAsset::deserialize");
 	vertexShaderInjectedCode.clear();
 	pixelShaderInjectedCode.clear();
 

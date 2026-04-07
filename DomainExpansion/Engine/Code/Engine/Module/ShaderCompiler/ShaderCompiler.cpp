@@ -5,33 +5,22 @@
 
 #include <dxcapi.h>
 
-using DxcCreateInstanceProc = HRESULT(WINAPI*)(REFCLSID, REFIID, LPVOID*);
-
 static bool validateShaderCompileRequest(const ShaderCompileRequest& compileRequest)
 {
-	return getShaderStageIndex(compileRequest.stage) != uint32MaxValue
-		&& !compileRequest.sourceRelativePath.empty()
-		&& !compileRequest.entryPoint.empty()
-		&& getShaderTargetPlatformIndex(compileRequest.targetPlatform) != uint32MaxValue
-		&& !compileRequest.profile.empty();
+	const bool validStage = getShaderStageIndex(compileRequest.stage) != uint32MaxValue;
+	const bool validSourcePath = !compileRequest.sourceRelativePath.empty();
+	const bool validEntryPoint = !compileRequest.entryPoint.empty();
+	const bool validTargetPlatform = getShaderTargetPlatformIndex(compileRequest.targetPlatform) != uint32MaxValue;
+	const bool validProfile = !compileRequest.profile.empty();
+	return validStage && validSourcePath && validEntryPoint && validTargetPlatform && validProfile;
 }
 
-static string buildShaderCompilerDiagnosticText(IDxcBlobUtf8* diagnosticBlob)
-{
-	if (diagnosticBlob == nullptr || diagnosticBlob->GetStringPointer() == nullptr || diagnosticBlob->GetStringLength() == 0)
-	{
-		return {};
-	}
-
-	return string(diagnosticBlob->GetStringPointer(), static_cast<size_t>(diagnosticBlob->GetStringLength()));
-}
-
-static bool loadDxCompilerCreateInstanceFunction(DxcCreateInstanceProc& outDxcCreateInstance)
+static bool loadDxCompilerCreateInstanceFunction(decltype(&DxcCreateInstance)& outDxcCreateInstance)
 {
 	outDxcCreateInstance = nullptr;
 
 	static HMODULE dxCompilerModule = nullptr;
-	static DxcCreateInstanceProc dxCompilerCreateInstance = nullptr;
+	static decltype(&DxcCreateInstance) dxCompilerCreateInstance = nullptr;
 	if (dxCompilerCreateInstance != nullptr)
 	{
 		outDxcCreateInstance = dxCompilerCreateInstance;
@@ -41,23 +30,22 @@ static bool loadDxCompilerCreateInstanceFunction(DxcCreateInstanceProc& outDxcCr
 	auto tryLoadDxCompilerModule = [&](const string& dxCompilerDllPathText)
 	{
 		HMODULE loadedDxCompilerModule = LoadLibraryA(dxCompilerDllPathText.c_str());
-		if (loadedDxCompilerModule == nullptr)
+		if (loadedDxCompilerModule != nullptr)
 		{
-			return false;
-		}
+			decltype(&DxcCreateInstance) loadedDxCompilerCreateInstance =
+				reinterpret_cast<decltype(&DxcCreateInstance)>(GetProcAddress(loadedDxCompilerModule, "DxcCreateInstance"));
+			if (loadedDxCompilerCreateInstance != nullptr)
+			{
+				dxCompilerModule = loadedDxCompilerModule;
+				dxCompilerCreateInstance = loadedDxCompilerCreateInstance;
+				outDxcCreateInstance = dxCompilerCreateInstance;
+				return true;
+			}
 
-		DxcCreateInstanceProc loadedDxCompilerCreateInstance =
-			reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(loadedDxCompilerModule, "DxcCreateInstance"));
-		if (loadedDxCompilerCreateInstance == nullptr)
-		{
 			FreeLibrary(loadedDxCompilerModule);
-			return false;
 		}
 
-		dxCompilerModule = loadedDxCompilerModule;
-		dxCompilerCreateInstance = loadedDxCompilerCreateInstance;
-		outDxcCreateInstance = dxCompilerCreateInstance;
-		return true;
+		return false;
 	};
 
 	if (tryLoadDxCompilerModule("dxcompiler.dll"))
@@ -111,11 +99,12 @@ static bool createCompiledShaderObject(
 	outShaderAsset = nullptr;
 	outShaderObject = nullptr;
 
-	ShaderLoadRequest shaderLoadRequest = {};
-	shaderLoadRequest.stage = compileRequest.stage;
-	shaderLoadRequest.sourceRelativePath = compileRequest.sourceRelativePath;
-	shaderLoadRequest.entryPoint = compileRequest.entryPoint;
-	shaderLoadRequest.definesHash = compileRequest.definesHash;
+	ShaderLoadRequest shaderLoadRequest{
+		.stage = compileRequest.stage,
+		.sourceRelativePath = compileRequest.sourceRelativePath,
+		.entryPoint = compileRequest.entryPoint,
+		.definesHash = compileRequest.definesHash,
+	};
 
 	shared_pointer<ShaderAsset> shaderAsset(new ShaderAsset());
 	if (shaderAsset == nullptr || !shaderAsset->initialize(shaderLoadRequest))
@@ -123,12 +112,13 @@ static bool createCompiledShaderObject(
 		return false;
 	}
 
-	ShaderBinaryLoadRequest shaderBinaryLoadRequest = {};
-	shaderBinaryLoadRequest.targetPlatform = compileRequest.targetPlatform;
-	shaderBinaryLoadRequest.binaryRelativePath = !compileRequest.outputBinaryRelativePath.empty()
-		? compileRequest.outputBinaryRelativePath
-		: (compileRequest.sourceRelativePath + "|" + compileRequest.entryPoint + "|memory");
-	shaderBinaryLoadRequest.profile = compileRequest.profile;
+	ShaderBinaryLoadRequest shaderBinaryLoadRequest{
+		.targetPlatform = compileRequest.targetPlatform,
+		.binaryRelativePath = !compileRequest.outputBinaryRelativePath.empty()
+			? compileRequest.outputBinaryRelativePath
+			: (compileRequest.sourceRelativePath + "|" + compileRequest.entryPoint + "|memory"),
+		.profile = compileRequest.profile,
+	};
 	if (compileRequest.targetPlatform == ShaderTargetPlatform::dx12)
 	{
 		shared_pointer<Dx12ShaderObject> dx12ShaderObject(new Dx12ShaderObject());
@@ -168,7 +158,7 @@ static bool compileShaderSourceText(
 		return false;
 	}
 
-	DxcCreateInstanceProc dxcCreateInstance = nullptr;
+	decltype(&DxcCreateInstance) dxcCreateInstance = nullptr;
 	if (!loadDxCompilerCreateInstanceFunction(dxcCreateInstance))
 	{
 		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=dxcompiler_not_available";
@@ -231,10 +221,11 @@ static bool compileShaderSourceText(
 	pushDxCompilerArgument(L"-O3");
 #endif
 
-	DxcBuffer sourceBuffer = {};
-	sourceBuffer.Ptr = sourceText;
-	sourceBuffer.Size = strlen(sourceText);
-	sourceBuffer.Encoding = DXC_CP_UTF8;
+	DxcBuffer sourceBuffer{
+		.Ptr = sourceText,
+		.Size = strlen(sourceText),
+		.Encoding = DXC_CP_UTF8,
+	};
 
 	com_pointer<IDxcResult> compiledShaderResult = nullptr;
 	const HRESULT compileDispatchResult = dxcCompiler->Compile(
@@ -251,7 +242,15 @@ static bool compileShaderSourceText(
 
 	com_pointer<IDxcBlobUtf8> diagnosticBlob = nullptr;
 	compiledShaderResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(diagnosticBlob.GetAddressOf()), nullptr);
-	outCompileResult.diagnosticText = buildShaderCompilerDiagnosticText(diagnosticBlob.Get());
+	bool hasDiagnosticText = diagnosticBlob != nullptr;
+	if (hasDiagnosticText)
+	{
+		hasDiagnosticText = diagnosticBlob->GetStringPointer() != nullptr && diagnosticBlob->GetStringLength() != 0;
+	}
+
+	outCompileResult.diagnosticText = hasDiagnosticText
+		? string(diagnosticBlob->GetStringPointer(), static_cast<size_t>(diagnosticBlob->GetStringLength()))
+		: string();
 
 	HRESULT compileResult = E_FAIL;
 	if (FAILED(compiledShaderResult->GetStatus(&compileResult)) || FAILED(compileResult))
@@ -281,8 +280,15 @@ static bool compileShaderSourceText(
 		string outputAbsolutePath = {};
 		const bool resolvedOutputAbsolutePath = diskLoaderModule->resolveAbsolutePathFromResources(compileRequest.outputBinaryRelativePath, outputAbsolutePath);
 		assert(resolvedOutputAbsolutePath && "[ShaderCompiler][Assert] reason=output_path_resolve_failed");
-		if (!resolvedOutputAbsolutePath || !diskLoaderModule->saveBinaryFile(outputAbsolutePath, shaderByteCode))
+		if (!resolvedOutputAbsolutePath)
 		{
+			outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=output_path_resolve_failed";
+			return false;
+		}
+
+		if (!diskLoaderModule->saveBinaryFile(outputAbsolutePath, shaderByteCode))
+		{
+			outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=output_binary_write_failed path=" + outputAbsolutePath;
 			return false;
 		}
 
@@ -291,7 +297,11 @@ static bool compileShaderSourceText(
 
 	if (!createCompiledShaderObject(compileRequest, moveValue(shaderByteCode), outCompileResult.shaderAsset, outCompileResult.shaderObject))
 	{
-		outCompileResult.clear();
+		outCompileResult.success = false;
+		outCompileResult.shaderAsset = nullptr;
+		outCompileResult.shaderObject = nullptr;
+		outCompileResult.wroteOutputBinary = !compileRequest.outputBinaryRelativePath.empty();
+		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=compiled_shader_object_create_failed";
 		return false;
 	}
 
@@ -316,12 +326,14 @@ bool ShaderCompiler::compileFromFile(
 	assert(resolvedSourceAbsolutePath && "[ShaderCompiler][Assert] reason=source_path_resolve_failed");
 	if (!resolvedSourceAbsolutePath)
 	{
+		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=source_path_resolve_failed";
 		return false;
 	}
 
-	InputFileStream sourceFileStream = diskLoaderModule->openInputFileStream(sourceAbsolutePath, false);
+	InputFileStream sourceFileStream = diskLoaderModule->openInputFileStream(sourceAbsolutePath, true);
 	if (!sourceFileStream.is_open())
 	{
+		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=source_file_open_failed path=" + sourceAbsolutePath;
 		return false;
 	}
 
@@ -329,6 +341,7 @@ bool ShaderCompiler::compileFromFile(
 	const stream_position sourceFileSize = sourceFileStream.tellg();
 	if (sourceFileSize <= 0)
 	{
+		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=source_file_empty path=" + sourceAbsolutePath;
 		return false;
 	}
 
@@ -338,6 +351,7 @@ bool ShaderCompiler::compileFromFile(
 	sourceFileStream.read(sourceText.data(), static_cast<stream_size>(sourceText.size()));
 	if (!sourceFileStream)
 	{
+		outCompileResult.diagnosticText = "[ShaderCompiler][CompileFailed] reason=source_file_read_failed path=" + sourceAbsolutePath;
 		return false;
 	}
 

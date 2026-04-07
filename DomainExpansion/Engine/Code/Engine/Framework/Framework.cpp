@@ -1,12 +1,9 @@
 #include "Engine/Framework/Framework.h"
 
 #include "Engine/Assets/AssetLoader.h"
-#include "Engine/Module/DiskLoader/DiskLoaderModule.h"
-#include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/TextureParser/TextureParser.h"
-#include "Engine/Module/UI/ImGuiLayerModule.h"
 
 static const char* getFrameworkBackendTypeText(const RenderBackendType backendType)
 {
@@ -27,6 +24,7 @@ bool Framework::initialize(
 	WindowsWindowObject& inWindowsWindowObject,
 	const FrameworkInitializeOptions& initializeOptions)
 {
+	TRACE_EVENT("framework", "Framework::initialize");
 	if (moduleInitializationCompleted)
 	{
 		for (int32 moduleIndex = static_cast<int32>(moduleStorage.size()) - 1; moduleIndex >= 0; --moduleIndex)
@@ -64,48 +62,6 @@ bool Framework::initialize(
 
 		backendOptions.enableDebugLayer = true;
 	}
-
-	WindowEventCallbacks windowEventCallbacks = {};
-	windowEventCallbacks.onResize = [this](const uint32 width, const uint32 height)
-	{
-		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-		diskLoaderModule->TEMP_saveRuntimeWindowResolution(width, height);
-		onWindowResize(width, height);
-	};
-	windowEventCallbacks.onActivationChanged = [](const bool isActive)
-	{
-		output << "Window activation changed: " << (isActive ? "active" : "inactive") << lineBreak;
-	};
-
-	windowEventCallbacks.onNativeMessage = [](
-		const HandleWindow windowHandle,
-		const MessageIdentifier messageIdentifier,
-		const MessageFirstParameter firstParameter,
-		const MessageSecondParameter secondParameter) -> bool
-	{
-		shared_pointer<InputModule> inputModule = InputModule::get();
-		if (inputModule != nullptr)
-		{
-			inputModule->handleNativeMessage(
-				windowHandle,
-				messageIdentifier,
-				firstParameter,
-				secondParameter);
-		}
-
-		shared_pointer<ImGuiLayerModule> imGuiLayerModule = ImGuiLayerModule::get();
-		if (imGuiLayerModule == nullptr)
-		{
-			return false;
-		}
-
-		return imGuiLayerModule->processNativeMessage(
-			windowHandle,
-			messageIdentifier,
-			firstParameter,
-			secondParameter);
-	};
-	windowsWindowObject->setEventCallbacks(moveValue(windowEventCallbacks));
 
 	const bool hasRegisteredModules = !moduleStorage.empty();
 	assert(hasRegisteredModules && "[Framework][Assert] reason=module_not_registered");
@@ -151,6 +107,7 @@ World* Framework::createWorld(const string& worldName)
 
 World* Framework::loadWorld(const string& worldAssetPath)
 {
+	TRACE_EVENT("world_load", "Framework::loadWorld");
 	activeWorld = AssetLoader::get().loadUniqueAsset<World>(worldAssetPath);
 	assert(activeWorld != nullptr && "[Framework][Assert] reason=world_load_failed");
 	return activeWorld.get();
@@ -158,13 +115,9 @@ World* Framework::loadWorld(const string& worldAssetPath)
 
 bool Framework::unloadWorld()
 {
-	if (activeWorld == nullptr)
-	{
-		return false;
-	}
-
+	const bool unloadedWorld = activeWorld != nullptr;
 	activeWorld.reset();
-	return true;
+	return unloadedWorld;
 }
 
 bool Framework::saveActiveWorld()
@@ -191,12 +144,14 @@ const World* Framework::getActiveWorld() const
 
 void Framework::update()
 {
+	TRACE_EVENT("framework", "Framework::update");
 	preUpdateModules();
 
 	World* activeWorldObject = getActiveWorld();
 	if (activeWorldObject != nullptr)
 	{
-		ScopedTimer worldCpuFrameTimer(framePerformanceMetrics.worldCpuFrameTimeMilliseconds);		const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
+		ScopedTimer worldCpuFrameTimer(framePerformanceMetrics.worldCpuFrameTimeMilliseconds);
+		const float deltaTimeSeconds = static_cast<float>(Timer::get()->getDeltaTime());
 		activeWorldObject->tick(deltaTimeSeconds);
 	}
 	else
@@ -248,7 +203,10 @@ bool Framework::isEditorUIEnabled() const
 	return editorUIEnabled;
 }
 
-void Framework::setRenderFramePerformanceMetrics(const float renderWorldCpuFrameTimeMilliseconds,const float renderCommandCpuFrameTimeMilliseconds, const float gpuFrameTimeMilliseconds)
+void Framework::setRenderFramePerformanceMetrics(
+	const float renderWorldCpuFrameTimeMilliseconds,
+	const float renderCommandCpuFrameTimeMilliseconds,
+	const float gpuFrameTimeMilliseconds)
 {
 	framePerformanceMetrics.renderWorldCpuFrameTimeMilliseconds = renderWorldCpuFrameTimeMilliseconds;
 	framePerformanceMetrics.renderCommandCpuFrameTimeMilliseconds = renderCommandCpuFrameTimeMilliseconds;

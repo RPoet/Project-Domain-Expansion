@@ -59,14 +59,7 @@ static bool TEMP_tryParseDiskLoaderIniUnsignedInteger(
 	}
 
 	const string key = TEMP_trimDiskLoaderIniToken(lineText.substr(0, separatorIndex));
-	if (key != keyText)
-	{
-		return false;
-	}
-
-	return TEMP_parseDiskLoaderUnsignedInteger(
-		TEMP_trimDiskLoaderIniToken(lineText.substr(separatorIndex + 1)),
-		outValue);
+	return key == keyText && TEMP_parseDiskLoaderUnsignedInteger(TEMP_trimDiskLoaderIniToken(lineText.substr(separatorIndex + 1)), outValue);
 }
 
 static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
@@ -110,6 +103,7 @@ bool DiskLoaderModule::openInputFileStream(
 	InputFileStream& outFileStream,
 	const bool binary) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::openInputFileStream");
 	outFileStream.close();
 	outFileStream.clear();
 	if (filePath.empty())
@@ -178,6 +172,7 @@ bool DiskLoaderModule::openBinaryAssetInputFileStream(
 	const string& assetPath,
 	InputFileStream& outFileStream) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::openBinaryAssetInputFileStream");
 	const string binaryAssetPath = resolveAssetPath(assetPath, AssetFileType::binary);
 	string binaryAbsolutePath = {};
 	const bool validBinaryAbsolutePath = resolveAbsolutePathFromResources(binaryAssetPath, binaryAbsolutePath);
@@ -238,6 +233,7 @@ bool DiskLoaderModule::ensureParentDirectory(const string& filePath) const
 
 bool DiskLoaderModule::resolveResourcesRootPath(string& outResourcesRootPath) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::resolveResourcesRootPath");
 	outResourcesRootPath.clear();
 	if (!cachedResourcesRootPath.empty())
 	{
@@ -281,8 +277,7 @@ string DiskLoaderModule::sanitizeFileName(const string& fileNameText, const stri
 	for (size_t characterIndex = 0; characterIndex < sanitizedText.length(); ++characterIndex)
 	{
 		const char character = sanitizedText[characterIndex];
-		const bool validCharacter =
-			(character >= 'a' && character <= 'z')
+		const bool validCharacter = (character >= 'a' && character <= 'z')
 			|| (character >= 'A' && character <= 'Z')
 			|| (character >= '0' && character <= '9')
 			|| character == '_'
@@ -371,22 +366,27 @@ string DiskLoaderModule::resolveAssetPath(
 	const string& path,
 	const AssetFileType assetFileType) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::resolveAssetPath");
 	assert(!path.empty() && "[DiskLoaderModule][Assert] reason=asset_path_missing");
 
 	filesystem_path assetPath(path);
 	assetPath.replace_extension(assetFileType == AssetFileType::document ? ".deasset" : ".de");
-	return assetPath.lexically_normal().string();
+	return assetPath.is_absolute()
+		? assetPath.lexically_normal().string()
+		: assetPath.lexically_normal().generic_string();
 }
 
 bool DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText, string& outAbsolutePath) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::resolveAbsolutePathFromResources");
+	const string inputPathText = pathText;
 	outAbsolutePath.clear();
-	if (pathText.empty())
+	if (inputPathText.empty())
 	{
 		return false;
 	}
 
-	const filesystem_path inputPath(pathText);
+	const filesystem_path inputPath(inputPathText);
 	error_code pathErrorCode;
 	if (inputPath.is_absolute())
 	{
@@ -415,13 +415,15 @@ string DiskLoaderModule::resolveAbsolutePathFromResources(const string& pathText
 
 bool DiskLoaderModule::resolvePathFromResources(const string& pathText, string& outAbsolutePath) const
 {
+	TRACE_EVENT("disk", "DiskLoaderModule::resolvePathFromResources");
+	const string inputPathText = pathText;
 	outAbsolutePath.clear();
-	if (pathText.empty())
+	if (inputPathText.empty())
 	{
 		return false;
 	}
 
-	const filesystem_path inputPath(pathText);
+	const filesystem_path inputPath(inputPathText);
 	if (inputPath.is_absolute())
 	{
 		error_code pathErrorCode;

@@ -13,6 +13,7 @@ public:
 	template <typename asset_type>
 	asset_type loadAsset(const string& assetPathReference) const
 	{
+		TRACE_EVENT("asset", "AssetLoader::loadAsset");
 		shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 		const string assetPath = diskLoaderModule->resolveAssetPath(assetPathReference, DiskLoaderModule::AssetFileType::document);
 		asset_type asset = {};

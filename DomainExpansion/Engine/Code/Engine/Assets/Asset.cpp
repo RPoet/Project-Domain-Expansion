@@ -22,6 +22,7 @@ void Asset::writeProperty(OutputFileStream& fileStream) const
 
 void Asset::readProperty(const XMLKeyValueDocument& document)
 {
+	TRACE_EVENT("asset", "Asset::readProperty");
 	clear();
 
 	XML& xml = XML::get();

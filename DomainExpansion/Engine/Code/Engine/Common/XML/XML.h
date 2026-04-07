@@ -61,6 +61,10 @@ public:
 	void writeCloseTag(OutputFileStream& fileStream, const char* tagName) const;
 	bool writeDocument(OutputFileStream& fileStream, const XMLKeyValueDocument& document) const;
 	bool writeDocumentFile(const string& filePath, const XMLKeyValueDocument& document) const;
+	void readStringPropertyArray(
+		const XMLKeyValueDocument& document,
+		const char* propertyName,
+		vector<string>& outPropertyValues) const;
 
 	template <typename value_type>
 	inline void writeProperty(
@@ -106,21 +110,20 @@ public:
 		value_type& outPropertyValue) const
 	{
 		assert(propertyName != nullptr && "[XML][Assert] reason=property_name_missing");
-		const string* propertyValueText = document.find(propertyName);
-		if (propertyValueText == nullptr)
+		if (const string* propertyValueText = document.find(propertyName); propertyValueText != nullptr)
 		{
-			return false;
+			if constexpr (std::is_same_v<value_type, string>)
+			{
+				outPropertyValue = parsePropertyValueText(*propertyValueText);
+			}
+			else
+			{
+				outPropertyValue = parsePropertyValueText<value_type>(*propertyValueText);
+			}
+			return true;
 		}
 
-		if constexpr (std::is_same_v<value_type, string>)
-		{
-			outPropertyValue = parsePropertyValueText(*propertyValueText);
-		}
-		else
-		{
-			outPropertyValue = parsePropertyValueText<value_type>(*propertyValueText);
-		}
-		return true;
+		return false;
 	}
 
 	template <typename value_type>

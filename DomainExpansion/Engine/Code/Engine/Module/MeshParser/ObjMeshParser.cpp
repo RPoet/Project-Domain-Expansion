@@ -132,7 +132,7 @@ static bool tryResolveObjIndex(
 	return false;
 }
 
-[[noreturn]] static void failObjLoad(
+static bool failObjLoad(
 	const string& meshFilePath,
 	const uint32 lineNumber,
 	const string& reason,
@@ -141,7 +141,7 @@ static bool tryResolveObjIndex(
 	unused(meshFilePath);
 	unused(lineNumber);
 	outErrorText = reason;
-	assert(false && "[MeshParser][Assert] reason=obj_load_failed");
+	return false;
 }
 
 bool ObjMeshParser::parse(
@@ -158,7 +158,7 @@ bool ObjMeshParser::parse(
 	if (!fileStream.is_open())
 	{
 		outErrorText = "file_open_failed";
-		assert(false && "[MeshParser][Assert] reason=obj_file_open_failed");
+		return false;
 	}
 
 	vector<ObjFloat3> sourcePositions;
@@ -190,7 +190,7 @@ bool ObjMeshParser::parse(
 			lineParser >> position.x >> position.y >> position.z;
 			if (!lineParser)
 			{
-				failObjLoad(meshFilePath, lineNumber, "invalid_position", outErrorText);
+				return failObjLoad(meshFilePath, lineNumber, "invalid_position", outErrorText);
 			}
 
 			sourcePositions.push_back(position);
@@ -203,7 +203,7 @@ bool ObjMeshParser::parse(
 			lineParser >> texcoord.x >> texcoord.y;
 			if (!lineParser)
 			{
-				failObjLoad(meshFilePath, lineNumber, "invalid_texcoord", outErrorText);
+				return failObjLoad(meshFilePath, lineNumber, "invalid_texcoord", outErrorText);
 			}
 
 			sourceTexcoords.push_back(texcoord);
@@ -216,7 +216,7 @@ bool ObjMeshParser::parse(
 			lineParser >> normal.x >> normal.y >> normal.z;
 			if (!lineParser)
 			{
-				failObjLoad(meshFilePath, lineNumber, "invalid_normal", outErrorText);
+				return failObjLoad(meshFilePath, lineNumber, "invalid_normal", outErrorText);
 			}
 
 			sourceNormals.push_back(normal);
@@ -237,7 +237,7 @@ bool ObjMeshParser::parse(
 
 		if (faceTokens.size() < 3)
 		{
-			failObjLoad(meshFilePath, lineNumber, "invalid_face_vertex_count", outErrorText);
+			return failObjLoad(meshFilePath, lineNumber, "invalid_face_vertex_count", outErrorText);
 		}
 
 		vector<uint32> faceIndices;
@@ -247,7 +247,7 @@ bool ObjMeshParser::parse(
 			ObjFaceVertex faceVertex = {};
 			if (!parseObjFaceVertexToken(faceTokens[faceVertexIndex], faceVertex))
 			{
-				failObjLoad(meshFilePath, lineNumber, "invalid_face_vertex_token", outErrorText);
+				return failObjLoad(meshFilePath, lineNumber, "invalid_face_vertex_token", outErrorText);
 			}
 
 			auto foundVertex = vertexMap.find(faceVertex);
@@ -260,7 +260,7 @@ bool ObjMeshParser::parse(
 			uint32 resolvedPositionIndex = 0;
 			if (!tryResolveObjIndex(faceVertex.positionIndex, sourcePositions.size(), resolvedPositionIndex))
 			{
-				failObjLoad(meshFilePath, lineNumber, "position_index_out_of_range", outErrorText);
+				return failObjLoad(meshFilePath, lineNumber, "position_index_out_of_range", outErrorText);
 			}
 
 			PositionData positionVertex = {};
@@ -277,7 +277,7 @@ bool ObjMeshParser::parse(
 				uint32 resolvedNormalIndex = 0;
 				if (!tryResolveObjIndex(faceVertex.normalIndex, sourceNormals.size(), resolvedNormalIndex))
 				{
-					failObjLoad(meshFilePath, lineNumber, "normal_index_out_of_range", outErrorText);
+					return failObjLoad(meshFilePath, lineNumber, "normal_index_out_of_range", outErrorText);
 				}
 
 				const ObjFloat3& sourceNormal = sourceNormals[resolvedNormalIndex];
@@ -291,7 +291,7 @@ bool ObjMeshParser::parse(
 				uint32 resolvedTexcoordIndex = 0;
 				if (!tryResolveObjIndex(faceVertex.textureIndex, sourceTexcoords.size(), resolvedTexcoordIndex))
 				{
-					failObjLoad(meshFilePath, lineNumber, "texcoord_index_out_of_range", outErrorText);
+					return failObjLoad(meshFilePath, lineNumber, "texcoord_index_out_of_range", outErrorText);
 				}
 
 				const ObjFloat2& sourceTexcoord = sourceTexcoords[resolvedTexcoordIndex];
@@ -318,14 +318,14 @@ bool ObjMeshParser::parse(
 	if (rawMeshData.positionVertices.empty() || rawMeshData.indices.empty())
 	{
 		outErrorText = "mesh_data_empty";
-		assert(false && "[MeshParser][Assert] reason=obj_mesh_data_empty");
+		return false;
 	}
 
 	if (rawMeshData.normalVertices.size() != rawMeshData.positionVertices.size()
 		|| rawMeshData.texcoordVertices.size() != rawMeshData.positionVertices.size())
 	{
 		outErrorText = "mesh_vertex_stream_mismatch";
-		assert(false && "[MeshParser][Assert] reason=obj_mesh_vertex_stream_mismatch");
+		return false;
 	}
 
 	outMeshAsset.setName(meshFilePath + ":LOD" + std::to_string(lodLevel));

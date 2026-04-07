@@ -4,9 +4,9 @@
 #include "Bridge/EntityBridge.h"
 #include "Bridge/MaterialBridge.h"
 #include "Bridge/MeshBridge.h"
+#include "Engine/Module/FrameSync/FrameSyncCoordinator.h"
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
 #include "Engine/Module/Timer/Timer.h"
-#include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 #include "Render/RenderCommand.h"
@@ -99,12 +99,6 @@ private:
 public:
 	RenderWorldDrawPrepareResult build(const RenderWorldBuildResult& buildResult)
 	{
-		shared_pointer<ShaderPackageModule> shaderPackageModule = ShaderPackageModule::get();
-		if (shaderPackageModule == nullptr)
-		{
-			return moveValue(drawPrepareResult);
-		}
-
 		for (uint32 meshDrawDataIndex = 0; meshDrawDataIndex < static_cast<uint32>(buildResult.meshDrawData.size()); ++meshDrawDataIndex)
 		{
 			const RenderWorldMeshDrawData& meshDrawData = buildResult.meshDrawData[meshDrawDataIndex];
@@ -116,10 +110,13 @@ public:
 				continue;
 			}
 
-			RenderWorldMeshDrawCommand baseMeshDrawCommand = {};
-			baseMeshDrawCommand.meshAssetHandle = meshAssetHandle;
-			baseMeshDrawCommand.transform = meshDrawData.transform;
-			baseMeshDrawCommand.pipelineStateDesc.pipelineStateType = PipelineStateType::graphics;
+			RenderWorldMeshDrawCommand baseMeshDrawCommand{
+				.meshAssetHandle = meshAssetHandle,
+				.transform = meshDrawData.transform,
+				.pipelineStateDesc = {
+					.pipelineStateType = PipelineStateType::graphics,
+				},
+			};
 			PushConstantRange pushConstantRange = {
 				.offsetInBytes = 0,
 				.sizeInBytes = static_cast<uint32>(sizeof(float) * 20),
@@ -240,11 +237,12 @@ public:
 				if (materialHandle != invalidBridgeHandle)
 				{
 					const MaterialBridge::StaticData* materialStaticData = MaterialBridge::get().getStaticData(materialHandle);
+					assert(materialStaticData != nullptr && "[RenderWorld][Assert] reason=material_static_data_missing");
 					meshDrawCommand.materialAsset = materialStaticData != nullptr ? materialStaticData->materialAsset : nullptr;
 				}
 				shared_pointer<ShaderObject> vertexShader = nullptr;
 				shared_pointer<ShaderObject> pixelShader = nullptr;
-				if (!MaterialAsset::resolveEffectiveShaders(*shaderPackageModule, meshDrawCommand.materialAsset, ShaderTargetPlatform::dx12, vertexShader, pixelShader)) // TODO: Remove the hardcoded DX12 target and resolve this from the active render backend or platform-neutral shader selection path.
+				if (!MaterialBridge::get().resolveEffectiveShaders(materialHandle, ShaderTargetPlatform::dx12, vertexShader, pixelShader)) // TODO: Remove the hardcoded DX12 target and resolve this from the active render backend or platform-neutral shader selection path.
 				{
 					continue;
 				}
@@ -284,6 +282,7 @@ public:
 
 bool RenderWorld::initialize(WindowsWindowObject& windowObject)
 {
+	TRACE_EVENT("render", "RenderWorld::initialize");
 	this->windowObject = &windowObject;
 	consumedWorldUpdateSerial = 0;
 	lastSubmittedFrameSyncValue = 0;
@@ -297,14 +296,11 @@ bool RenderWorld::initialize(WindowsWindowObject& windowObject)
 void RenderWorld::shutdown()
 {
 	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	RenderBackend* renderBackend = renderBackendModule != nullptr ? renderBackendModule->getBackend() : nullptr;
+	assert(renderBackendModule != nullptr && "[RenderWorld][Assert] reason=render_backend_module_missing");
+	RenderBackend* renderBackend = renderBackendModule->getBackend();
 	if (renderBackend != nullptr)
 	{
-		SyncObject* syncObject = renderBackend->getSyncObject();
-		if (syncObject != nullptr)
-		{
-			syncObject->wait();
-		}
+		FrameSyncCoordinator::waitForBackendIdle(*renderBackend);
 
 		if (view.depthStencilView != nullptr)
 		{
@@ -323,6 +319,7 @@ void RenderWorld::shutdown()
 
 void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 {
+	TRACE_EVENT("render", "RenderWorld::update");
 	updateResult = {};
 	assert(windowObject != nullptr);
 
@@ -343,12 +340,23 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		RenderWorldDrawPrepareResult drawPrepareResult = drawCommandBuilder.build(buildResult);
 
 		shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-		renderBackend = renderBackendModule != nullptr && renderBackendModule->isBackendCreated() ? renderBackendModule->getBackend() : nullptr;
-		SwapChain* swapChain = renderBackend != nullptr ? renderBackend->getSwapChain() : nullptr;
-		const uint32 swapChainWidth = swapChain != nullptr ? swapChain->getWidth() : 0;
-		const uint32 swapChainHeight = swapChain != nullptr ? swapChain->getHeight() : 0;
-		const bool readyToRender = renderBackend != nullptr && !windowObject->isWindowMinimized() && swapChain != nullptr && swapChain->isRenderable() && swapChainWidth != 0 && swapChainHeight != 0;
-		if (!readyToRender)
+		assert(renderBackendModule != nullptr && "[RenderWorld][Assert] reason=render_backend_module_missing");
+		if (!renderBackendModule->isBackendCreated() || windowObject->isWindowMinimized())
+		{
+			return;
+		}
+
+		renderBackend = renderBackendModule->getBackend();
+		assert(renderBackend != nullptr && "[RenderWorld][Assert] reason=render_backend_missing");
+		SwapChain* swapChain = renderBackend->getSwapChain();
+		if (swapChain == nullptr || !swapChain->isRenderable())
+		{
+			return;
+		}
+
+		const uint32 swapChainWidth = swapChain->getWidth();
+		const uint32 swapChainHeight = swapChain->getHeight();
+		if (swapChainWidth == 0 || swapChainHeight == 0)
 		{
 			return;
 		}
@@ -356,11 +364,7 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 		const bool depthBufferResizeRequired = view.depthTextureObject == nullptr || view.depthStencilView == nullptr || view.width != swapChainWidth || view.height != swapChainHeight;
 		if (depthBufferResizeRequired)
 		{
-			SyncObject* syncObject = renderBackend->getSyncObject();
-			if (syncObject != nullptr)
-			{
-				syncObject->wait();
-			}
+			FrameSyncCoordinator::waitForBackendIdle(*renderBackend);
 
 			if (view.depthStencilView != nullptr)
 			{
@@ -401,13 +405,8 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 		renderCommand.enqueue("WaitForGPU", [this](string&& commandName, RenderBackend& renderBackendReference)
 		{
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			assert(syncObject);
-
-			if (lastSubmittedFrameSyncValue > 1)
-			{
-				syncObject->wait(lastSubmittedFrameSyncValue - 1);
-			}
+			unused(commandName);
+			FrameSyncCoordinator::waitForPreviousSubmission(renderBackendReference, lastSubmittedFrameSyncValue);
 		});
 
 		renderCommand.enqueue("BeginFrame", [this](string&& commandName, RenderBackend& renderBackendReference)
@@ -432,8 +431,7 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			unused(commandName);
 
 			SwapChain* swapChain = renderBackendReference.getSwapChain();
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			if (swapChain == nullptr || syncObject == nullptr || !swapChain->isRenderable())
+			if (swapChain == nullptr || !FrameSyncCoordinator::hasBackendFrameSync(renderBackendReference) || !swapChain->isRenderable())
 			{
 				return;
 			}
@@ -586,8 +584,7 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 
 			CommandQueue* commandQueue = renderBackendReference.getCommandQueue();
 			SwapChain* swapChain = renderBackendReference.getSwapChain();
-			SyncObject* syncObject = renderBackendReference.getSyncObject();
-			if (commandQueue == nullptr || swapChain == nullptr || syncObject == nullptr || !swapChain->isRenderable())
+			if (commandQueue == nullptr || swapChain == nullptr || !FrameSyncCoordinator::hasBackendFrameSync(renderBackendReference) || !swapChain->isRenderable())
 			{
 				renderBackendReference.discardPendingSubmissionBatch();
 				return;
@@ -614,7 +611,7 @@ void RenderWorld::update(const RenderWorldUpdateInput& updateInput)
 			renderBackendReference.queueCommandList(commandList);
 			renderBackendReference.executeQueuedCommandLists();
 			swapChain->present();
-			lastSubmittedFrameSyncValue = syncObject->signal();
+			lastSubmittedFrameSyncValue = FrameSyncCoordinator::signalFrameSubmission(renderBackendReference);
 			assert(lastSubmittedFrameSyncValue != 0 && "[RenderWorld][Assert] reason=frame_sync_signal_failed");
 		});
 	}

@@ -33,13 +33,18 @@ public:
 
 	static MaterialBridge& get()
 	{
-		static MaterialBridge materialBridge = {};
+		static MaterialBridge materialBridge;
 		return materialBridge;
 	}
 
 	HandleReference createMaterialHandle(const ObjectDesc& objectDesc);
 	bool isHandleAlive(PackedHandle packedHandle) const;
 	const StaticData* getStaticData(PackedHandle packedHandle) const;
+	bool resolveEffectiveShaders(
+		PackedHandle packedHandle,
+		ShaderTargetPlatform targetPlatform,
+		shared_pointer<ShaderObject>& outVertexShader,
+		shared_pointer<ShaderObject>& outPixelShader) const;
 	void processFrame();
 
 private:

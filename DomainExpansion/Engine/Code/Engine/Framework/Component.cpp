@@ -5,7 +5,7 @@
 
 static unordered_map<string, ComponentFactoryFunction>& getComponentFactoryByTypeName()
 {
-	static unordered_map<string, ComponentFactoryFunction> componentFactoryByTypeName = {};
+	static unordered_map<string, ComponentFactoryFunction> componentFactoryByTypeName;
 	return componentFactoryByTypeName;
 }
 
@@ -18,6 +18,7 @@ ComponentFactoryRegistration::ComponentFactoryRegistration(const char* assetType
 
 unique_pointer<Component> Component::createByAssetTypeName(const string& assetTypeName)
 {
+	TRACE_EVENT("framework", "Component::createByAssetTypeName");
 	const auto foundFactory = getComponentFactoryByTypeName().find(assetTypeName);
 	assert(foundFactory != getComponentFactoryByTypeName().end() && "[Component][Assert] reason=component_factory_missing");
 	return foundFactory->second();

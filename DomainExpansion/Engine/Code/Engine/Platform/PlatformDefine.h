@@ -26,6 +26,9 @@
 #include "Engine/Platform/Math.h"
 #include "Engine/Platform/SIMDMath.h"
 
+// TO DO : make this per platform profiler and platform agnostic profiler.
+#include "Engine/Profiler/PerfettoTraceScope.h"
+
 #ifndef unused
 #define unused(x) (void)(x)
 #endif
@@ -52,7 +55,6 @@ using stream_size = std::streamsize;
 using error_code = std::error_code;
 using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
-using steady_clock = std::chrono::steady_clock;
 using duration_seconds = std::chrono::duration<double>;
 using filesystem_path = std::filesystem::path;
 using filesystem_directory_entry = std::filesystem::directory_entry;

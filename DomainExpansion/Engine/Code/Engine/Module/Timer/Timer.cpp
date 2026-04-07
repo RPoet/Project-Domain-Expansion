@@ -1,8 +1,20 @@
 #include "Engine/Module/Timer/Timer.h"
 
+static double getMonotonicTimeSeconds()
+{
+	LARGE_INTEGER performanceCounterFrequency = {};
+	const Bool resolvedFrequency = QueryPerformanceFrequency(&performanceCounterFrequency);
+	assert(resolvedFrequency != FALSE && performanceCounterFrequency.QuadPart > 0 && "[Timer][Assert] reason=performance_counter_frequency_unavailable");
+
+	LARGE_INTEGER performanceCounterValue = {};
+	const Bool resolvedCounter = QueryPerformanceCounter(&performanceCounterValue);
+	assert(resolvedCounter != FALSE && "[Timer][Assert] reason=performance_counter_read_failed");
+	return static_cast<double>(performanceCounterValue.QuadPart) / static_cast<double>(performanceCounterFrequency.QuadPart);
+}
+
 double Timer::getCurrentTimeSeconds()
 {
-	return duration_seconds(steady_clock::now().time_since_epoch()).count();
+	return getMonotonicTimeSeconds();
 }
 
 bool Timer::init(Framework& framework)
@@ -23,10 +35,9 @@ void Timer::preUpdate()
 		frameDelta = 0.0;
 	}
 
-	static constexpr double maximumFrameDeltaSeconds = 0.25;
-	if (frameDelta > maximumFrameDeltaSeconds)
+	if (frameDelta > 0.25)
 	{
-		frameDelta = maximumFrameDeltaSeconds;
+		frameDelta = 0.25;
 	}
 
 	delta = frameDelta;

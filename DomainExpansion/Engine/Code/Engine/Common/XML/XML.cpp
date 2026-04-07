@@ -52,6 +52,28 @@ string XML::escapeText(const string& text) const
 	return escapedText;
 }
 
+void XML::readStringPropertyArray(
+	const XMLKeyValueDocument& document,
+	const char* propertyName,
+	vector<string>& outPropertyValues) const
+{
+	TRACE_EVENT("xml", "XML::readStringPropertyArray");
+	assert(propertyName != nullptr && "[XML][Assert] reason=property_name_missing");
+	outPropertyValues.clear();
+
+	for (uint32 propertyValueIndex = 0;; ++propertyValueIndex)
+	{
+		string propertyValue = {};
+		const string indexedPropertyPath = string(propertyName) + ".item" + to_string(propertyValueIndex);
+		if (!readProperty(document, indexedPropertyPath.c_str(), propertyValue))
+		{
+			break;
+		}
+
+		outPropertyValues.push_back(moveValue(propertyValue));
+	}
+}
+
 string XML::buildPropertyValueText(const string& propertyValue) const
 {
 	return propertyValue;
@@ -426,6 +448,7 @@ static XMLParseCode skipXMLIgnorableContent(const string& xmlText, size_t& inOut
 
 static XMLParseCode parseXMLName(const string& xmlText, size_t& inOutCharacterIndex, string& outName)
 {
+	TRACE_EVENT("xml", "XML::parseXMLName");
 	outName.clear();
 	if (inOutCharacterIndex >= xmlText.length() || !isXMLNameCharacter(xmlText[inOutCharacterIndex]))
 	{
@@ -444,6 +467,7 @@ static XMLParseCode parseXMLName(const string& xmlText, size_t& inOutCharacterIn
 
 static XMLParseCode parseXMLAttributeValue(const string& xmlText, size_t& inOutCharacterIndex, string& outValue)
 {
+	TRACE_EVENT("xml", "XML::parseXMLAttributeValue");
 	outValue.clear();
 	if (inOutCharacterIndex >= xmlText.length())
 	{
@@ -479,6 +503,7 @@ static XMLParseCode parseXMLOpenTag(
 	XMLTagData& outTagData,
 	bool& outSelfClosing)
 {
+	TRACE_EVENT("xml", "XML::parseXMLOpenTag");
 	outTagData = {};
 	outSelfClosing = false;
 
@@ -554,6 +579,7 @@ static XMLParseCode parseXMLClosingTag(
 	size_t& inOutCharacterIndex,
 	const string& expectedTagName)
 {
+	TRACE_EVENT("xml", "XML::parseXMLClosingTag");
 	if (!startsWithXMLToken(xmlText, inOutCharacterIndex, "</"))
 	{
 		return XMLParseCode::malformedDocument;
@@ -579,6 +605,7 @@ static XMLParseCode parseXMLClosingTag(
 
 static string buildXMLPath(const vector<string>& pathSegments, const string& leafName)
 {
+	TRACE_EVENT("xml", "XML::buildXMLPath");
 	string pathText = {};
 	for (size_t segmentIndex = 0; segmentIndex < pathSegments.size(); ++segmentIndex)
 	{
@@ -604,6 +631,7 @@ static XMLParseCode insertXMLKeyValue(
 	const string& key,
 	const string& value)
 {
+	TRACE_EVENT("xml", "XML::insertXMLKeyValue");
 	if (key.empty())
 	{
 		return XMLParseCode::succeeded;
@@ -642,6 +670,7 @@ static XMLParseCode recordXMLTagValue(
 	const bool hasChildElements,
 	const string& rawTextValue)
 {
+	TRACE_EVENT("xml", "XML::recordXMLTagValue");
 	string trimmedTextValue = {};
 	string elementValue = {};
 	if (!rawTextValue.empty())
@@ -788,6 +817,29 @@ static XMLParseCode parseXMLElement(
 	}
 }
 
+static XMLParseCode readXMLDocumentBuffer(InputFileStream& fileStream, string& outXmlText)
+{
+	TRACE_EVENT("xml", "XML::readDocument.ReadFileBuffer");
+	if (!outXmlText.empty())
+	{
+		fileStream.read(outXmlText.data(), static_cast<stream_size>(outXmlText.size()));
+	}
+
+	return (!fileStream && !outXmlText.empty())
+		? XMLParseCode::fileOpenFailed
+		: XMLParseCode::succeeded;
+}
+
+static XMLParseCode parseXMLDocumentElementTree(
+	const string& xmlText,
+	size_t& inOutCharacterIndex,
+	XMLKeyValueDocument& outDocument)
+{
+	TRACE_EVENT("xml", "XML::readDocumentText.ParseElementTree");
+	vector<string> pathSegments = {};
+	return parseXMLElement(xmlText, inOutCharacterIndex, pathSegments, outDocument);
+}
+
 void XMLKeyValueDocument::clear()
 {
 	valueByKey.clear();
@@ -913,6 +965,7 @@ bool XML::writeDocumentFile(const string& filePath, const XMLKeyValueDocument& d
 
 XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument& outDocument) const
 {
+	TRACE_EVENT("xml", "XML::readDocumentFile");
 	outDocument.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	string absoluteFilePath = {};
@@ -940,6 +993,7 @@ XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
 
 XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
 {
+	TRACE_EVENT("xml", "XML::readDocument");
 	outDocument.clear();
 
 	fileStream.seekg(0, InputFileStream::end);
@@ -952,14 +1006,10 @@ XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocumen
 	string xmlText = {};
 	xmlText.resize(static_cast<size_t>(fileSize));
 	fileStream.seekg(0, InputFileStream::beg);
-	if (!xmlText.empty())
+	const XMLParseCode bufferReadCode = readXMLDocumentBuffer(fileStream, xmlText);
+	if (bufferReadCode != XMLParseCode::succeeded)
 	{
-		fileStream.read(xmlText.data(), static_cast<stream_size>(xmlText.size()));
-	}
-
-	if (!fileStream && !xmlText.empty())
-	{
-		return ParseCode::fileOpenFailed;
+		return bufferReadCode;
 	}
 
 	return readDocumentText(xmlText, outDocument);
@@ -975,6 +1025,7 @@ XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
 
 XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
 {
+	TRACE_EVENT("xml", "XML::readDocumentText");
 	outDocument.clear();
 
 	size_t characterIndex = 0;
@@ -994,8 +1045,7 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 		return ParseCode::malformedDocument;
 	}
 
-	vector<string> pathSegments = {};
-	parseCode = parseXMLElement(xmlText, characterIndex, pathSegments, outDocument);
+	parseCode = parseXMLDocumentElementTree(xmlText, characterIndex, outDocument);
 	if (parseCode != XMLParseCode::succeeded)
 	{
 		return parseCode;

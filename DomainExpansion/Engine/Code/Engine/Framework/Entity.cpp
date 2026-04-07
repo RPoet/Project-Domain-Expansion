@@ -5,7 +5,7 @@
 
 static unordered_map<string, EntityFactoryFunction>& getEntityFactoryByTypeName()
 {
-	static unordered_map<string, EntityFactoryFunction> entityFactoryByTypeName = {};
+	static unordered_map<string, EntityFactoryFunction> entityFactoryByTypeName;
 	return entityFactoryByTypeName;
 }
 
@@ -28,6 +28,7 @@ EntityFactoryRegistration::EntityFactoryRegistration(const char* assetTypeName, 
 
 unique_pointer<Entity> Entity::createByAssetTypeName(const string& assetTypeName)
 {
+	TRACE_EVENT("framework", "Entity::createByAssetTypeName");
 	const auto foundFactory = getEntityFactoryByTypeName().find(assetTypeName);
 	assert(foundFactory != getEntityFactoryByTypeName().end() && "[Entity][Assert] reason=entity_factory_missing");
 	return foundFactory->second();
@@ -150,21 +151,13 @@ void Entity::tick(const float deltaTimeSeconds)
 
 bool Entity::addComponent(unique_pointer<Component> component)
 {
-	if (ownerWorld == nullptr)
-	{
-		return false;
-	}
-
+	assert(ownerWorld != nullptr && "[Entity][Assert] reason=owner_world_missing");
 	return ownerWorld->attachComponent(ownerEntityIndex, moveValue(component));
 }
 
 bool Entity::removeComponent(const uint32 componentIndex)
 {
-	if (ownerWorld == nullptr)
-	{
-		return false;
-	}
-
+	assert(ownerWorld != nullptr && "[Entity][Assert] reason=owner_world_missing");
 	return ownerWorld->removeComponent(ownerEntityIndex, componentIndex);
 }
 

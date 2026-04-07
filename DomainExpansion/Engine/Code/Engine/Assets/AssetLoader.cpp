@@ -2,50 +2,24 @@
 
 #include "Engine/Framework/World.h"
 
-static filesystem_path getWorldAssetDirectory(const World& world)
-{
-	assert(!world.getAssetPath().empty() && "[AssetLoader][Assert] reason=world_asset_path_missing");
-	const filesystem_path worldAssetPath(world.getAssetPath());
-	return (worldAssetPath.parent_path() / worldAssetPath.stem()).lexically_normal();
-}
-
-static bool isWorldOwnedAssetPath(const World& world, const string& assetPath)
-{
-	if (assetPath.empty())
-	{
-		return false;
-	}
-
-	return filesystem_path(assetPath).parent_path().lexically_normal() == getWorldAssetDirectory(world);
-}
-
-static string buildGeneratedWorldEntityAssetPath(const World& world, const uint32 entityIndex)
-{
-	return (getWorldAssetDirectory(world) / ("Entity" + to_string(entityIndex) + ".deasset"))
-		.lexically_normal()
-		.string();
-}
-
-static string buildGeneratedWorldComponentAssetPath(const World& world, const uint32 componentIndex)
-{
-	const filesystem_path worldAssetPath(world.getAssetPath());
-	return (getWorldAssetDirectory(world) / (worldAssetPath.stem().string() + "_Component" + to_string(componentIndex) + ".deasset"))
-		.lexically_normal()
-		.string();
-}
-
 void AssetLoader::saveWorld(World& world) const
 {
 	assert(!world.getAssetPath().empty() && "[AssetLoader][Assert] reason=world_asset_path_missing");
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
+	const filesystem_path worldAssetPath(world.getAssetPath());
+	const filesystem_path worldAssetDirectory = (worldAssetPath.parent_path() / worldAssetPath.stem()).lexically_normal();
+	const bool worldAssetDirectoryIsAbsolute = worldAssetDirectory.is_absolute();
+	const string worldAssetStem = worldAssetPath.stem().string();
 
 	for (uint32 entityIndex = 0; entityIndex < world.getEntityCount(); ++entityIndex)
 	{
 		Entity* entity = world.getEntityByIndex(entityIndex);
 		assert(entity != nullptr && "[AssetLoader][Assert] reason=entity_missing");
-		if (!isWorldOwnedAssetPath(world, entity->getAssetPath()))
+		const bool entityUsesWorldAssetDirectory = !entity->getAssetPath().empty() && filesystem_path(entity->getAssetPath()).parent_path().lexically_normal() == worldAssetDirectory;
+		if (!entityUsesWorldAssetDirectory)
 		{
-			entity->setAssetPath(buildGeneratedWorldEntityAssetPath(world, entityIndex));
+			const filesystem_path generatedEntityAssetPath = (worldAssetDirectory / ("Entity" + to_string(entityIndex) + ".deasset")).lexically_normal();
+			entity->setAssetPath(worldAssetDirectoryIsAbsolute ? generatedEntityAssetPath.string() : generatedEntityAssetPath.generic_string());
 		}
 	}
 
@@ -58,9 +32,11 @@ void AssetLoader::saveWorld(World& world) const
 			const uint32 componentIndex = entity->getComponentIndex(componentArrayIndex);
 			Component* component = world.getComponentByIndex(componentIndex);
 			assert(component != nullptr && "[AssetLoader][Assert] reason=component_missing");
-			if (!isWorldOwnedAssetPath(world, component->getAssetPath()))
+			const bool componentUsesWorldAssetDirectory = !component->getAssetPath().empty() && filesystem_path(component->getAssetPath()).parent_path().lexically_normal() == worldAssetDirectory;
+			if (!componentUsesWorldAssetDirectory)
 			{
-				component->setAssetPath(buildGeneratedWorldComponentAssetPath(world, componentIndex));
+				const filesystem_path generatedComponentAssetPath = (worldAssetDirectory / (worldAssetStem + "_Component" + to_string(componentIndex) + ".deasset")).lexically_normal();
+				component->setAssetPath(worldAssetDirectoryIsAbsolute ? generatedComponentAssetPath.string() : generatedComponentAssetPath.generic_string());
 			}
 		}
 	}
@@ -92,6 +68,7 @@ void AssetLoader::saveWorld(World& world) const
 template <>
 unique_pointer<World> AssetLoader::loadUniqueAsset<World>(const string& assetPathReference) const
 {
+	TRACE_EVENT("world_load", "AssetLoader::loadUniqueAsset<World>");
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	const string worldAssetPath = diskLoaderModule->resolveAssetPath(assetPathReference, DiskLoaderModule::AssetFileType::document);
 	const XMLKeyValueDocument worldDocument = XML::get().readDocumentFile(worldAssetPath);
@@ -102,66 +79,76 @@ unique_pointer<World> AssetLoader::loadUniqueAsset<World>(const string& assetPat
 
 	unordered_map<string, uint32> entityIndexByAssetPath = {};
 	vector<string> assetPaths = {};
-	XML::get().readPropertyArray(worldDocument, "deasset.Entities", assetPaths);
+	XML::get().readStringPropertyArray(worldDocument, "deasset.Entities", assetPaths);
 
-	for (uint32 entityReferenceIndex = 0; entityReferenceIndex < static_cast<uint32>(assetPaths.size()); ++entityReferenceIndex)
 	{
-		const string entityAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[entityReferenceIndex], DiskLoaderModule::AssetFileType::document);
-		const string absoluteEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(entityAssetPath);
-		const XMLKeyValueDocument entityDocument = XML::get().readDocumentFile(entityAssetPath);
-		const string* entityTypeName = entityDocument.find("deasset.@type");
-		assert(entityTypeName != nullptr && "[AssetLoader][Assert] reason=entity_document_type_missing");
-
-		unique_pointer<Entity> entityObject = Entity::createByAssetTypeName(*entityTypeName);
-		assert(entityObject != nullptr && "[AssetLoader][Assert] reason=entity_create_failed");
-
-		const uint32 entityIndex = loadedWorld->addEntityObject(moveValue(entityObject), false);
-		Entity* entity = loadedWorld->getEntityByIndex(entityIndex);
-		assert(entity != nullptr && "[AssetLoader][Assert] reason=entity_missing");
-
-		entity->setAssetPath(entityAssetPath);
-		entity->readProperty(entityDocument);
-		entityIndexByAssetPath[absoluteEntityAssetPath] = entityIndex;
-	}
-
-	for (uint32 entityIndex = 0; entityIndex < loadedWorld->getEntityCount(); ++entityIndex)
-	{
-		Entity* entity = loadedWorld->getEntityByIndex(entityIndex);
-		assert(entity != nullptr && "[AssetLoader][Assert] reason=entity_missing");
-		if (entity->getParentEntityAssetPath().empty())
+		TRACE_EVENT("world_load", "World.EntityLoop");
+		for (uint32 entityReferenceIndex = 0; entityReferenceIndex < static_cast<uint32>(assetPaths.size()); ++entityReferenceIndex)
 		{
-			continue;
+			const string entityAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[entityReferenceIndex], DiskLoaderModule::AssetFileType::document);
+			const string absoluteEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(entityAssetPath);
+			const XMLKeyValueDocument entityDocument = XML::get().readDocumentFile(entityAssetPath);
+			const string* entityTypeName = entityDocument.find("deasset.@type");
+			assert(entityTypeName != nullptr && "[AssetLoader][Assert] reason=entity_document_type_missing");
+
+			unique_pointer<Entity> entityObject = Entity::createByAssetTypeName(*entityTypeName);
+			assert(entityObject != nullptr && "[AssetLoader][Assert] reason=entity_create_failed");
+
+			const uint32 entityIndex = loadedWorld->addEntityObject(moveValue(entityObject), false);
+			Entity* entity = loadedWorld->getEntityByIndex(entityIndex);
+			assert(entity != nullptr && "[AssetLoader][Assert] reason=entity_missing");
+
+			entity->setAssetPath(entityAssetPath);
+			entity->readProperty(entityDocument);
+			entityIndexByAssetPath[absoluteEntityAssetPath] = entityIndex;
 		}
-
-		const string absoluteParentEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(entity->getParentEntityAssetPath());
-		const auto parentEntityIterator = entityIndexByAssetPath.find(absoluteParentEntityAssetPath);
-		assert(parentEntityIterator != entityIndexByAssetPath.end() && "[AssetLoader][Assert] reason=parent_entity_asset_reference_missing");
-
-		const bool addedChildEntity = loadedWorld->addChildEntity(parentEntityIterator->second, entityIndex);
-		assert(addedChildEntity && "[AssetLoader][Assert] reason=child_entity_attach_failed");
 	}
 
-	XML::get().readPropertyArray(worldDocument, "deasset.Components", assetPaths);
-
-	for (uint32 componentReferenceIndex = 0; componentReferenceIndex < static_cast<uint32>(assetPaths.size()); ++componentReferenceIndex)
 	{
-		const string componentAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[componentReferenceIndex], DiskLoaderModule::AssetFileType::document);
-		const XMLKeyValueDocument componentDocument = XML::get().readDocumentFile(componentAssetPath);
-		const string* componentTypeName = componentDocument.find("deasset.@type");
-		assert(componentTypeName != nullptr && "[AssetLoader][Assert] reason=component_document_type_missing");
+		TRACE_EVENT("world_load", "World.ParentLinkLoop");
+		for (uint32 entityIndex = 0; entityIndex < loadedWorld->getEntityCount(); ++entityIndex)
+		{
+			Entity* entity = loadedWorld->getEntityByIndex(entityIndex);
+			assert(entity != nullptr && "[AssetLoader][Assert] reason=entity_missing");
+			if (entity->getParentEntityAssetPath().empty())
+			{
+				continue;
+			}
 
-		unique_pointer<Component> component = Component::createByAssetTypeName(*componentTypeName);
-		assert(component != nullptr && "[AssetLoader][Assert] reason=component_create_failed");
+			const string absoluteParentEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(entity->getParentEntityAssetPath());
+			const auto parentEntityIterator = entityIndexByAssetPath.find(absoluteParentEntityAssetPath);
+			assert(parentEntityIterator != entityIndexByAssetPath.end() && "[AssetLoader][Assert] reason=parent_entity_asset_reference_missing");
 
-		component->setAssetPath(componentAssetPath);
-		component->readProperty(componentDocument);
+			const bool addedChildEntity = loadedWorld->addChildEntity(parentEntityIterator->second, entityIndex);
+			assert(addedChildEntity && "[AssetLoader][Assert] reason=child_entity_attach_failed");
+		}
+	}
 
-		const string absoluteOwnerEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(component->getOwnerEntityAssetPath());
-		const auto ownerEntityIterator = entityIndexByAssetPath.find(absoluteOwnerEntityAssetPath);
-		assert(ownerEntityIterator != entityIndexByAssetPath.end() && "[AssetLoader][Assert] reason=component_owner_entity_asset_reference_missing");
+	XML::get().readStringPropertyArray(worldDocument, "deasset.Components", assetPaths);
 
-		const bool attachedComponent = loadedWorld->attachComponent(ownerEntityIterator->second, moveValue(component), false);
-		assert(attachedComponent && "[AssetLoader][Assert] reason=component_attach_failed");
+	{
+		TRACE_EVENT("world_load", "World.ComponentLoop");
+		for (uint32 componentReferenceIndex = 0; componentReferenceIndex < static_cast<uint32>(assetPaths.size()); ++componentReferenceIndex)
+		{
+			const string componentAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[componentReferenceIndex], DiskLoaderModule::AssetFileType::document);
+			const XMLKeyValueDocument componentDocument = XML::get().readDocumentFile(componentAssetPath);
+
+			const string* componentTypeName = componentDocument.find("deasset.@type");
+			assert(componentTypeName != nullptr && "[AssetLoader][Assert] reason=component_document_type_missing");
+			unique_pointer<Component> component = Component::createByAssetTypeName(*componentTypeName);
+			assert(component != nullptr && "[AssetLoader][Assert] reason=component_create_failed");
+
+			component->setAssetPath(componentAssetPath);
+			component->readProperty(componentDocument);
+
+			const string absoluteOwnerEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(component->getOwnerEntityAssetPath());
+			const auto ownerEntityIterator = entityIndexByAssetPath.find(absoluteOwnerEntityAssetPath);
+			assert(ownerEntityIterator != entityIndexByAssetPath.end() && "[AssetLoader][Assert] reason=component_owner_entity_asset_reference_missing");
+			const uint32 ownerEntityIndex = ownerEntityIterator->second;
+
+			const bool attachedComponent = loadedWorld->attachComponent(ownerEntityIndex, moveValue(component), false);
+			assert(attachedComponent && "[AssetLoader][Assert] reason=component_attach_failed");
+		}
 	}
 
 	loadedWorld->initializeRuntimeObjects();

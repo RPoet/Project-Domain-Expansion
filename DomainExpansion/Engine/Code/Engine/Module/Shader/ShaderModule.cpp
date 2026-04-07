@@ -90,7 +90,7 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 
 	string shaderBinaryAbsolutePath = {};
 	const bool resolvedBinaryAbsolutePath =
-		diskLoaderModule->resolvePathFromResources(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
+		diskLoaderModule->resolveAbsolutePathFromResources(normalizedBinaryLoadRequest.binaryRelativePath, shaderBinaryAbsolutePath);
 	assert(resolvedBinaryAbsolutePath && "[ShaderModule][Assert] reason=shader_binary_path_resolve_failed");
 
 	vector<char> shaderByteCode = {};
@@ -106,14 +106,15 @@ shared_pointer<ShaderHandle> ShaderModule::getOrLoadShader(
 	else
 	{
 		ShaderCompiler shaderCompiler = {};
-		ShaderCompileRequest compileRequest = {};
-		compileRequest.stage = loadRequest.stage;
-		compileRequest.sourceRelativePath = loadRequest.sourceRelativePath;
-		compileRequest.entryPoint = loadRequest.entryPoint;
-		compileRequest.definesHash = loadRequest.definesHash;
-		compileRequest.targetPlatform = normalizedBinaryLoadRequest.targetPlatform;
-		compileRequest.profile = normalizedBinaryLoadRequest.profile;
-		compileRequest.outputBinaryRelativePath = normalizedBinaryLoadRequest.binaryRelativePath;
+		ShaderCompileRequest compileRequest{
+			.stage = loadRequest.stage,
+			.sourceRelativePath = loadRequest.sourceRelativePath,
+			.entryPoint = loadRequest.entryPoint,
+			.definesHash = loadRequest.definesHash,
+			.targetPlatform = normalizedBinaryLoadRequest.targetPlatform,
+			.profile = normalizedBinaryLoadRequest.profile,
+			.outputBinaryRelativePath = normalizedBinaryLoadRequest.binaryRelativePath,
+		};
 
 		ShaderCompileResult compileResult = {};
 		const bool compiledShader = shaderCompiler.compileFromFile(compileRequest, compileResult);
