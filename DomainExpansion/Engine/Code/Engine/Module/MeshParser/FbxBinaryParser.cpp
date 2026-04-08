@@ -1,4 +1,5 @@
 #include "Engine/Module/MeshParser/FbxBinaryParser.h"
+#include "Engine/Common/StringSlice.h"
 
 #include "ThirdParty/Zlib/zlib.h"
 
@@ -61,7 +62,7 @@ static string sanitizeFbxText(const string& text)
 	const size_t nullTerminatorIndex = text.find('\0');
 	if (nullTerminatorIndex != string::npos)
 	{
-		return text.substr(0, nullTerminatorIndex);
+		return sliceString(text, 0, nullTerminatorIndex);
 	}
 
 	return text;

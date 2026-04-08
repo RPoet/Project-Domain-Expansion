@@ -1,8 +1,9 @@
 #include "Engine/Common/EditorCommandReplay.h"
+#include "Engine/Common/StringSlice.h"
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
-static void trimReplayCommandLine(string& lineText)
+static string trimReplayCommandLine(const string& lineText)
 {
 	size_t beginIndex = 0;
 	while (beginIndex < lineText.length() && (lineText[beginIndex] == ' ' || lineText[beginIndex] == '\t'))
@@ -17,17 +18,14 @@ static void trimReplayCommandLine(string& lineText)
 		--endIndex;
 	}
 
-	lineText = lineText.substr(beginIndex, endIndex - beginIndex);
+	return sliceString(lineText, beginIndex, endIndex - beginIndex);
 }
 
 bool EditorCommandReplay::resolveDefaultLogFilePath(string& outLogFilePath)
 {
 	outLogFilePath.clear();
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr)
-	{
-		return false;
-	}
+	assert(diskLoaderModule != nullptr && "[EditorCommandReplay][Assert] reason=disk_loader_module_missing");
 
 	string solutionRootPath = {};
 	if (!diskLoaderModule->TEMP_resolveSolutionRootPath(solutionRootPath))
@@ -68,7 +66,8 @@ bool EditorCommandReplay::appendCommandText(const string& commandText)
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr || !diskLoaderModule->ensureParentDirectory(logFilePath))
+	assert(diskLoaderModule != nullptr && "[EditorCommandReplay][Assert] reason=disk_loader_module_missing");
+	if (!diskLoaderModule->ensureParentDirectory(logFilePath))
 	{
 		return false;
 	}
@@ -93,7 +92,8 @@ bool EditorCommandReplay::clearLog(const string& requestedLogFilePath)
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr || !diskLoaderModule->ensureParentDirectory(logFilePath))
+	assert(diskLoaderModule != nullptr && "[EditorCommandReplay][Assert] reason=disk_loader_module_missing");
+	if (!diskLoaderModule->ensureParentDirectory(logFilePath))
 	{
 		return false;
 	}
@@ -126,10 +126,7 @@ bool EditorCommandReplay::loadCommands(
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr)
-	{
-		return false;
-	}
+	assert(diskLoaderModule != nullptr && "[EditorCommandReplay][Assert] reason=disk_loader_module_missing");
 
 	InputFileStream fileStream = {};
 	if (!diskLoaderModule->openInputFileStream(logFilePath, fileStream, false))
@@ -167,10 +164,7 @@ bool EditorCommandReplay::resolveLogFilePath(const string& requestedLogFilePath,
 	}
 
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
-	if (diskLoaderModule == nullptr)
-	{
-		return false;
-	}
+	assert(diskLoaderModule != nullptr && "[EditorCommandReplay][Assert] reason=disk_loader_module_missing");
 
 	string solutionRootPath = {};
 	if (!diskLoaderModule->TEMP_resolveSolutionRootPath(solutionRootPath))
@@ -217,7 +211,6 @@ string EditorCommandReplay::escapeCommandArgument(const string& argument)
 
 bool EditorCommandReplay::shouldIgnoreCommandLine(const string& lineText)
 {
-	string trimmedLineText = lineText;
-	trimReplayCommandLine(trimmedLineText);
+	const string trimmedLineText = trimReplayCommandLine(lineText);
 	return trimmedLineText.empty() || trimmedLineText[0] == '#';
 }

@@ -1,4 +1,5 @@
 #include "Engine/Application/ApplicationRunOptions.h"
+#include "Engine/Common/StringSlice.h"
 
 static bool isApplicationRunOptionWhitespace(const wide_character character)
 {
@@ -34,7 +35,7 @@ static bool tryGetApplicationRunOptionValue(
 				return false;
 			}
 
-			argumentValue = commandLineText.substr(quotedValueStart, quotedValueEnd - quotedValueStart);
+			argumentValue = sliceString(commandLineText, quotedValueStart, quotedValueEnd - quotedValueStart);
 			return true;
 		}
 
@@ -49,7 +50,7 @@ static bool tryGetApplicationRunOptionValue(
 			return false;
 		}
 
-		argumentValue = commandLineText.substr(valueStart, valueEnd - valueStart);
+		argumentValue = sliceString(commandLineText, valueStart, valueEnd - valueStart);
 		return true;
 	}
 

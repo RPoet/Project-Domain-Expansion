@@ -1,4 +1,5 @@
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
+#include "Engine/Common/StringSlice.h"
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
@@ -52,7 +53,7 @@ static string trimShaderPackageText(const string& text)
 		--endIndex;
 	}
 
-	return text.substr(beginIndex, endIndex - beginIndex);
+	return sliceString(text, beginIndex, endIndex - beginIndex);
 }
 
 static bool parseShaderStageText(const string& text, ShaderStage& outShaderStage)
@@ -160,9 +161,7 @@ static bool flushShaderRecord(
 
 	if (shaderRecord.binaryLoadRequest.profile.empty())
 	{
-		shaderRecord.binaryLoadRequest.profile = getDefaultShaderBinaryProfileText(
-			shaderRecord.loadRequest.stage,
-			shaderRecord.binaryLoadRequest.targetPlatform);
+		shaderRecord.binaryLoadRequest.profile = getDefaultShaderBinaryProfileText(shaderRecord.loadRequest.stage, shaderRecord.binaryLoadRequest.targetPlatform);
 	}
 
 	outShaderRecords.push_back(shaderRecord);
@@ -234,13 +233,13 @@ static bool parseShaderPackageManifest(
 			&& static_cast<unsigned char>(lineText[1]) == 0xBB
 			&& static_cast<unsigned char>(lineText[2]) == 0xBF)
 		{
-			lineText = lineText.substr(3);
+			lineText = sliceString(lineText, 3);
 		}
 
 		const size_t commentIndex = lineText.find('#');
 		if (commentIndex != string::npos)
 		{
-			lineText = lineText.substr(0, commentIndex);
+			lineText = sliceString(lineText, 0, commentIndex);
 		}
 
 		lineText = trimShaderPackageText(lineText);
@@ -265,7 +264,7 @@ static bool parseShaderPackageManifest(
 			hasActiveVariantRecord = false;
 			parseSection = ShaderPackageParseSection::none;
 
-			const string sectionName = trimShaderPackageText(lineText.substr(1, lineText.length() - 2));
+			const string sectionName = trimShaderPackageText(sliceString(lineText, 1, lineText.length() - 2));
 			if (sectionName == "Package")
 			{
 				parseSection = ShaderPackageParseSection::package;
@@ -290,8 +289,8 @@ static bool parseShaderPackageManifest(
 			return false;
 		}
 
-		const string key = trimShaderPackageText(lineText.substr(0, delimiterIndex));
-		const string value = trimShaderPackageText(lineText.substr(delimiterIndex + 1));
+		const string key = trimShaderPackageText(sliceString(lineText, 0, delimiterIndex));
+		const string value = trimShaderPackageText(sliceString(lineText, delimiterIndex + 1));
 		if (parseSection == ShaderPackageParseSection::shader && hasActiveShaderRecord)
 		{
 			if (key == "id")

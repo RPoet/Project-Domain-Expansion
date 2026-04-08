@@ -1,4 +1,5 @@
 #include "Engine/Module/MeshParser/ObjMeshParser.h"
+#include "Engine/Common/StringSlice.h"
 
 #include <fstream>
 #include <sstream>
@@ -80,24 +81,24 @@ static bool parseObjFaceVertexToken(
 	}
 
 	const size_t secondSlash = tokenText.find('/', firstSlash + 1);
-	if (!parseObjIndexValue(tokenText.substr(0, firstSlash), outFaceVertex.positionIndex))
+	if (!parseObjIndexValue(sliceString(tokenText, 0, firstSlash), outFaceVertex.positionIndex))
 	{
 		return false;
 	}
 
 	if (secondSlash == string::npos)
 	{
-		return parseObjIndexValue(tokenText.substr(firstSlash + 1), outFaceVertex.textureIndex);
+		return parseObjIndexValue(sliceString(tokenText, firstSlash + 1), outFaceVertex.textureIndex);
 	}
 
 	if (!parseObjIndexValue(
-		tokenText.substr(firstSlash + 1, secondSlash - firstSlash - 1),
+		sliceString(tokenText, firstSlash + 1, secondSlash - firstSlash - 1),
 		outFaceVertex.textureIndex))
 	{
 		return false;
 	}
 
-	return parseObjIndexValue(tokenText.substr(secondSlash + 1), outFaceVertex.normalIndex);
+	return parseObjIndexValue(sliceString(tokenText, secondSlash + 1), outFaceVertex.normalIndex);
 }
 
 static bool tryResolveObjIndex(

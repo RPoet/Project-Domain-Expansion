@@ -1,4 +1,5 @@
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
+#include "Engine/Common/StringSlice.h"
 
 #include <fstream>
 
@@ -44,7 +45,7 @@ static string TEMP_trimDiskLoaderIniToken(const string& text)
 		--endIndex;
 	}
 
-	return text.substr(beginIndex, endIndex - beginIndex);
+	return sliceString(text, beginIndex, endIndex - beginIndex);
 }
 
 static bool TEMP_tryParseDiskLoaderIniUnsignedInteger(
@@ -53,20 +54,14 @@ static bool TEMP_tryParseDiskLoaderIniUnsignedInteger(
 	uint32& outValue)
 {
 	const size_t separatorIndex = lineText.find('=');
-	if (separatorIndex == string::npos)
+	const bool hasSeparator = separatorIndex != string::npos;
+	const string key = hasSeparator ? TEMP_trimDiskLoaderIniToken(sliceString(lineText, 0, separatorIndex)) : string {};
+	if (!hasSeparator || key != keyText)
 	{
 		return false;
 	}
 
-	const string key = TEMP_trimDiskLoaderIniToken(lineText.substr(0, separatorIndex));
-	if (key != keyText)
-	{
-		return false;
-	}
-
-	return TEMP_parseDiskLoaderUnsignedInteger(
-		TEMP_trimDiskLoaderIniToken(lineText.substr(separatorIndex + 1)),
-		outValue);
+	return TEMP_parseDiskLoaderUnsignedInteger(TEMP_trimDiskLoaderIniToken(sliceString(lineText, separatorIndex + 1)), outValue);
 }
 
 static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
@@ -79,9 +74,7 @@ static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
 		return false;
 	}
 
-	outIniFilePath = (filesystem_path(solutionRootPath) / "runtime.ini")
-		.lexically_normal()
-		.string();
+	outIniFilePath = (filesystem_path(solutionRootPath) / "runtime.ini").lexically_normal().string();
 	return true;
 }
 
@@ -281,8 +274,7 @@ string DiskLoaderModule::sanitizeFileName(const string& fileNameText, const stri
 	for (size_t characterIndex = 0; characterIndex < sanitizedText.length(); ++characterIndex)
 	{
 		const char character = sanitizedText[characterIndex];
-		const bool validCharacter =
-			(character >= 'a' && character <= 'z')
+		const bool validCharacter = (character >= 'a' && character <= 'z')
 			|| (character >= 'A' && character <= 'Z')
 			|| (character >= '0' && character <= '9')
 			|| character == '_'
@@ -361,9 +353,7 @@ bool DiskLoaderModule::TEMP_resolveImGuiIniFilePath(string& outIniFilePath) cons
 		return false;
 	}
 
-	outIniFilePath = (filesystem_path(solutionRootPath) / "imgui.ini")
-		.lexically_normal()
-		.string();
+	outIniFilePath = (filesystem_path(solutionRootPath) / "imgui.ini").lexically_normal().string();
 	return true;
 }
 

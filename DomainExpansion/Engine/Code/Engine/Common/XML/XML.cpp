@@ -1,5 +1,6 @@
 #include "Engine/Common/XML/XML.h"
 
+#include "Engine/Common/StringSlice.h"
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 #include "Engine/Module/Profiler/ProfilerModule.h"
 #include "Engine/Module/Timer/Timer.h"
@@ -277,7 +278,7 @@ static bool splitXMLDocumentKey(
 			return false;
 		}
 
-		outPathSegments.push_back(key.substr(segmentBeginIndex, segmentLength));
+		outPathSegments.push_back(sliceString(key, segmentBeginIndex, segmentLength));
 		if (segmentEndIndex == string::npos)
 		{
 			break;
@@ -294,7 +295,7 @@ static bool splitXMLDocumentKey(
 			return false;
 		}
 
-		outAttributeName = lastSegment.substr(1);
+		outAttributeName = sliceString(lastSegment, 1);
 		outPathSegments.pop_back();
 	}
 
@@ -414,7 +415,7 @@ static string trimXMLText(const string& text)
 		--endIndex;
 	}
 
-	return text.substr(beginIndex, endIndex - beginIndex);
+	return sliceString(text, beginIndex, endIndex - beginIndex);
 }
 
 static bool startsWithXMLToken(const string& text, const size_t characterIndex, const char* tokenText)
@@ -517,7 +518,7 @@ static XMLParseCode parseXMLName(const string& xmlText, size_t& inOutCharacterIn
 		++inOutCharacterIndex;
 	}
 
-	outName = xmlText.substr(nameBeginIndex, inOutCharacterIndex - nameBeginIndex);
+	outName = sliceString(xmlText, nameBeginIndex, inOutCharacterIndex - nameBeginIndex);
 	return XMLParseCode::succeeded;
 }
 
@@ -547,7 +548,7 @@ static XMLParseCode parseXMLAttributeValue(const string& xmlText, size_t& inOutC
 		return XMLParseCode::malformedDocument;
 	}
 
-	outValue = unescapeXMLText(xmlText.substr(valueBeginIndex, inOutCharacterIndex - valueBeginIndex));
+	outValue = unescapeXMLText(sliceString(xmlText, valueBeginIndex, inOutCharacterIndex - valueBeginIndex));
 	++inOutCharacterIndex;
 	return XMLParseCode::succeeded;
 }
