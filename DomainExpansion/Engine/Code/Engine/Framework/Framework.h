@@ -15,6 +15,7 @@ struct FrameworkBackendOptions
 	bool createBackend = true;
 	RenderBackendType backendType = RenderBackendType::dx12;
 	bool enableDebugLayer = false;
+	bool forceDebugLayer = true;
 	BackendValidationInjectMode validationInjectMode = BackendValidationInjectMode::none;
 };
 

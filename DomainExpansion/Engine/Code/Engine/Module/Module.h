@@ -60,6 +60,12 @@ public:
 		return module;
 	}
 
+	static T* getPtr()
+	{
+		static T* modulePointer = get().get();
+		return modulePointer;
+	}
+
 protected:
 	explicit StaticModule(string&& name)
 		: Module(moveValue(name))

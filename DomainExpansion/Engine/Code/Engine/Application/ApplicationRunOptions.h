@@ -13,6 +13,8 @@ struct ApplicationRunOptions
 #else
 	bool enableBackendDebugLayer = false;
 #endif
+	bool forceBackendDebugLayer = true;
+	bool enableProfilingMode = false;
 	BackendValidationInjectMode backendValidationInjectMode = BackendValidationInjectMode::none;
 	ProfilerBackendType profilerBackendType = ProfilerBackendType::none;
 	string profilerCaptureOutputFilePath = {};

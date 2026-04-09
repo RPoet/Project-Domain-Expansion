@@ -169,6 +169,18 @@ static bool parseApplicationRunProfilerBackendType(
 	return false;
 }
 
+static void applyApplicationRunProfilingPolicy(ApplicationRunOptions& applicationRunOptions)
+{
+	if (!applicationRunOptions.enableProfilingMode && applicationRunOptions.profilerBackendType == ProfilerBackendType::none)
+	{
+		return;
+	}
+
+	applicationRunOptions.enableProfilingMode = true;
+	applicationRunOptions.enableBackendDebugLayer = false;
+	applicationRunOptions.forceBackendDebugLayer = false;
+}
+
 ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer commandLine)
 {
 	ApplicationRunOptions applicationRunOptions = {};
@@ -191,6 +203,15 @@ ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer command
 		if (parseApplicationRunOptionUnsignedInteger(argumentValue, parsedDebugFlag))
 		{
 			applicationRunOptions.enableBackendDebugLayer = parsedDebugFlag != 0;
+		}
+	}
+
+	if (tryGetApplicationRunOptionValue(commandLineText, L"-profiling=", argumentValue))
+	{
+		uint32 parsedProfilingFlag = 0;
+		if (parseApplicationRunOptionUnsignedInteger(argumentValue, parsedProfilingFlag))
+		{
+			applicationRunOptions.enableProfilingMode = parsedProfilingFlag != 0;
 		}
 	}
 
@@ -227,6 +248,8 @@ ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer command
 			applicationRunOptions.quitAfterFrameCount = parsedFrameCount;
 		}
 	}
+
+	applyApplicationRunProfilingPolicy(applicationRunOptions);
 
 	return applicationRunOptions;
 }

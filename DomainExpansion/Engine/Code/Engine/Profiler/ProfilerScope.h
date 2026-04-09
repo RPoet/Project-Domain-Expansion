@@ -3,13 +3,21 @@
 #include "Engine/Profiler/ProfilerBackend.h"
 
 ProfilerBackend* resolveActiveProfilerBackend();
+const string& resolveEmptyProfilerDetail();
 
 class ProfilerScope final
 {
 public:
 	ProfilerScope(const char* category, const char* name)
-		: ProfilerScope(category, name, {})
 	{
+		ProfilerBackend* activeBackend = resolveActiveProfilerBackend();
+		if (activeBackend == nullptr)
+		{
+			return;
+		}
+
+		backend = activeBackend;
+		backend->beginEvent(category, name, resolveEmptyProfilerDetail());
 	}
 
 	ProfilerScope(const char* category, const char* name, const string& detail)

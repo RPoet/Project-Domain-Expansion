@@ -58,6 +58,7 @@ FrameworkInitializeOptions ApplicationSession::buildFrameworkInitializeOptions()
 	FrameworkInitializeOptions frameworkInitializeOptions = {};
 	frameworkInitializeOptions.backendOptions.backendType = runOptions.backendType;
 	frameworkInitializeOptions.backendOptions.enableDebugLayer = runOptions.enableBackendDebugLayer;
+	frameworkInitializeOptions.backendOptions.forceDebugLayer = runOptions.forceBackendDebugLayer;
 	frameworkInitializeOptions.backendOptions.validationInjectMode = runOptions.backendValidationInjectMode;
 	frameworkInitializeOptions.profilerOptions.backendType = runOptions.profilerBackendType;
 	frameworkInitializeOptions.profilerOptions.startupCaptureOutputFilePath = runOptions.profilerCaptureOutputFilePath;

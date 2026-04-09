@@ -2,13 +2,14 @@
 
 #include "Engine/Module/Profiler/ProfilerModule.h"
 
+static const string profilerEmptyDetail = {};
+
+const string& resolveEmptyProfilerDetail()
+{
+	return profilerEmptyDetail;
+}
+
 ProfilerBackend* resolveActiveProfilerBackend()
 {
-	shared_pointer<ProfilerModule> profilerModule = ProfilerModule::get();
-	if (profilerModule == nullptr || !profilerModule->isCaptureActive())
-	{
-		return nullptr;
-	}
-
-	return profilerModule->getBackend();
+	return ProfilerModule::getActiveBackendFast();
 }

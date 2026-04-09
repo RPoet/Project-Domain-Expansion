@@ -2,6 +2,8 @@
 
 #include "Engine/Framework/Framework.h"
 
+static ProfilerBackend* activeProfilerBackend = nullptr;
+
 bool ProfilerModule::init(Framework& framework)
 {
 	const FrameworkProfilerOptions& profilerOptions = framework.getProfilerOptions();
@@ -75,6 +77,7 @@ bool ProfilerModule::createBackend(const ProfilerBackendCreateOptions& createOpt
 
 void ProfilerModule::destroyBackend()
 {
+	activeProfilerBackend = nullptr;
 	if (profilerBackend != nullptr)
 	{
 		profilerBackend->destroy();
@@ -84,17 +87,38 @@ void ProfilerModule::destroyBackend()
 
 bool ProfilerModule::beginCapture(const ProfilerCaptureOptions& captureOptions)
 {
-	return profilerBackend == nullptr ? false : profilerBackend->beginCapture(captureOptions);
+	assert(profilerBackend != nullptr && "[ProfilerModule][Assert] reason=begin_capture_backend_missing");
+
+	const bool beganCapture = profilerBackend->beginCapture(captureOptions);
+	if (beganCapture)
+	{
+		activeProfilerBackend = profilerBackend.get();
+	}
+
+	return beganCapture;
 }
 
 bool ProfilerModule::endCapture(ProfilerCaptureResult& outCaptureResult)
 {
-	return profilerBackend == nullptr ? false : profilerBackend->endCapture(outCaptureResult);
+	assert(profilerBackend != nullptr && "[ProfilerModule][Assert] reason=end_capture_backend_missing");
+
+	const bool endedCapture = profilerBackend->endCapture(outCaptureResult);
+	if (endedCapture)
+	{
+		activeProfilerBackend = nullptr;
+	}
+
+	return endedCapture;
 }
 
 bool ProfilerModule::isCaptureActive() const
 {
 	return profilerBackend == nullptr ? false : profilerBackend->isCaptureActive();
+}
+
+ProfilerBackend* ProfilerModule::getActiveBackendFast()
+{
+	return activeProfilerBackend;
 }
 
 ProfilerBackend* ProfilerModule::getBackend()

@@ -21,6 +21,7 @@ public:
 	bool beginCapture(const ProfilerCaptureOptions& captureOptions);
 	bool endCapture(ProfilerCaptureResult& outCaptureResult);
 	bool isCaptureActive() const;
+	static ProfilerBackend* getActiveBackendFast();
 	ProfilerBackend* getBackend();
 	const ProfilerBackend* getBackend() const;
 	bool isBackendCreated() const;

@@ -56,18 +56,22 @@ bool Framework::initialize(
 	worldUpdateSerial = 0;
 	framePerformanceMetrics = {};
 
+	// TO DO : structure framework initilize process this needs to be sevaral step to fit depedency among modules.
 	MeshParser::registerCLICommands();
 	TextureParser::registerCLICommands();
 	if (backendOptions.createBackend)
 	{
-		if (!backendOptions.enableDebugLayer)
+		if (backendOptions.forceDebugLayer)
 		{
-			output << "[BackendValidation][Policy] flow=world"
-				   << " backend=" << getFrameworkBackendTypeText(backendOptions.backendType)
-				   << " key=force_debug_layer previous=0 current=1" << lineBreak;
-		}
+			if (!backendOptions.enableDebugLayer)
+			{
+				output << "[BackendValidation][Policy] flow=world"
+					   << " backend=" << getFrameworkBackendTypeText(backendOptions.backendType)
+					   << " key=force_debug_layer previous=0 current=1" << lineBreak;
+			}
 
-		backendOptions.enableDebugLayer = true;
+			backendOptions.enableDebugLayer = true;
+		}
 	}
 
 	const bool hasRegisteredModules = !moduleStorage.empty();
