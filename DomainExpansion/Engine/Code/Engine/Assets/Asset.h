@@ -68,7 +68,6 @@ protected:
 	string assetPath = "";
 	DECLARE_FIELD(string, name, "");
 	DECLARE_FIELD(string, guid, "");
-	inline static const FieldSchema<bool, DefaultFieldTypeTraits<bool>> hasBinary_schema = {"hasBinary", false};
 
 	const bool hasBinary = false;
 };

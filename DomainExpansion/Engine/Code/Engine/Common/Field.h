@@ -1,15 +1,6 @@
 #pragma once
 
-#include <type_traits>
-
 #include "Engine/Platform/PlatformDefine.h"
-
-template <typename value_type, typename traits_type>
-struct FieldSchema
-{
-	const char* name = nullptr;
-	value_type defaultValue = {};
-};
 
 template <typename value_type>
 struct DefaultFieldTypeTraits
@@ -69,11 +60,26 @@ struct FieldValue
 		return *this;
 	}
 
+	static constexpr const char* getPropertyName()
+	{
+		return schema_type::name;
+	}
+
+	static const value_type& getDefaultValue()
+	{
+		return schema_type::default_value;
+	}
+
 	operator const value_type&() const { return value; }
 	operator value_type&() { return value; }
 
 	const value_type& get() const { return value; }
 	value_type& get() { return value; }
+
+	bool shouldWrite() const
+	{
+		return traits_type::shouldWrite(value, schema_type::default_value);
+	}
 
 	void reset()
 	{
@@ -126,8 +132,7 @@ struct IsFieldValue<
 		inline static const type default_value = defaultValue; \
 	}; \
 	using fieldName##_field = FieldValue<type, DefaultFieldTypeTraits<type>, fieldName##_field_schema>; \
-	fieldName##_field fieldName = {}; \
-	inline static const FieldSchema<type, DefaultFieldTypeTraits<type>> fieldName##_schema = {#fieldName, defaultValue}
+	fieldName##_field fieldName = {}
 
 #define DECLARE_ARRAY_FIELD(elementType, fieldName, defaultValue) \
 	struct fieldName##_field_schema final \
@@ -136,5 +141,4 @@ struct IsFieldValue<
 		inline static const vector<elementType> default_value = defaultValue; \
 	}; \
 	using fieldName##_field = FieldValue<vector<elementType>, ArrayFieldTypeTraits<elementType>, fieldName##_field_schema>; \
-	fieldName##_field fieldName = {}; \
-	inline static const FieldSchema<vector<elementType>, ArrayFieldTypeTraits<elementType>> fieldName##_schema = {#fieldName, defaultValue}
+	fieldName##_field fieldName = {}

@@ -39,8 +39,7 @@ void Asset::readProperty(const XMLKeyValueDocument& document)
 	xml.readProperty(document, "deasset", guid);
 	xml.readProperty(document, "deasset", name);
 
-	bool documentHasBinary = hasBinary_schema.defaultValue;
-	xml.readProperty(document, "deasset.hasBinary", documentHasBinary);
+	const bool documentHasBinary = xml.readPropertyOrDefault(document, "deasset.hasBinary", false);
 	const bool binaryLayoutCompatible = isDocumentBinaryLayoutCompatible(document, documentHasBinary);
 	assert(binaryLayoutCompatible && "[Asset][Assert] reason=asset_document_has_binary_mismatch");
 	if (!binaryLayoutCompatible)

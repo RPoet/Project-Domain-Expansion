@@ -92,14 +92,14 @@ private:
 	string parsePropertyValueText(const string_view propertyValueText) const;
 
 	template <typename value_type>
-	inline enable_if<!std::is_same_v<value_type, string> && !std::is_same_v<value_type, const char*>, string>
+	inline enable_if<!is_same_v<value_type, string> && !is_same_v<value_type, const char*>, string>
 	buildPropertyValueText(const value_type& propertyValue) const
 	{
 		return to_string(propertyValue);
 	}
 
 	template <typename value_type>
-	inline enable_if<!std::is_same_v<value_type, string>, value_type>
+	inline enable_if<!is_same_v<value_type, string>, value_type>
 	parsePropertyValueText(const string_view propertyValueText) const
 	{
 		value_type propertyValue = {};
@@ -172,7 +172,7 @@ public:
 		string_view propertyValueText = {};
 		if (document.tryGetValueView(propertyName, propertyValueText))
 		{
-			if constexpr (std::is_same_v<value_type, string>)
+			if constexpr (is_same_v<value_type, string>)
 			{
 				outPropertyValue = parsePropertyValueText(propertyValueText);
 			}
@@ -185,6 +185,16 @@ public:
 		}
 
 		return false;
+	}
+
+	template <typename value_type>
+	inline value_type readPropertyOrDefault(
+		const XMLKeyValueDocument& document,
+		const char* propertyName,
+		value_type defaultValue) const
+	{
+		readProperty(document, propertyName, defaultValue);
+		return defaultValue;
 	}
 
 	template <typename value_type>
@@ -260,15 +270,32 @@ public:
 		const field_type& fieldValue) const
 	{
 		using normalized_field_type = remove_cv_t<remove_reference_t<field_type>>;
-		using schema_type = typename normalized_field_type::schema;
-		using traits_type = typename normalized_field_type::traits;
-		assert(schema_type::name != nullptr && "[XML][Assert] reason=field_schema_name_missing");
-		if (!traits_type::shouldWrite(fieldValue.get(), schema_type::default_value))
+		assert(normalized_field_type::getPropertyName() != nullptr && "[XML][Assert] reason=field_schema_name_missing");
+		if (!fieldValue.shouldWrite())
 		{
 			return;
 		}
 
-		writeFieldValue(fileStream, schema_type::name, fieldValue.get());
+		writeFieldValue(fileStream, normalized_field_type::getPropertyName(), fieldValue.get());
+	}
+
+	template <typename field_type, typename value_type>
+	inline enable_if<IsFieldValue<field_type>::value>
+	writeProperty(
+		OutputFileStream& fileStream,
+		const field_type& fieldMetadata,
+		const value_type& propertyValue) const
+	{
+		using normalized_field_type = remove_cv_t<remove_reference_t<field_type>>;
+		using traits_type = typename normalized_field_type::traits;
+		unused(fieldMetadata);
+		assert(normalized_field_type::getPropertyName() != nullptr && "[XML][Assert] reason=field_schema_name_missing");
+		if (!traits_type::shouldWrite(propertyValue, normalized_field_type::getDefaultValue()))
+		{
+			return;
+		}
+
+		writeFieldValue(fileStream, normalized_field_type::getPropertyName(), propertyValue);
 	}
 
 	template <typename field_type>
@@ -279,10 +306,9 @@ public:
 		field_type& outFieldValue) const
 	{
 		using normalized_field_type = remove_cv_t<remove_reference_t<field_type>>;
-		using schema_type = typename normalized_field_type::schema;
 		assert(documentPathPrefix != nullptr && "[XML][Assert] reason=document_path_prefix_missing");
-		assert(schema_type::name != nullptr && "[XML][Assert] reason=field_schema_name_missing");
-		const string fieldPath = string(documentPathPrefix) + "." + schema_type::name;
+		assert(normalized_field_type::getPropertyName() != nullptr && "[XML][Assert] reason=field_schema_name_missing");
+		const string fieldPath = string(documentPathPrefix) + "." + normalized_field_type::getPropertyName();
 		return readFieldValue(document, fieldPath.c_str(), outFieldValue.get());
 	}
 

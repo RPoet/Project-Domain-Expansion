@@ -56,7 +56,7 @@ void Component::writeAssetProperty(OutputFileStream& fileStream) const
 		serializedOwnerEntityAssetPath = ownerEntity->getAssetPath();
 	}
 
-	xml.writeProperty(fileStream, ownerEntityAssetPath_schema.name, serializedOwnerEntityAssetPath);
+	xml.writeProperty(fileStream, ownerEntityAssetPath, serializedOwnerEntityAssetPath);
 }
 
 void Component::readAssetProperty(const XMLKeyValueDocument& document)

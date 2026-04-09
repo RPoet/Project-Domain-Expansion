@@ -157,6 +157,9 @@ using remove_cv_t = std::remove_cv_t<value_type>;
 using true_type = std::true_type;
 using false_type = std::false_type;
 
+template <typename left_type, typename right_type>
+inline constexpr bool is_same_v = std::is_same_v<left_type, right_type>;
+
 template <typename value_type>
 inline constexpr bool is_trivially_copyable = std::is_trivially_copyable_v<value_type>;
 

@@ -93,7 +93,7 @@ void Entity::writeAssetProperty(OutputFileStream& fileStream) const
 		serializedParentEntityAssetPath = parentEntity->getAssetPath();
 	}
 
-	xml.writeProperty(fileStream, parentEntityAssetPath_schema.name, serializedParentEntityAssetPath);
+	xml.writeProperty(fileStream, parentEntityAssetPath, serializedParentEntityAssetPath);
 }
 
 void Entity::readAssetProperty(const XMLKeyValueDocument& document)
