@@ -44,11 +44,11 @@ private:
 	void refreshMaterialBridgeHandles();
 	void reloadMaterialAssets();
 
-	string meshAssetPath = {};
+	DECLARE_FIELD(string, meshAssetPath, "");
 	shared_pointer<MeshAsset> meshAsset = nullptr;
-	uint32 lodLevel = 0;
-	bool visible = true;
-	vector<string> materialAssetPaths = {};
+	DECLARE_FIELD(uint32, lodLevel, 0u);
+	DECLARE_FIELD(bool, visible, true);
+	DECLARE_ARRAY_FIELD(string, materialAssetPaths, {});
 	vector<shared_pointer<MaterialAsset>> materialAssets = {};
 	vector<MaterialBridge::HandleReference> materialHandleReferences = {};
 	shared_pointer<MeshAssetHandle> meshAssetHandle = nullptr;

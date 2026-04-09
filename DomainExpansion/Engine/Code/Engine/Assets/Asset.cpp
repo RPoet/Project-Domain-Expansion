@@ -2,12 +2,18 @@
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
 
+void Asset::clear()
+{
+	name.reset();
+	guid.reset();
+}
+
 void Asset::writeProperty(OutputFileStream& fileStream) const
 {
 	XML& xml = XML::get();
 	xml.writeOpenTag(fileStream, "deasset", "type", getAssetTypeName());
-	xml.writeProperty(fileStream, "guid", guid);
-	xml.writeProperty(fileStream, "name", name);
+	xml.writeProperty(fileStream, guid);
+	xml.writeProperty(fileStream, name);
 	xml.writeProperty(fileStream, "hasBinary", hasBinary);
 	writeAssetProperty(fileStream);
 	xml.writeCloseTag(fileStream, "deasset");
@@ -25,21 +31,16 @@ void Asset::readProperty(const XMLKeyValueDocument& document)
 	clear();
 
 	XML& xml = XML::get();
-	const string* assetTypeName = document.find("deasset.@type");
-	assert(assetTypeName != nullptr && "[Asset][Assert] reason=asset_document_type_missing");
-	assert(*assetTypeName == getAssetTypeName() && "[Asset][Assert] reason=asset_document_type_mismatch");
+	string_view assetTypeName = {};
+	const bool foundAssetTypeName = document.tryGetValueView("deasset.@type", assetTypeName);
+	assert(foundAssetTypeName && "[Asset][Assert] reason=asset_document_type_missing");
+	assert(assetTypeName == getAssetTypeName() && "[Asset][Assert] reason=asset_document_type_mismatch");
 
-	xml.readProperty(document, "deasset.guid", guid);
-	xml.readProperty(document, "deasset.name", name);
+	xml.readProperty(document, "deasset", guid);
+	xml.readProperty(document, "deasset", name);
 
-	bool documentHasBinary = false;
-	const bool hasDocumentBinaryFlag = xml.readProperty(document, "deasset.hasBinary", documentHasBinary);
-	assert(hasDocumentBinaryFlag && "[Asset][Assert] reason=asset_document_has_binary_missing");
-	if (!hasDocumentBinaryFlag)
-	{
-		return;
-	}
-
+	bool documentHasBinary = hasBinary_schema.defaultValue;
+	xml.readProperty(document, "deasset.hasBinary", documentHasBinary);
 	const bool binaryLayoutCompatible = isDocumentBinaryLayoutCompatible(document, documentHasBinary);
 	assert(binaryLayoutCompatible && "[Asset][Assert] reason=asset_document_has_binary_mismatch");
 	if (!binaryLayoutCompatible)

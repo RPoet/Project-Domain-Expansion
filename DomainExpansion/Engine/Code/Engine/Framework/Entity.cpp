@@ -5,7 +5,7 @@
 
 static unordered_map<string, EntityFactoryFunction>& getEntityFactoryByTypeName()
 {
-	static unordered_map<string, EntityFactoryFunction> entityFactoryByTypeName = {};
+	static unordered_map<string, EntityFactoryFunction> entityFactoryByTypeName;
 	return entityFactoryByTypeName;
 }
 
@@ -41,8 +41,8 @@ Entity::Entity(memory_resource* componentIndexMemoryResource)
 void Entity::clear()
 {
 	Asset::clear();
-	parentEntityAssetPath.clear();
-	active = true;
+	parentEntityAssetPath.reset();
+	active.reset();
 }
 
 void Entity::initialize()
@@ -82,7 +82,7 @@ void Entity::buildEntityBridgeDynamicData(EntityBridge::DynamicData& dynamicData
 void Entity::writeAssetProperty(OutputFileStream& fileStream) const
 {
 	XML& xml = XML::get();
-	xml.writeProperty(fileStream, "active", active);
+	xml.writeProperty(fileStream, active);
 
 	string serializedParentEntityAssetPath = parentEntityAssetPath;
 	if (ownerWorld != nullptr && parentEntityIndex != invalidEntityIndex)
@@ -93,14 +93,14 @@ void Entity::writeAssetProperty(OutputFileStream& fileStream) const
 		serializedParentEntityAssetPath = parentEntity->getAssetPath();
 	}
 
-	xml.writeProperty(fileStream, "parentAssetPath", serializedParentEntityAssetPath);
+	xml.writeProperty(fileStream, parentEntityAssetPath_schema.name, serializedParentEntityAssetPath);
 }
 
 void Entity::readAssetProperty(const XMLKeyValueDocument& document)
 {
 	XML& xml = XML::get();
-	xml.readProperty(document, "deasset.active", active);
-	xml.readProperty(document, "deasset.parentAssetPath", parentEntityAssetPath);
+	xml.readProperty(document, "deasset", active);
+	xml.readProperty(document, "deasset", parentEntityAssetPath);
 }
 
 void Entity::requestEntityBridgeUpdate()
@@ -150,22 +150,18 @@ void Entity::tick(const float deltaTimeSeconds)
 
 bool Entity::addComponent(unique_pointer<Component> component)
 {
-	if (ownerWorld == nullptr)
-	{
-		return false;
-	}
-
-	return ownerWorld->attachComponent(ownerEntityIndex, moveValue(component));
+	assert(ownerWorld != nullptr && "[Entity][Assert] reason=owner_world_missing");
+	return ownerWorld != nullptr
+		? ownerWorld->attachComponent(ownerEntityIndex, moveValue(component))
+		: false;
 }
 
 bool Entity::removeComponent(const uint32 componentIndex)
 {
-	if (ownerWorld == nullptr)
-	{
-		return false;
-	}
-
-	return ownerWorld->removeComponent(ownerEntityIndex, componentIndex);
+	assert(ownerWorld != nullptr && "[Entity][Assert] reason=owner_world_missing");
+	return ownerWorld != nullptr
+		? ownerWorld->removeComponent(ownerEntityIndex, componentIndex)
+		: false;
 }
 
 World* Entity::getOwnerWorld()

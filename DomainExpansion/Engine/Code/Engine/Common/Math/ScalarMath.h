@@ -1,4 +1,7 @@
 #pragma once
+
+#include "Engine/Platform/SIMDMath.h"
+
 #include <cmath>
 
 static float fraction(const float value)
@@ -54,4 +57,25 @@ static void HSVToRGB(
 		outBlue = q;
 		return;
 	}
+}
+
+static float getFloat3LengthSquared(const float3& value)
+{
+	return value.x * value.x + value.y * value.y + value.z * value.z;
+}
+
+static float3 normalizeFloat3(const float3& value)
+{
+	const float lengthSquared = getFloat3LengthSquared(value);
+	if (lengthSquared <= 0.0f)
+	{
+		return {};
+	}
+
+	const float inverseLength = 1.0f / sqrtf(lengthSquared);
+	return {
+		.x = value.x * inverseLength,
+		.y = value.y * inverseLength,
+		.z = value.z * inverseLength,
+	};
 }

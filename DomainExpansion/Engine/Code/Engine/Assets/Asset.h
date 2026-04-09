@@ -50,11 +50,7 @@ public:
 	void setAssetPath(const string& inAssetPath) { assetPath = inAssetPath; }
 	void setName(const string& inName) { name = inName; }
 	void setGUID(const string& inGUID) { guid = inGUID; }
-	virtual void clear()
-	{
-		name.clear();
-		guid.clear();
-	}
+	virtual void clear();
 
 	// Each type runtime data is described by the `.deasset` document.
 	// Additional binary payload, if any, must be serialized separately through DiskLoaderModule.
@@ -70,8 +66,9 @@ protected:
 	virtual void readAssetProperty(const XMLKeyValueDocument& document);
 
 	string assetPath = "";
-	string name = "";
-	string guid = "";
+	DECLARE_FIELD(string, name, "");
+	DECLARE_FIELD(string, guid, "");
+	inline static const FieldSchema<bool, DefaultFieldTypeTraits<bool>> hasBinary_schema = {"hasBinary", false};
 
 	const bool hasBinary = false;
 };

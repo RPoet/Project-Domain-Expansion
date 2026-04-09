@@ -24,11 +24,11 @@ BridgeHandle CameraComponent::getCameraHandle() const
 void CameraComponent::clear()
 {
 	Component::clear();
-	editorCamera = false;
-	primary = false;
-	fieldOfViewYDegrees = 60.0f;
-	nearPlane = 0.1f;
-	farPlane = 100.0f;
+	editorCamera.reset();
+	primary.reset();
+	fieldOfViewYDegrees.reset();
+	nearPlane.reset();
+	farPlane.reset();
 	cameraHandleReference.reset();
 }
 
@@ -40,6 +40,7 @@ void CameraComponent::tick(const float deltaTimeSeconds)
 
 void CameraComponent::initialize()
 {
+	Component::initialize();
 	generateCameraBridgeHandle();
 }
 
@@ -48,11 +49,11 @@ void CameraComponent::writeAssetProperty(OutputFileStream& fileStream) const
 	Component::writeAssetProperty(fileStream);
 
 	XML& xml = XML::get();
-	xml.writeProperty(fileStream, "editorCamera", editorCamera);
-	xml.writeProperty(fileStream, "primary", primary);
-	xml.writeProperty(fileStream, "fieldOfViewYDegrees", fieldOfViewYDegrees);
-	xml.writeProperty(fileStream, "nearPlane", nearPlane);
-	xml.writeProperty(fileStream, "farPlane", farPlane);
+	xml.writeProperty(fileStream, editorCamera);
+	xml.writeProperty(fileStream, primary);
+	xml.writeProperty(fileStream, fieldOfViewYDegrees);
+	xml.writeProperty(fileStream, nearPlane);
+	xml.writeProperty(fileStream, farPlane);
 }
 
 void CameraComponent::readAssetProperty(const XMLKeyValueDocument& document)
@@ -60,11 +61,11 @@ void CameraComponent::readAssetProperty(const XMLKeyValueDocument& document)
 	Component::readAssetProperty(document);
 
 	XML& xml = XML::get();
-	xml.readProperty(document, "deasset.editorCamera", editorCamera);
-	xml.readProperty(document, "deasset.primary", primary);
-	xml.readProperty(document, "deasset.fieldOfViewYDegrees", fieldOfViewYDegrees);
-	xml.readProperty(document, "deasset.nearPlane", nearPlane);
-	xml.readProperty(document, "deasset.farPlane", farPlane);
+	xml.readProperty(document, "deasset", editorCamera);
+	xml.readProperty(document, "deasset", primary);
+	xml.readProperty(document, "deasset", fieldOfViewYDegrees);
+	xml.readProperty(document, "deasset", nearPlane);
+	xml.readProperty(document, "deasset", farPlane);
 }
 
 void CameraComponent::generateCameraBridgeHandle()
@@ -88,14 +89,16 @@ void CameraComponent::generateCameraBridgeHandle()
 	const bool hasWorldTransform = ownerWorld->TEMP_tryGetEntityWorldTransform(getOwnerEntityIndex(), worldTransform);
 	assert(hasWorldTransform && "[CameraComponent][Assert] reason=world_transform_build_failed");
 
-	float3 cameraPosition = {};
-	cameraPosition.x = worldTransform.positionX;
-	cameraPosition.y = worldTransform.positionY;
-	cameraPosition.z = worldTransform.positionZ;
-	float3 cameraRotation = {};
-	cameraRotation.x = worldTransform.rotationPitch;
-	cameraRotation.y = worldTransform.rotationYaw;
-	cameraRotation.z = worldTransform.rotationRoll;
+	const float3 cameraPosition = {
+		.x = worldTransform.positionX,
+		.y = worldTransform.positionY,
+		.z = worldTransform.positionZ,
+	};
+	const float3 cameraRotation = {
+		.x = worldTransform.rotationPitch,
+		.y = worldTransform.rotationYaw,
+		.z = worldTransform.rotationRoll,
+	};
 	const float4x4 viewMatrix = buildViewMatrix4x4(cameraPosition, cameraRotation);
 
 	bool recreateCameraBridge = !cameraHandleReference.isValid();
@@ -135,11 +138,12 @@ void CameraComponent::generateCameraBridgeHandle()
 		return;
 	}
 
-	CameraBridge::DynamicData nextDynamicData = {};
-	nextDynamicData.primary = primary;
-	nextDynamicData.fieldOfViewYDegrees = fieldOfViewYDegrees;
-	nextDynamicData.nearPlane = nearPlane;
-	nextDynamicData.farPlane = farPlane;
-	nextDynamicData.viewMatrix = viewMatrix;
+	CameraBridge::DynamicData nextDynamicData = {
+		.primary = primary,
+		.fieldOfViewYDegrees = fieldOfViewYDegrees,
+		.nearPlane = nearPlane,
+		.farPlane = farPlane,
+		.viewMatrix = viewMatrix,
+	};
 	CameraBridge::get().updateDynamicData(cameraHandleReference.getPackedHandle(), nextDynamicData);
 }

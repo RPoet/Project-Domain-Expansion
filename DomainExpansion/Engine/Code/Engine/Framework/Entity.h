@@ -72,9 +72,9 @@ private:
 	friend class World;
 
 	pooled_vector<uint32> componentIndices;
-	string parentEntityAssetPath = {};
+	DECLARE_FIELD(string, parentEntityAssetPath, "");
 	uint32 parentEntityIndex = invalidEntityIndex;
 	uint32 firstChildEntityIndex = invalidEntityIndex;
 	uint32 nextSiblingEntityIndex = invalidEntityIndex;
-	bool active = true;
+	DECLARE_FIELD(bool, active, true);
 };

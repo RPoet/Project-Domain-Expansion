@@ -80,10 +80,11 @@ unique_pointer<World> AssetLoader::loadUniqueAsset<World>(const string& assetPat
 			const string entityAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[entityReferenceIndex], DiskLoaderModule::AssetFileType::document);
 			const string absoluteEntityAssetPath = diskLoaderModule->resolveAbsolutePathFromResources(entityAssetPath);
 			const XMLKeyValueDocument entityDocument = XML::get().readDocumentFile(entityAssetPath);
-			const string* entityTypeName = entityDocument.find("deasset.@type");
-			assert(entityTypeName != nullptr && "[AssetLoader][Assert] reason=entity_document_type_missing");
+			std::string_view entityTypeName = {};
+			const bool foundEntityTypeName = entityDocument.tryGetValueView("deasset.@type", entityTypeName);
+			assert(foundEntityTypeName && "[AssetLoader][Assert] reason=entity_document_type_missing");
 
-			unique_pointer<Entity> entityObject = Entity::createByAssetTypeName(*entityTypeName);
+			unique_pointer<Entity> entityObject = Entity::createByAssetTypeName(string(entityTypeName.data(), entityTypeName.length()));
 			assert(entityObject != nullptr && "[AssetLoader][Assert] reason=entity_create_failed");
 
 			const uint32 entityIndex = loadedWorld->addEntityObject(moveValue(entityObject), false);
@@ -124,10 +125,11 @@ unique_pointer<World> AssetLoader::loadUniqueAsset<World>(const string& assetPat
 		{
 			const string componentAssetPath = diskLoaderModule->resolveAssetPath(assetPaths[componentReferenceIndex], DiskLoaderModule::AssetFileType::document);
 			const XMLKeyValueDocument componentDocument = XML::get().readDocumentFile(componentAssetPath);
-			const string* componentTypeName = componentDocument.find("deasset.@type");
-			assert(componentTypeName != nullptr && "[AssetLoader][Assert] reason=component_document_type_missing");
+			std::string_view componentTypeName = {};
+			const bool foundComponentTypeName = componentDocument.tryGetValueView("deasset.@type", componentTypeName);
+			assert(foundComponentTypeName && "[AssetLoader][Assert] reason=component_document_type_missing");
 
-			unique_pointer<Component> component = Component::createByAssetTypeName(*componentTypeName);
+			unique_pointer<Component> component = Component::createByAssetTypeName(string(componentTypeName.data(), componentTypeName.length()));
 			assert(component != nullptr && "[AssetLoader][Assert] reason=component_create_failed");
 
 			component->setAssetPath(componentAssetPath);

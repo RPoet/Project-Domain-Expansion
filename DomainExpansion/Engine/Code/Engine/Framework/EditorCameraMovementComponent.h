@@ -23,5 +23,5 @@ public:
 private:
 	CameraComponent* getOwnerEditorCameraComponent();
 
-	float movementSpeed = 4.0f;
+	DECLARE_FIELD(float, movementSpeed, 4.0f);
 };

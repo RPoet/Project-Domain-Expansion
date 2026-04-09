@@ -2446,27 +2446,30 @@ bool ImGuiLayerModule::DeassetViewerPanel::saveDocument()
 void ImGuiLayerModule::DeassetViewerPanel::recordSavedDocumentChanges(ImGuiLayerModule& owner)
 {
 	vector<string> changedKeys = {};
-	changedKeys.reserve(document.valueByKey.size() + loadedDocument.valueByKey.size());
-	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
-	{
-		const string* loadedValue = loadedDocument.find(keyValueIterator->first);
-		if (loadedValue != nullptr && *loadedValue == keyValueIterator->second)
+	changedKeys.reserve(document.size() + loadedDocument.size());
+	document.forEach(
+		[&](const std::string_view keyText, const std::string_view valueText)
 		{
-			continue;
-		}
+			std::string_view loadedValueText = {};
+			if (loadedDocument.tryGetValueView(keyText, loadedValueText) && loadedValueText == valueText)
+			{
+				return;
+			}
 
-		changedKeys.push_back(keyValueIterator->first);
-	}
+			changedKeys.push_back(string(keyText.data(), keyText.length()));
+		});
 
-	for (auto keyValueIterator = loadedDocument.valueByKey.begin(); keyValueIterator != loadedDocument.valueByKey.end(); ++keyValueIterator)
-	{
-		if (document.find(keyValueIterator->first) != nullptr)
+	loadedDocument.forEach(
+		[&](const std::string_view keyText, const std::string_view valueText)
 		{
-			continue;
-		}
+			unused(valueText);
+			if (document.contains(keyText))
+			{
+				return;
+			}
 
-		changedKeys.push_back(keyValueIterator->first);
-	}
+			changedKeys.push_back(string(keyText.data(), keyText.length()));
+		});
 
 	std::sort(changedKeys.begin(), changedKeys.end());
 	changedKeys.erase(std::unique(changedKeys.begin(), changedKeys.end()), changedKeys.end());
@@ -2474,10 +2477,11 @@ void ImGuiLayerModule::DeassetViewerPanel::recordSavedDocumentChanges(ImGuiLayer
 	for (uint32 changedKeyIndex = 0; changedKeyIndex < static_cast<uint32>(changedKeys.size()); ++changedKeyIndex)
 	{
 		const string& changedKey = changedKeys[changedKeyIndex];
-		const string* changedValue = document.find(changedKey);
+		string changedValue = {};
+		const bool foundChangedValue = document.tryGetValue(changedKey, changedValue);
 		owner.recordEditorReplayCommand(
 			"Editor.setDeassetProperty",
-			{ replayAssetPath, changedKey, changedValue != nullptr ? *changedValue : "" });
+			{ replayAssetPath, changedKey, foundChangedValue ? changedValue : "" });
 	}
 
 	loadedDocument = document;
@@ -2486,11 +2490,13 @@ void ImGuiLayerModule::DeassetViewerPanel::recordSavedDocumentChanges(ImGuiLayer
 void ImGuiLayerModule::DeassetViewerPanel::rebuildDocumentKeys()
 {
 	documentKeys.clear();
-	documentKeys.reserve(document.valueByKey.size());
-	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
-	{
-		documentKeys.push_back(keyValueIterator->first);
-	}
+	documentKeys.reserve(document.size());
+	document.forEach(
+		[&](const std::string_view keyText, const std::string_view valueText)
+		{
+			unused(valueText);
+			documentKeys.push_back(string(keyText.data(), keyText.length()));
+		});
 
 	std::sort(documentKeys.begin(), documentKeys.end());
 }
@@ -2528,9 +2534,10 @@ void ImGuiLayerModule::DeassetViewerPanel::build(ImGuiLayerModule& owner, World*
 		return;
 	}
 
-	const string* assetType = document.find("deasset.@type");
+	string assetType = {};
+	const bool foundAssetType = document.tryGetValue("deasset.@type", assetType);
 	ImGui::Text("Path: %s", displayPathText.empty() ? absoluteFilePath.c_str() : displayPathText.c_str());
-	ImGui::Text("Type: %s", assetType != nullptr ? assetType->c_str() : "(unknown)");
+	ImGui::Text("Type: %s", foundAssetType ? assetType.c_str() : "(unknown)");
 	ImGui::Text("Property Count: %u", static_cast<uint32>(documentKeys.size()));
 	if (!statusText.empty())
 	{
@@ -2582,8 +2589,9 @@ void ImGuiLayerModule::DeassetViewerPanel::build(ImGuiLayerModule& owner, World*
 			for (uint32 propertyIndex = 0; propertyIndex < static_cast<uint32>(documentKeys.size()); ++propertyIndex)
 			{
 				const string& propertyKey = documentKeys[propertyIndex];
-				auto propertyIterator = document.valueByKey.find(propertyKey);
-				assert(propertyIterator != document.valueByKey.end() && "[ImGuiLayerModule][Assert] reason=deasset_property_missing");
+				string propertyValue = {};
+				const bool foundPropertyValue = document.tryGetValue(propertyKey, propertyValue);
+				assert(foundPropertyValue && "[ImGuiLayerModule][Assert] reason=deasset_property_missing");
 
 				ImGui::TableNextRow();
 				ImGui::TableSetColumnIndex(0);
@@ -2592,8 +2600,9 @@ void ImGuiLayerModule::DeassetViewerPanel::build(ImGuiLayerModule& owner, World*
 				ImGui::TableSetColumnIndex(1);
 				ImGui::PushID(propertyKey.c_str());
 				ImGui::SetNextItemWidth(-1.0f);
-				if (ImGui::InputText("##Value", &propertyIterator->second))
+				if (ImGui::InputText("##Value", &propertyValue))
 				{
+					document.set(propertyKey, propertyValue);
 					dirty = true;
 					statusText = "modified";
 					owner.lastEditorActionStatus = "deasset_modified";
@@ -2992,30 +3001,29 @@ bool ImGuiLayerModule::FileSystemPanel::ensureImportSupportedExtensionsLoaded()
 	const XMLKeyValueDocument importDocument = xml.readDocumentFile(importConfigFilePath);
 
 	supportedImportExtensions.clear();
-	supportedImportExtensions.reserve(importDocument.valueByKey.size());
-	for (auto importEntryIterator = importDocument.valueByKey.begin();
-		importEntryIterator != importDocument.valueByKey.end();
-		++importEntryIterator)
-	{
-		if (!importEntryIterator->first.starts_with("extension"))
+	supportedImportExtensions.reserve(importDocument.size());
+	importDocument.forEach(
+		[&](const std::string_view keyText, const std::string_view valueText)
 		{
-			continue;
-		}
+			if (!keyText.starts_with("extension"))
+			{
+				return;
+			}
 
-		string extension = importEntryIterator->second;
-		tolower(extension);
-		if (extension.empty())
-		{
-			continue;
-		}
+			string extension(valueText.data(), valueText.length());
+			tolower(extension);
+			if (extension.empty())
+			{
+				return;
+			}
 
-		if (extension[0] != '.')
-		{
-			extension.insert(extension.begin(), '.');
-		}
+			if (extension[0] != '.')
+			{
+				extension.insert(extension.begin(), '.');
+			}
 
-		supportedImportExtensions.push_back(moveValue(extension));
-	}
+			supportedImportExtensions.push_back(moveValue(extension));
+		});
 
 	std::sort(supportedImportExtensions.begin(), supportedImportExtensions.end());
 	supportedImportExtensions.erase(
@@ -3170,8 +3178,8 @@ bool ImGuiLayerModule::FileSystemPanel::isWorldAssetFile(const filesystem_path& 
 	}
 
 	const XMLKeyValueDocument document = XML::get().readDocumentFile(buildResourceAssetPath(filePath));
-	const string* assetTypeName = document.find("deasset.@type");
-	return assetTypeName != nullptr && *assetTypeName == "World";
+	std::string_view assetTypeName = {};
+	return document.tryGetValueView("deasset.@type", assetTypeName) && assetTypeName == "World";
 }
 
 bool ImGuiLayerModule::FileSystemPanel::resolveResourcesRootPath()

@@ -16,6 +16,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <unordered_map>
@@ -37,6 +38,7 @@ using uint64 = std::uint64_t;
 using wide_character = wchar_t;
 using string = std::string;
 using wstring = std::wstring;
+using string_view = std::string_view;
 using output_stream = std::ostream;
 using error_stream = std::ostream;
 using input_file_stream = std::ifstream;
@@ -140,8 +142,20 @@ inline void swapValue(value_type& left, value_type& right)
 template <typename value_type>
 using initializer_list = std::initializer_list<value_type>;
 
+template <typename... type_names>
+using void_t = std::void_t<type_names...>;
+
 template <bool enabled, typename value_type = void>
 using enable_if = std::enable_if_t<enabled, value_type>;
+
+template <typename value_type>
+using remove_reference_t = std::remove_reference_t<value_type>;
+
+template <typename value_type>
+using remove_cv_t = std::remove_cv_t<value_type>;
+
+using true_type = std::true_type;
+using false_type = std::false_type;
 
 template <typename value_type>
 inline constexpr bool is_trivially_copyable = std::is_trivially_copyable_v<value_type>;

@@ -81,7 +81,7 @@ shared_pointer<MaterialAsset> MeshComponent::getSectionMaterialAsset(const uint3
 void MeshComponent::setMeshAssetPath(const string& inMeshAssetPath)
 {
 	meshAssetPath = inMeshAssetPath;
-	meshAsset = meshAssetPath.empty() ? nullptr : AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
+	meshAsset = meshAssetPath.get().empty() ? nullptr : AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
 	meshAssetHandle.reset();
 	meshHandleReference.reset();
 }
@@ -105,13 +105,13 @@ void MeshComponent::setVisible(const bool inVisible)
 
 void MeshComponent::setMaterialAssetPath(const uint32 materialSlotIndex, const string& materialAssetPath)
 {
-	if (materialAssetPaths.size() <= materialSlotIndex)
+	if (materialAssetPaths.get().size() <= materialSlotIndex)
 	{
-		materialAssetPaths.resize(materialSlotIndex + 1);
+		materialAssetPaths.get().resize(materialSlotIndex + 1);
 		materialAssets.resize(materialSlotIndex + 1);
 	}
 
-	materialAssetPaths[materialSlotIndex] = materialAssetPath;
+	materialAssetPaths.get()[materialSlotIndex] = materialAssetPath;
 	materialAssets[materialSlotIndex] =
 		materialAssetPath.empty() ? nullptr : AssetLoader::get().loadSharedAsset<MaterialAsset>(materialAssetPath);
 }
@@ -147,14 +147,14 @@ void MeshComponent::requestMeshStreaming()
 void MeshComponent::clear()
 {
 	Component::clear();
-	meshAssetPath.clear();
+	meshAssetPath.reset();
 	meshAsset.reset();
-	materialAssetPaths.clear();
+	materialAssetPaths.reset();
 	materialAssets.clear();
 	materialHandleReferences.clear();
 	meshAssetHandle.reset();
-	lodLevel = 0;
-	visible = true;
+	lodLevel.reset();
+	visible.reset();
 	meshHandleReference.reset();
 }
 
@@ -166,6 +166,7 @@ void MeshComponent::tick(const float deltaTimeSeconds)
 
 void MeshComponent::initialize()
 {
+	Component::initialize();
 	generateMeshBridgeHandle();
 }
 
@@ -174,10 +175,10 @@ void MeshComponent::writeAssetProperty(OutputFileStream& fileStream) const
 	Component::writeAssetProperty(fileStream);
 
 	XML& xml = XML::get();
-	xml.writeProperty(fileStream, "meshAssetPath", meshAssetPath);
-	xml.writeProperty(fileStream, "lodLevel", lodLevel);
-	xml.writeProperty(fileStream, "visible", visible);
-	xml.writePropertyArray(fileStream, "materialAssetPaths", materialAssetPaths);
+	xml.writeProperty(fileStream, meshAssetPath);
+	xml.writeProperty(fileStream, lodLevel);
+	xml.writeProperty(fileStream, visible);
+	xml.writeProperty(fileStream, materialAssetPaths);
 }
 
 void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
@@ -185,15 +186,15 @@ void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
 	Component::readAssetProperty(document);
 
 	XML& xml = XML::get();
-	xml.readProperty(document, "deasset.meshAssetPath", meshAssetPath);
-	xml.readProperty(document, "deasset.lodLevel", lodLevel);
-	xml.readProperty(document, "deasset.visible", visible);
-	xml.readPropertyArray(document, "deasset.materialAssetPaths", materialAssetPaths);
+	xml.readProperty(document, "deasset", meshAssetPath);
+	xml.readProperty(document, "deasset", lodLevel);
+	xml.readProperty(document, "deasset", visible);
+	xml.readProperty(document, "deasset", materialAssetPaths);
 
 	meshAsset.reset();
 	meshAssetHandle.reset();
 	reloadMaterialAssets();
-	if (meshAssetPath.empty())
+	if (meshAssetPath.get().empty())
 	{
 		return;
 	}
@@ -203,7 +204,7 @@ void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
 
 void MeshComponent::generateMeshBridgeHandle()
 {
-	const bool needsMeshBridge = !meshAssetPath.empty() && meshAsset != nullptr;
+	const bool needsMeshBridge = !meshAssetPath.get().empty() && meshAsset != nullptr;
 	if (!needsMeshBridge)
 	{
 		meshAsset.reset();
@@ -293,12 +294,12 @@ void MeshComponent::generateMeshBridgeHandle()
 
 void MeshComponent::refreshMaterialBridgeHandles()
 {
-	assert(materialAssets.size() == materialAssetPaths.size() && "[MeshComponent][Assert] reason=material_asset_storage_mismatch");
-	materialHandleReferences.resize(materialAssetPaths.size());
+	assert(materialAssets.size() == materialAssetPaths.get().size() && "[MeshComponent][Assert] reason=material_asset_storage_mismatch");
+	materialHandleReferences.resize(materialAssetPaths.get().size());
 
-	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialAssetPaths.size()); ++materialIndex)
+	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialAssetPaths.get().size()); ++materialIndex)
 	{
-		const string& materialAssetPath = materialAssetPaths[materialIndex];
+		const string& materialAssetPath = materialAssetPaths.get()[materialIndex];
 		const shared_pointer<MaterialAsset>& materialAsset = materialAssets[materialIndex];
 		MaterialBridge::HandleReference& materialHandleReference = materialHandleReferences[materialIndex];
 		const bool needsMaterialBridge = !materialAssetPath.empty() && materialAsset != nullptr;
@@ -334,10 +335,10 @@ void MeshComponent::refreshMaterialBridgeHandles()
 void MeshComponent::reloadMaterialAssets()
 {
 	materialAssets.clear();
-	materialAssets.resize(materialAssetPaths.size());
-	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialAssetPaths.size()); ++materialIndex)
+	materialAssets.resize(materialAssetPaths.get().size());
+	for (uint32 materialIndex = 0; materialIndex < static_cast<uint32>(materialAssetPaths.get().size()); ++materialIndex)
 	{
-		const string& materialAssetPath = materialAssetPaths[materialIndex];
+		const string& materialAssetPath = materialAssetPaths.get()[materialIndex];
 		if (materialAssetPath.empty())
 		{
 			continue;

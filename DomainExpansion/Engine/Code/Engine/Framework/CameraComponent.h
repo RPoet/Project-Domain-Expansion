@@ -9,11 +9,11 @@ public:
 	DECLARE_COMPONENT(CameraComponent);
 	void clear() override;
 
-	bool editorCamera = false;
-	bool primary = false;
-	float fieldOfViewYDegrees = 60.0f;
-	float nearPlane = 0.1f;
-	float farPlane = 100.0f;
+	DECLARE_FIELD(bool, editorCamera, false);
+	DECLARE_FIELD(bool, primary, false);
+	DECLARE_FIELD(float, fieldOfViewYDegrees, 60.0f);
+	DECLARE_FIELD(float, nearPlane, 0.1f);
+	DECLARE_FIELD(float, farPlane, 100.0f);
 
 	BridgeHandle getCameraHandle() const;
 	void generateCameraBridgeHandle();

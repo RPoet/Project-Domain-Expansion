@@ -565,8 +565,9 @@ void ReplayModule::registerReplayCommands()
 				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
 			}
 
-			const string* assetTypeName = document.find("deasset.@type");
-			if (assetTypeName == nullptr || *assetTypeName != MaterialAsset::getStaticAssetTypeName())
+			std::string_view assetTypeName = {};
+			if (!document.tryGetValueView("deasset.@type", assetTypeName)
+				|| assetTypeName != MaterialAsset::getStaticAssetTypeName())
 			{
 				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
 			}
@@ -749,7 +750,7 @@ void ReplayModule::registerReplayCommands()
 				return static_cast<int32>(EditorExecutionCode::deassetReadFailed);
 			}
 
-			document.valueByKey[arguments[1]] = arguments[2];
+			document.set(arguments[1], arguments[2]);
 			return XML::get().writeDocumentFile(absoluteAssetPath, document)
 				? static_cast<int32>(CLIModule::ExecutionCode::succeeded)
 				: static_cast<int32>(EditorExecutionCode::deassetWriteFailed);

@@ -3,6 +3,7 @@
 #include "Engine/Framework/CameraComponent.h"
 #include "Engine/Framework/PlaceableEntity.h"
 #include "Engine/Framework/World.h"
+#include "Engine/Common/Math/ScalarMath.h"
 #include "Engine/Module/Input/InputModule.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
@@ -49,27 +50,6 @@ static float clampEditorCameraPitchRadians(const float pitchRadians)
 	return pitchRadians;
 }
 
-static float getFloat3LengthSquared(const float3& value)
-{
-	return value.x * value.x + value.y * value.y + value.z * value.z;
-}
-
-static float3 normalizeFloat3(const float3& value)
-{
-	const float lengthSquared = getFloat3LengthSquared(value);
-	if (lengthSquared <= 0.0f)
-	{
-		return {};
-	}
-
-	const float inverseLength = 1.0f / sqrtf(lengthSquared);
-	float3 normalizedValue = {};
-	normalizedValue.x = value.x * inverseLength;
-	normalizedValue.y = value.y * inverseLength;
-	normalizedValue.z = value.z * inverseLength;
-	return normalizedValue;
-}
-
 CameraComponent* EditorCameraMovementComponent::getOwnerEditorCameraComponent()
 {
 	World* ownerWorld = getOwnerWorld();
@@ -102,7 +82,7 @@ CameraComponent* EditorCameraMovementComponent::getOwnerEditorCameraComponent()
 void EditorCameraMovementComponent::clear()
 {
 	Component::clear();
-	movementSpeed = 4.0f;
+	movementSpeed.reset();
 }
 
 void EditorCameraMovementComponent::setMovementSpeed(const float movementSpeed)
@@ -115,7 +95,7 @@ void EditorCameraMovementComponent::writeAssetProperty(OutputFileStream& fileStr
 	Component::writeAssetProperty(fileStream);
 
 	XML& xml = XML::get();
-	xml.writeProperty(fileStream, "movementSpeed", movementSpeed);
+	xml.writeProperty(fileStream, movementSpeed);
 }
 
 void EditorCameraMovementComponent::readAssetProperty(const XMLKeyValueDocument& document)
@@ -124,7 +104,7 @@ void EditorCameraMovementComponent::readAssetProperty(const XMLKeyValueDocument&
 
 	float readMovementSpeed = movementSpeed;
 	XML& xml = XML::get();
-	if (!xml.readProperty(document, "deasset.movementSpeed", readMovementSpeed))
+	if (!xml.readProperty(document, "deasset", readMovementSpeed))
 	{
 		return;
 	}
@@ -147,8 +127,8 @@ void EditorCameraMovementComponent::tick(const float deltaTimeSeconds)
 		return;
 	}
 
-	const bool textInputActive = imGuiLayerModule != nullptr && imGuiLayerModule->wantsTextInput();
-	const bool mouseCaptureActive = imGuiLayerModule != nullptr && imGuiLayerModule->wantsMouseCapture();
+	const bool textInputActive = imGuiLayerModule->wantsTextInput();
+	const bool mouseCaptureActive = imGuiLayerModule->wantsMouseCapture();
 	const bool lookActive = !textInputActive && !mouseCaptureActive && isInputKeyStateActive(inputModule->getMouseButtonState(InputMouseButton::right));
 	if (!mouseCaptureActive)
 	{
@@ -190,12 +170,10 @@ void EditorCameraMovementComponent::tick(const float deltaTimeSeconds)
 		const int2 mousePositionDelta = inputModule->getMousePositionDelta();
 		if (mousePositionDelta.x != 0 || mousePositionDelta.y != 0)
 		{
-			ownerPlaceableEntity->transform.rotationYaw +=
-				static_cast<float>(mousePositionDelta.x) * editorCameraLookSensitivityRadiansPerPixel;
-			ownerPlaceableEntity->transform.rotationPitch =
-				clampEditorCameraPitchRadians(
-					ownerPlaceableEntity->transform.rotationPitch
-					+ static_cast<float>(mousePositionDelta.y) * editorCameraLookSensitivityRadiansPerPixel);
+			ownerPlaceableEntity->transform.rotationYaw += static_cast<float>(mousePositionDelta.x) * editorCameraLookSensitivityRadiansPerPixel;
+			ownerPlaceableEntity->transform.rotationPitch = clampEditorCameraPitchRadians(
+				ownerPlaceableEntity->transform.rotationPitch
+				+ static_cast<float>(mousePositionDelta.y) * editorCameraLookSensitivityRadiansPerPixel);
 			transformChanged = true;
 		}
 	}
@@ -211,19 +189,21 @@ void EditorCameraMovementComponent::tick(const float deltaTimeSeconds)
 	const float yaw = ownerPlaceableEntity->transform.rotationYaw;
 	const float pitch = ownerPlaceableEntity->transform.rotationPitch;
 	const float cosinePitch = cosf(pitch);
-	float3 forwardDirection = {};
-	forwardDirection.x = sinf(yaw) * cosinePitch;
-	forwardDirection.y = -sinf(pitch);
-	forwardDirection.z = cosf(yaw) * cosinePitch;
-	float3 rightDirection = {};
-	rightDirection.x = cosf(yaw);
-	rightDirection.y = 0.0f;
-	rightDirection.z = -sinf(yaw);
-
-	float3 movementDirection = {};
-	movementDirection.x = forwardDirection.x * forwardInput + rightDirection.x * rightInput;
-	movementDirection.y = forwardDirection.y * forwardInput + rightDirection.y * rightInput;
-	movementDirection.z = forwardDirection.z * forwardInput + rightDirection.z * rightInput;
+	const float3 forwardDirection = {
+		.x = sinf(yaw) * cosinePitch,
+		.y = -sinf(pitch),
+		.z = cosf(yaw) * cosinePitch,
+	};
+	const float3 rightDirection = {
+		.x = cosf(yaw),
+		.y = 0.0f,
+		.z = -sinf(yaw),
+	};
+	float3 movementDirection = {
+		.x = forwardDirection.x * forwardInput + rightDirection.x * rightInput,
+		.y = forwardDirection.y * forwardInput + rightDirection.y * rightInput,
+		.z = forwardDirection.z * forwardInput + rightDirection.z * rightInput,
+	};
 	movementDirection = normalizeFloat3(movementDirection);
 	if (getFloat3LengthSquared(movementDirection) > 0.0f)
 	{

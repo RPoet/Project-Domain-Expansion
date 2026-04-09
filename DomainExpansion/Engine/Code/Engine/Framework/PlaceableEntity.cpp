@@ -32,15 +32,15 @@ void PlaceableEntity::writeAssetProperty(OutputFileStream& fileStream) const
 	Entity::writeAssetProperty(fileStream);
 
 	XML& xml = XML::get();
-	xml.writeProperty(fileStream, "positionX", transform.positionX);
-	xml.writeProperty(fileStream, "positionY", transform.positionY);
-	xml.writeProperty(fileStream, "positionZ", transform.positionZ);
-	xml.writeProperty(fileStream, "rotationPitch", transform.rotationPitch);
-	xml.writeProperty(fileStream, "rotationYaw", transform.rotationYaw);
-	xml.writeProperty(fileStream, "rotationRoll", transform.rotationRoll);
-	xml.writeProperty(fileStream, "scaleX", transform.scaleX);
-	xml.writeProperty(fileStream, "scaleY", transform.scaleY);
-	xml.writeProperty(fileStream, "scaleZ", transform.scaleZ);
+	xml.writeProperty(fileStream, transform.positionX);
+	xml.writeProperty(fileStream, transform.positionY);
+	xml.writeProperty(fileStream, transform.positionZ);
+	xml.writeProperty(fileStream, transform.rotationPitch);
+	xml.writeProperty(fileStream, transform.rotationYaw);
+	xml.writeProperty(fileStream, transform.rotationRoll);
+	xml.writeProperty(fileStream, transform.scaleX);
+	xml.writeProperty(fileStream, transform.scaleY);
+	xml.writeProperty(fileStream, transform.scaleZ);
 }
 
 void PlaceableEntity::readAssetProperty(const XMLKeyValueDocument& document)
@@ -48,13 +48,13 @@ void PlaceableEntity::readAssetProperty(const XMLKeyValueDocument& document)
 	Entity::readAssetProperty(document);
 
 	XML& xml = XML::get();
-	xml.readProperty(document, "deasset.positionX", transform.positionX);
-	xml.readProperty(document, "deasset.positionY", transform.positionY);
-	xml.readProperty(document, "deasset.positionZ", transform.positionZ);
-	xml.readProperty(document, "deasset.rotationPitch", transform.rotationPitch);
-	xml.readProperty(document, "deasset.rotationYaw", transform.rotationYaw);
-	xml.readProperty(document, "deasset.rotationRoll", transform.rotationRoll);
-	xml.readProperty(document, "deasset.scaleX", transform.scaleX);
-	xml.readProperty(document, "deasset.scaleY", transform.scaleY);
-	xml.readProperty(document, "deasset.scaleZ", transform.scaleZ);
+	xml.readProperty(document, "deasset", transform.positionX);
+	xml.readProperty(document, "deasset", transform.positionY);
+	xml.readProperty(document, "deasset", transform.positionZ);
+	xml.readProperty(document, "deasset", transform.rotationPitch);
+	xml.readProperty(document, "deasset", transform.rotationYaw);
+	xml.readProperty(document, "deasset", transform.rotationRoll);
+	xml.readProperty(document, "deasset", transform.scaleX);
+	xml.readProperty(document, "deasset", transform.scaleY);
+	xml.readProperty(document, "deasset", transform.scaleZ);
 }

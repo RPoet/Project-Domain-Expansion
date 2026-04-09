@@ -5,7 +5,7 @@
 
 static unordered_map<string, ComponentFactoryFunction>& getComponentFactoryByTypeName()
 {
-	static unordered_map<string, ComponentFactoryFunction> componentFactoryByTypeName = {};
+	static unordered_map<string, ComponentFactoryFunction> componentFactoryByTypeName;
 	return componentFactoryByTypeName;
 }
 
@@ -26,7 +26,22 @@ unique_pointer<Component> Component::createByAssetTypeName(const string& assetTy
 void Component::clear()
 {
 	Asset::clear();
-	ownerEntityAssetPath.clear();
+	ownerEntityAssetPath.reset();
+}
+
+void Component::initialize()
+{
+	if (ownerWorld == nullptr || ownerEntityIndex == invalidEntityIndex)
+	{
+		return;
+	}
+
+	const Entity* ownerEntity = ownerWorld->getEntityByIndex(ownerEntityIndex);
+	assert(ownerEntity != nullptr && "[Component][Assert] reason=owner_entity_missing");
+	if (!ownerEntity->getAssetPath().empty())
+	{
+		ownerEntityAssetPath = ownerEntity->getAssetPath();
+	}
 }
 
 void Component::writeAssetProperty(OutputFileStream& fileStream) const
@@ -41,11 +56,11 @@ void Component::writeAssetProperty(OutputFileStream& fileStream) const
 		serializedOwnerEntityAssetPath = ownerEntity->getAssetPath();
 	}
 
-	xml.writeProperty(fileStream, "ownerEntityAssetPath", serializedOwnerEntityAssetPath);
+	xml.writeProperty(fileStream, ownerEntityAssetPath_schema.name, serializedOwnerEntityAssetPath);
 }
 
 void Component::readAssetProperty(const XMLKeyValueDocument& document)
 {
 	XML& xml = XML::get();
-	xml.readProperty(document, "deasset.ownerEntityAssetPath", ownerEntityAssetPath);
+	xml.readProperty(document, "deasset", ownerEntityAssetPath);
 }

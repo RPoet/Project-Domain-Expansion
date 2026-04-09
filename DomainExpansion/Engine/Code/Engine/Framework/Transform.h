@@ -1,18 +1,19 @@
 #pragma once
 
+#include "Engine/Common/Field.h"
 #include "Engine/Platform/SIMDMath.h"
 
 struct Transform
 {
-	float positionX = 0.0f;
-	float positionY = 0.0f;
-	float positionZ = 0.0f;
-	float rotationPitch = 0.0f;
-	float rotationYaw = 0.0f;
-	float rotationRoll = 0.0f;
-	float scaleX = 1.0f;
-	float scaleY = 1.0f;
-	float scaleZ = 1.0f;
+	DECLARE_FIELD(float, positionX, 0.0f);
+	DECLARE_FIELD(float, positionY, 0.0f);
+	DECLARE_FIELD(float, positionZ, 0.0f);
+	DECLARE_FIELD(float, rotationPitch, 0.0f);
+	DECLARE_FIELD(float, rotationYaw, 0.0f);
+	DECLARE_FIELD(float, rotationRoll, 0.0f);
+	DECLARE_FIELD(float, scaleX, 1.0f);
+	DECLARE_FIELD(float, scaleY, 1.0f);
+	DECLARE_FIELD(float, scaleZ, 1.0f);
 };
 
 // TODO: Replace this TEMP_ helper path once World owns cached subtree world-transform updates.

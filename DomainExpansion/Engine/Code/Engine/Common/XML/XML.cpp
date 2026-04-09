@@ -5,11 +5,64 @@
 #include "Engine/Module/Profiler/ProfilerModule.h"
 #include "Engine/Module/Timer/Timer.h"
 
-struct XMLTagData
+inline constexpr size_t xmlParserMaxElementDepth = 64;
+inline constexpr size_t xmlParserMaxAttributeCount = 10;
+inline constexpr size_t xmlParserMaxTotalAttributeCount = xmlParserMaxElementDepth * xmlParserMaxAttributeCount;
+inline constexpr unsigned char xmlCharacterFlagWhitespace = 1u << 0;
+inline constexpr unsigned char xmlCharacterFlagName = 1u << 1;
+
+struct XMLCharacterTable
 {
-	string name = {};
-	unordered_map<string, string> attributeValueByName = {};
+	unsigned char flags[256] = {};
 };
+
+static const XMLCharacterTable xmlCharacterTable = []()
+{
+	XMLCharacterTable table = {};
+	for (int32 characterCode = 'a'; characterCode <= 'z'; ++characterCode)
+	{
+		table.flags[characterCode] |= xmlCharacterFlagName;
+	}
+
+	for (int32 characterCode = 'A'; characterCode <= 'Z'; ++characterCode)
+	{
+		table.flags[characterCode] |= xmlCharacterFlagName;
+	}
+
+	for (int32 characterCode = '0'; characterCode <= '9'; ++characterCode)
+	{
+		table.flags[characterCode] |= xmlCharacterFlagName;
+	}
+
+	table.flags[static_cast<unsigned char>('_')] |= xmlCharacterFlagName;
+	table.flags[static_cast<unsigned char>('-')] |= xmlCharacterFlagName;
+	table.flags[static_cast<unsigned char>(':')] |= xmlCharacterFlagName;
+	table.flags[static_cast<unsigned char>('.')] |= xmlCharacterFlagName;
+	table.flags[static_cast<unsigned char>(' ')] |= xmlCharacterFlagWhitespace;
+	table.flags[static_cast<unsigned char>('\t')] |= xmlCharacterFlagWhitespace;
+	table.flags[static_cast<unsigned char>('\r')] |= xmlCharacterFlagWhitespace;
+	table.flags[static_cast<unsigned char>('\n')] |= xmlCharacterFlagWhitespace;
+	return table;
+}();
+
+struct XMLStringRange
+{
+	uint32 beginIndex = 0;
+	uint32 endIndex = 0;
+
+	size_t length() const
+	{
+		return endIndex - beginIndex;
+	}
+};
+
+struct XMLTagAttribute
+{
+	XMLStringRange nameRange = {};
+	XMLStringRange valueRange = {};
+};
+
+using XMLAttributeStorage = InplaceVector<XMLTagAttribute, xmlParserMaxTotalAttributeCount>;
 
 struct XMLWriteElementNode
 {
@@ -21,6 +74,217 @@ struct XMLWriteElementNode
 };
 
 using XMLParseCode = XML::ParseCode;
+
+static size_t buildXMLDocumentBucketCount(const size_t minimumEntryCount)
+{
+	size_t bucketCount = 16;
+	const size_t requiredBucketCount = std::max<size_t>(minimumEntryCount * 2, 16);
+	while (bucketCount < requiredBucketCount)
+	{
+		bucketCount *= 2;
+	}
+
+	return bucketCount;
+}
+
+uint64 XMLKeyValueDocument::hashText(const std::string_view text)
+{
+	uint64 hash = 14695981039346656037ull;
+	for (size_t characterIndex = 0; characterIndex < text.length(); ++characterIndex)
+	{
+		hash ^= static_cast<unsigned char>(text[characterIndex]);
+		hash *= 1099511628211ull;
+	}
+
+	return hash;
+}
+
+uint32 XMLKeyValueDocument::appendTextToStorage(const std::string_view text)
+{
+	assert(textStorage.size() + text.length() <= static_cast<size_t>(uint32MaxValue) && "[XML][Assert] reason=document_text_storage_overflow");
+	const uint32 textOffset = static_cast<uint32>(textStorage.size());
+	textStorage.append(text.data(), text.length());
+	return textOffset;
+}
+
+void XMLKeyValueDocument::rebuildBuckets(const size_t bucketCount)
+{
+	bucketEntryIndices.clear();
+	bucketEntryIndices.resize(bucketCount, invalidEntryIndex);
+	touchedBucketIndices.clear();
+	touchedBucketIndices.reserve(entries.size());
+	const uint32 bucketMask = static_cast<uint32>(bucketEntryIndices.size() - 1);
+	for (uint32 entryIndex = 0; entryIndex < static_cast<uint32>(entries.size()); ++entryIndex)
+	{
+		const Entry& entry = entries[entryIndex];
+		uint32 bucketIndex = static_cast<uint32>(entry.keyHash) & bucketMask;
+		while (bucketEntryIndices[bucketIndex] != invalidEntryIndex)
+		{
+			bucketIndex = (bucketIndex + 1) & bucketMask;
+		}
+
+		bucketEntryIndices[bucketIndex] = entryIndex;
+		touchedBucketIndices.push_back(bucketIndex);
+	}
+}
+
+void XMLKeyValueDocument::ensureBucketCount(const size_t minimumEntryCount)
+{
+	const size_t requiredBucketCount = buildXMLDocumentBucketCount(minimumEntryCount);
+	if (bucketEntryIndices.size() >= requiredBucketCount)
+	{
+		return;
+	}
+
+	rebuildBuckets(requiredBucketCount);
+}
+
+void XMLKeyValueDocument::clear()
+{
+	for (uint32 touchedBucketIndex = 0; touchedBucketIndex < static_cast<uint32>(touchedBucketIndices.size()); ++touchedBucketIndex)
+	{
+		bucketEntryIndices[touchedBucketIndices[touchedBucketIndex]] = invalidEntryIndex;
+	}
+
+	touchedBucketIndices.clear();
+	entries.clear();
+	textStorage.clear();
+}
+
+void XMLKeyValueDocument::reserve(const size_t estimatedKeyCount, const size_t estimatedTextBytes)
+{
+	entries.reserve(estimatedKeyCount);
+	touchedBucketIndices.reserve(estimatedKeyCount);
+	if (estimatedTextBytes > textStorage.capacity())
+	{
+		textStorage.reserve(estimatedTextBytes);
+	}
+
+	ensureBucketCount(estimatedKeyCount);
+}
+
+uint32 XMLKeyValueDocument::findEntryIndex(const std::string_view key) const
+{
+	if (key.empty() || bucketEntryIndices.empty())
+	{
+		return invalidEntryIndex;
+	}
+
+	const uint64 keyHash = hashText(key);
+	const uint32 bucketMask = static_cast<uint32>(bucketEntryIndices.size() - 1);
+	uint32 bucketIndex = static_cast<uint32>(keyHash) & bucketMask;
+	for (;;)
+	{
+		const uint32 entryIndex = bucketEntryIndices[bucketIndex];
+		if (entryIndex == invalidEntryIndex)
+		{
+			return invalidEntryIndex;
+		}
+
+		const Entry& entry = entries[entryIndex];
+		if (entry.keyHash == keyHash && buildTextView(entry.keyOffset, entry.keyLength) == key)
+		{
+			return entryIndex;
+		}
+
+		bucketIndex = (bucketIndex + 1) & bucketMask;
+	}
+}
+
+bool XMLKeyValueDocument::contains(const std::string_view key) const
+{
+	return findEntryIndex(key) != invalidEntryIndex;
+}
+
+bool XMLKeyValueDocument::tryGetValueView(const std::string_view key, std::string_view& outValueText) const
+{
+	const uint32 entryIndex = findEntryIndex(key);
+	if (entryIndex == invalidEntryIndex)
+	{
+		outValueText = {};
+		return false;
+	}
+
+	const Entry& entry = entries[entryIndex];
+	outValueText = buildTextView(entry.valueOffset, entry.valueLength);
+	return true;
+}
+
+bool XMLKeyValueDocument::tryGetValue(const std::string_view key, string& outValueText) const
+{
+	std::string_view valueText = {};
+	if (!tryGetValueView(key, valueText))
+	{
+		outValueText.clear();
+		return false;
+	}
+
+	outValueText.assign(valueText.data(), valueText.length());
+	return true;
+}
+
+void XMLKeyValueDocument::assignValue(const uint32 entryIndex, const std::string_view value)
+{
+	assert(entryIndex < static_cast<uint32>(entries.size()) && "[XML][Assert] reason=document_assign_value_entry_missing");
+	Entry& entry = entries[entryIndex];
+	entry.valueOffset = appendTextToStorage(value);
+	entry.valueLength = static_cast<uint32>(value.length());
+}
+
+bool XMLKeyValueDocument::insert(const std::string_view key, const std::string_view value)
+{
+	if (key.empty())
+	{
+		return true;
+	}
+
+	ensureBucketCount(entries.size() + 1);
+	const uint64 keyHash = hashText(key);
+	const uint32 bucketMask = static_cast<uint32>(bucketEntryIndices.size() - 1);
+	uint32 bucketIndex = static_cast<uint32>(keyHash) & bucketMask;
+	for (;;)
+	{
+		const uint32 entryIndex = bucketEntryIndices[bucketIndex];
+		if (entryIndex == invalidEntryIndex)
+		{
+			Entry& entry = entries.emplace_back();
+			entry.keyHash = keyHash;
+			entry.keyOffset = appendTextToStorage(key);
+			entry.keyLength = static_cast<uint32>(key.length());
+			entry.valueOffset = appendTextToStorage(value);
+			entry.valueLength = static_cast<uint32>(value.length());
+			bucketEntryIndices[bucketIndex] = static_cast<uint32>(entries.size() - 1);
+			touchedBucketIndices.push_back(bucketIndex);
+			return true;
+		}
+
+		const Entry& existingEntry = entries[entryIndex];
+		if (existingEntry.keyHash == keyHash && buildTextView(existingEntry.keyOffset, existingEntry.keyLength) == key)
+		{
+			return false;
+		}
+
+		bucketIndex = (bucketIndex + 1) & bucketMask;
+	}
+}
+
+void XMLKeyValueDocument::set(const std::string_view key, const std::string_view value)
+{
+	if (key.empty())
+	{
+		return;
+	}
+
+	const uint32 entryIndex = findEntryIndex(key);
+	if (entryIndex != invalidEntryIndex)
+	{
+		assignValue(entryIndex, value);
+		return;
+	}
+
+	const bool inserted = insert(key, value);
+	assert(inserted && "[XML][Assert] reason=document_set_insert_failed");
+}
 
 struct XMLReadMetrics
 {
@@ -195,9 +459,9 @@ static string unescapeXMLText(const string& text)
 	return unescapedText;
 }
 
-string XML::parsePropertyValueText(const string& propertyValueText) const
+string XML::parsePropertyValueText(const std::string_view propertyValueText) const
 {
-	return propertyValueText;
+	return string(propertyValueText.data(), propertyValueText.length());
 }
 
 void XML::writeOpenTag(OutputFileStream& fileStream, const char* tagName) const
@@ -387,35 +651,116 @@ static void sortXMLWriteTree(XMLWriteElementNode& node)
 
 static bool isXMLWhitespace(const char character)
 {
-	return character == ' ' || character == '\t' || character == '\r' || character == '\n';
+	return (xmlCharacterTable.flags[static_cast<unsigned char>(character)] & xmlCharacterFlagWhitespace) != 0;
 }
 
 static bool isXMLNameCharacter(const char character)
 {
-	return (character >= 'a' && character <= 'z')
-		|| (character >= 'A' && character <= 'Z')
-		|| (character >= '0' && character <= '9')
-		|| character == '_'
-		|| character == '-'
-		|| character == ':'
-		|| character == '.';
+	return (xmlCharacterTable.flags[static_cast<unsigned char>(character)] & xmlCharacterFlagName) != 0;
 }
 
-static string trimXMLText(const string& text)
+static void trimXMLTextRange(const string& text, size_t& inOutBeginIndex, size_t& inOutEndIndex)
 {
-	size_t beginIndex = 0;
-	while (beginIndex < text.length() && isXMLWhitespace(text[beginIndex]))
+	while (inOutBeginIndex < inOutEndIndex && isXMLWhitespace(text[inOutBeginIndex]))
 	{
-		++beginIndex;
+		++inOutBeginIndex;
 	}
 
-	size_t endIndex = text.length();
-	while (endIndex > beginIndex && isXMLWhitespace(text[endIndex - 1]))
+	while (inOutEndIndex > inOutBeginIndex && isXMLWhitespace(text[inOutEndIndex - 1]))
 	{
-		--endIndex;
+		--inOutEndIndex;
+	}
+}
+
+static bool isXMLStringRangeEqualToText(
+	const string& xmlText,
+	const XMLStringRange& range,
+	const char* comparisonText)
+{
+	assert(comparisonText != nullptr && "[XML][Assert] reason=comparison_text_missing");
+	const size_t comparisonLength = std::char_traits<char>::length(comparisonText);
+	return range.length() == comparisonLength
+		&& std::char_traits<char>::compare(xmlText.data() + range.beginIndex, comparisonText, comparisonLength) == 0;
+}
+
+static void buildXMLUnescapedText(
+	string& outUnescapedText,
+	const string& text,
+	const size_t beginIndex,
+	const size_t endIndex)
+{
+	outUnescapedText.clear();
+	if (beginIndex >= endIndex)
+	{
+		return;
 	}
 
-	return sliceString(text, beginIndex, endIndex - beginIndex);
+	const size_t firstEscapeIndex = text.find('&', beginIndex);
+	if (firstEscapeIndex == string::npos || firstEscapeIndex >= endIndex)
+	{
+		outUnescapedText.assign(text, beginIndex, endIndex - beginIndex);
+		return;
+	}
+
+	outUnescapedText.reserve(endIndex - beginIndex);
+	outUnescapedText.append(text, beginIndex, firstEscapeIndex - beginIndex);
+	for (size_t characterIndex = firstEscapeIndex; characterIndex < endIndex; ++characterIndex)
+	{
+		if (text[characterIndex] != '&')
+		{
+			outUnescapedText.push_back(text[characterIndex]);
+			continue;
+		}
+
+		if (text.compare(characterIndex, 5, "&amp;") == 0)
+		{
+			outUnescapedText.push_back('&');
+			characterIndex += 4;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 4, "&lt;") == 0)
+		{
+			outUnescapedText.push_back('<');
+			characterIndex += 3;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 4, "&gt;") == 0)
+		{
+			outUnescapedText.push_back('>');
+			characterIndex += 3;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 6, "&quot;") == 0)
+		{
+			outUnescapedText.push_back('"');
+			characterIndex += 5;
+			continue;
+		}
+
+		if (text.compare(characterIndex, 6, "&apos;") == 0)
+		{
+			outUnescapedText.push_back('\'');
+			characterIndex += 5;
+			continue;
+		}
+
+		outUnescapedText.push_back(text[characterIndex]);
+	}
+}
+
+static string buildXMLUnescapedText(const string& text, size_t beginIndex, const size_t endIndex)
+{
+	string unescapedText = {};
+	buildXMLUnescapedText(unescapedText, text, beginIndex, endIndex);
+	return unescapedText;
+}
+
+static string buildXMLUnescapedText(const string& text, const XMLStringRange& range)
+{
+	return buildXMLUnescapedText(text, range.beginIndex, range.endIndex);
 }
 
 static bool startsWithXMLToken(const string& text, const size_t characterIndex, const char* tokenText)
@@ -437,7 +782,9 @@ static bool startsWithXMLToken(const string& text, const size_t characterIndex, 
 
 static void skipXMLWhitespace(const string& xmlText, size_t& inOutCharacterIndex)
 {
-	while (inOutCharacterIndex < xmlText.length() && isXMLWhitespace(xmlText[inOutCharacterIndex]))
+	const size_t xmlLength = xmlText.length();
+	const char* xmlCharacters = xmlText.data();
+	while (inOutCharacterIndex < xmlLength && isXMLWhitespace(xmlCharacters[inOutCharacterIndex]))
 	{
 		++inOutCharacterIndex;
 	}
@@ -504,27 +851,34 @@ static XMLParseCode skipXMLIgnorableContent(const string& xmlText, size_t& inOut
 	}
 }
 
-static XMLParseCode parseXMLName(const string& xmlText, size_t& inOutCharacterIndex, string& outName)
+static XMLParseCode parseXMLName(const string& xmlText, size_t& inOutCharacterIndex, XMLStringRange& outNameRange)
 {
-	outName.clear();
-	if (inOutCharacterIndex >= xmlText.length() || !isXMLNameCharacter(xmlText[inOutCharacterIndex]))
+	outNameRange = {};
+	const size_t xmlLength = xmlText.length();
+	const char* xmlCharacters = xmlText.data();
+	if (inOutCharacterIndex >= xmlLength || !isXMLNameCharacter(xmlCharacters[inOutCharacterIndex]))
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
 	const size_t nameBeginIndex = inOutCharacterIndex;
-	while (inOutCharacterIndex < xmlText.length() && isXMLNameCharacter(xmlText[inOutCharacterIndex]))
+	do
 	{
 		++inOutCharacterIndex;
 	}
+	while (inOutCharacterIndex < xmlLength && isXMLNameCharacter(xmlCharacters[inOutCharacterIndex]));
 
-	outName = sliceString(xmlText, nameBeginIndex, inOutCharacterIndex - nameBeginIndex);
+	outNameRange.beginIndex = static_cast<uint32>(nameBeginIndex);
+	outNameRange.endIndex = static_cast<uint32>(inOutCharacterIndex);
 	return XMLParseCode::succeeded;
 }
 
-static XMLParseCode parseXMLAttributeValue(const string& xmlText, size_t& inOutCharacterIndex, string& outValue)
+static XMLParseCode parseXMLAttributeValue(
+	const string& xmlText,
+	size_t& inOutCharacterIndex,
+	XMLStringRange& outValueRange)
 {
-	outValue.clear();
+	outValueRange = {};
 	if (inOutCharacterIndex >= xmlText.length())
 	{
 		return XMLParseCode::malformedDocument;
@@ -538,42 +892,46 @@ static XMLParseCode parseXMLAttributeValue(const string& xmlText, size_t& inOutC
 
 	++inOutCharacterIndex;
 	const size_t valueBeginIndex = inOutCharacterIndex;
-	while (inOutCharacterIndex < xmlText.length() && xmlText[inOutCharacterIndex] != quoteCharacter)
-	{
-		++inOutCharacterIndex;
-	}
-
-	if (inOutCharacterIndex >= xmlText.length())
+	const size_t valueEndIndex = xmlText.find(quoteCharacter, valueBeginIndex);
+	if (valueEndIndex == string::npos)
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
-	outValue = unescapeXMLText(sliceString(xmlText, valueBeginIndex, inOutCharacterIndex - valueBeginIndex));
-	++inOutCharacterIndex;
+	outValueRange.beginIndex = static_cast<uint32>(valueBeginIndex);
+	outValueRange.endIndex = static_cast<uint32>(valueEndIndex);
+	inOutCharacterIndex = valueEndIndex + 1;
 	return XMLParseCode::succeeded;
 }
 
 static XMLParseCode parseXMLOpenTag(
 	const string& xmlText,
 	size_t& inOutCharacterIndex,
-	XMLTagData& outTagData,
+	XMLStringRange& outNameRange,
+	XMLAttributeStorage& inOutAttributeStorage,
+	uint32& outAttributeBeginIndex,
+	uint16& outAttributeCount,
 	bool& outSelfClosing)
 {
-	outTagData = {};
+	outNameRange = {};
 	outSelfClosing = false;
+	outAttributeBeginIndex = static_cast<uint32>(inOutAttributeStorage.size());
+	outAttributeCount = 0;
+	const size_t xmlLength = xmlText.length();
+	const char* xmlCharacters = xmlText.data();
 
-	if (inOutCharacterIndex >= xmlText.length() || xmlText[inOutCharacterIndex] != '<')
+	if (inOutCharacterIndex >= xmlLength || xmlCharacters[inOutCharacterIndex] != '<')
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
 	++inOutCharacterIndex;
-	if (inOutCharacterIndex < xmlText.length() && xmlText[inOutCharacterIndex] == '/')
+	if (inOutCharacterIndex < xmlLength && xmlCharacters[inOutCharacterIndex] == '/')
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
-	XMLParseCode parseCode = parseXMLName(xmlText, inOutCharacterIndex, outTagData.name);
+	XMLParseCode parseCode = parseXMLName(xmlText, inOutCharacterIndex, outNameRange);
 	if (parseCode != XMLParseCode::succeeded)
 	{
 		return parseCode;
@@ -581,68 +939,101 @@ static XMLParseCode parseXMLOpenTag(
 
 	for (;;)
 	{
-		skipXMLWhitespace(xmlText, inOutCharacterIndex);
-		if (inOutCharacterIndex >= xmlText.length())
+		if (inOutCharacterIndex >= xmlLength)
 		{
 			return XMLParseCode::malformedDocument;
 		}
 
-		if (xmlText[inOutCharacterIndex] == '>')
+		const char currentCharacter = xmlCharacters[inOutCharacterIndex];
+		if (currentCharacter == '>')
 		{
 			++inOutCharacterIndex;
 			return XMLParseCode::succeeded;
 		}
 
-		if (xmlText[inOutCharacterIndex] == '/'
-			&& inOutCharacterIndex + 1 < xmlText.length()
-			&& xmlText[inOutCharacterIndex + 1] == '>')
+		if (currentCharacter == '/'
+			&& inOutCharacterIndex + 1 < xmlLength
+			&& xmlCharacters[inOutCharacterIndex + 1] == '>')
 		{
 			inOutCharacterIndex += 2;
 			outSelfClosing = true;
 			return XMLParseCode::succeeded;
 		}
 
-		string attributeName = {};
-		parseCode = parseXMLName(xmlText, inOutCharacterIndex, attributeName);
+		if (isXMLWhitespace(currentCharacter))
+		{
+			do
+			{
+				++inOutCharacterIndex;
+			}
+			while (inOutCharacterIndex < xmlLength && isXMLWhitespace(xmlCharacters[inOutCharacterIndex]));
+			continue;
+		}
+
+		XMLStringRange attributeNameRange = {};
+		parseCode = parseXMLName(xmlText, inOutCharacterIndex, attributeNameRange);
 		if (parseCode != XMLParseCode::succeeded)
 		{
 			return parseCode;
 		}
 
-		skipXMLWhitespace(xmlText, inOutCharacterIndex);
-		if (inOutCharacterIndex >= xmlText.length() || xmlText[inOutCharacterIndex] != '=')
+		while (inOutCharacterIndex < xmlLength && isXMLWhitespace(xmlCharacters[inOutCharacterIndex]))
+		{
+			++inOutCharacterIndex;
+		}
+
+		if (inOutCharacterIndex >= xmlLength || xmlCharacters[inOutCharacterIndex] != '=')
 		{
 			return XMLParseCode::malformedDocument;
 		}
 
 		++inOutCharacterIndex;
-		skipXMLWhitespace(xmlText, inOutCharacterIndex);
+		while (inOutCharacterIndex < xmlLength && isXMLWhitespace(xmlCharacters[inOutCharacterIndex]))
+		{
+			++inOutCharacterIndex;
+		}
 
-		string attributeValue = {};
-		parseCode = parseXMLAttributeValue(xmlText, inOutCharacterIndex, attributeValue);
+		XMLStringRange attributeValueRange = {};
+		parseCode = parseXMLAttributeValue(xmlText, inOutCharacterIndex, attributeValueRange);
 		if (parseCode != XMLParseCode::succeeded)
 		{
 			return parseCode;
 		}
 
-		outTagData.attributeValueByName.emplace(attributeName, attributeValue);
+		if (outAttributeCount >= xmlParserMaxAttributeCount
+			|| inOutAttributeStorage.size() >= inOutAttributeStorage.capacity())
+		{
+			return XMLParseCode::malformedDocument;
+		}
+
+		XMLTagAttribute& attribute = inOutAttributeStorage.emplace_back();
+		attribute.nameRange = attributeNameRange;
+		attribute.valueRange = attributeValueRange;
+		++outAttributeCount;
 	}
 }
 
 static XMLParseCode parseXMLClosingTag(
 	const string& xmlText,
 	size_t& inOutCharacterIndex,
-	const string& expectedTagName)
+	const XMLStringRange& expectedTagNameRange)
 {
-	if (!startsWithXMLToken(xmlText, inOutCharacterIndex, "</"))
+	if (inOutCharacterIndex + 1 >= xmlText.length()
+		|| xmlText[inOutCharacterIndex] != '<'
+		|| xmlText[inOutCharacterIndex + 1] != '/')
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
 	inOutCharacterIndex += 2;
-	string closingTagName = {};
-	const XMLParseCode parseCode = parseXMLName(xmlText, inOutCharacterIndex, closingTagName);
-	if (parseCode != XMLParseCode::succeeded || closingTagName != expectedTagName)
+	XMLStringRange closingTagNameRange = {};
+	const XMLParseCode parseCode = parseXMLName(xmlText, inOutCharacterIndex, closingTagNameRange);
+	if (parseCode != XMLParseCode::succeeded
+		|| closingTagNameRange.length() != expectedTagNameRange.length()
+		|| std::char_traits<char>::compare(
+			   xmlText.data() + closingTagNameRange.beginIndex,
+			   xmlText.data() + expectedTagNameRange.beginIndex,
+			   expectedTagNameRange.length()) != 0)
 	{
 		return XMLParseCode::malformedDocument;
 	}
@@ -657,26 +1048,66 @@ static XMLParseCode parseXMLClosingTag(
 	return XMLParseCode::succeeded;
 }
 
-static string buildXMLPath(const vector<string>& pathSegments, const string& leafName)
+struct XMLTagValueAttributeRanges
 {
-	string pathText = {};
-	for (size_t segmentIndex = 0; segmentIndex < pathSegments.size(); ++segmentIndex)
+	const XMLStringRange* keyAttributeValueRange = nullptr;
+	const XMLStringRange* nameAttributeValueRange = nullptr;
+	const XMLStringRange* valueAttributeValueRange = nullptr;
+};
+
+static XMLTagValueAttributeRanges findXMLTagValueAttributeRanges(
+	const string& xmlText,
+	const XMLAttributeStorage& attributeStorage,
+	const uint32 attributeBeginIndex,
+	const uint16 attributeCount)
+{
+	XMLTagValueAttributeRanges result = {};
+	for (uint16 attributeIndex = 0; attributeIndex < attributeCount; ++attributeIndex)
 	{
-		if (!pathText.empty())
+		const XMLTagAttribute& attribute = attributeStorage[attributeBeginIndex + attributeIndex];
+		const size_t attributeNameLength = attribute.nameRange.length();
+		const char* attributeName = xmlText.data() + attribute.nameRange.beginIndex;
+		if (result.keyAttributeValueRange == nullptr
+			&& attributeNameLength == 3
+			&& attributeName[0] == 'k'
+			&& attributeName[1] == 'e'
+			&& attributeName[2] == 'y')
 		{
-			pathText += '.';
+			result.keyAttributeValueRange = &attribute.valueRange;
+			continue;
 		}
 
-		pathText += pathSegments[segmentIndex];
+		if (result.nameAttributeValueRange == nullptr
+			&& attributeNameLength == 4
+			&& attributeName[0] == 'n'
+			&& attributeName[1] == 'a'
+			&& attributeName[2] == 'm'
+			&& attributeName[3] == 'e')
+		{
+			result.nameAttributeValueRange = &attribute.valueRange;
+			continue;
+		}
+
+		if (result.valueAttributeValueRange == nullptr
+			&& attributeNameLength == 5
+			&& attributeName[0] == 'v'
+			&& attributeName[1] == 'a'
+			&& attributeName[2] == 'l'
+			&& attributeName[3] == 'u'
+			&& attributeName[4] == 'e')
+		{
+			result.valueAttributeValueRange = &attribute.valueRange;
+		}
+
+		if (result.keyAttributeValueRange != nullptr
+			&& result.nameAttributeValueRange != nullptr
+			&& result.valueAttributeValueRange != nullptr)
+		{
+			break;
+		}
 	}
 
-	if (!pathText.empty())
-	{
-		pathText += '.';
-	}
-
-	pathText += leafName;
-	return pathText;
+	return result;
 }
 
 static XMLParseCode insertXMLKeyValue(
@@ -689,23 +1120,210 @@ static XMLParseCode insertXMLKeyValue(
 		return XMLParseCode::succeeded;
 	}
 
-	const bool inserted = document.valueByKey.emplace(key, value).second;
+	const bool inserted = document.insert(key, value);
 	return inserted
 		? XMLParseCode::succeeded
 		: XMLParseCode::duplicateKey;
 }
 
+static XMLParseCode insertXMLKeyValue(
+	XMLKeyValueDocument& document,
+	const string& key,
+	string&& value)
+{
+	if (key.empty())
+	{
+		return XMLParseCode::succeeded;
+	}
+
+	const bool inserted = document.insert(key, value);
+	return inserted
+		? XMLParseCode::succeeded
+		: XMLParseCode::duplicateKey;
+}
+
+static XMLParseCode insertXMLKeyValue(
+	XMLKeyValueDocument& document,
+	string&& key,
+	string&& value)
+{
+	if (key.empty())
+	{
+		return XMLParseCode::succeeded;
+	}
+
+	const bool inserted = document.insert(key, value);
+	return inserted
+		? XMLParseCode::succeeded
+		: XMLParseCode::duplicateKey;
+}
+
+static XMLParseCode insertXMLKeyValue(
+	XMLKeyValueDocument& document,
+	const string& key,
+	const string& sourceText,
+	const size_t sourceBeginIndex,
+	const size_t sourceLength)
+{
+	if (key.empty())
+	{
+		return XMLParseCode::succeeded;
+	}
+
+	const bool inserted = document.insert(key, std::string_view(sourceText.data() + sourceBeginIndex, sourceLength));
+	return inserted
+		? XMLParseCode::succeeded
+		: XMLParseCode::duplicateKey;
+}
+
+static size_t estimateXMLDocumentKeyCount(const size_t xmlLength)
+{
+	if (xmlLength == 0)
+	{
+		return 0;
+	}
+
+	const size_t estimatedKeyCount = (xmlLength / 48) + 1;
+	return std::min<size_t>(estimatedKeyCount, 8192);
+}
+
+struct XMLTextCapture
+{
+	static inline constexpr uint32 invalidBeginIndex = ~0x0u;
+
+	uint32 beginIndex = invalidBeginIndex;
+	uint32 endIndex = 0;
+	string segmentedText = {};
+
+	void clear()
+	{
+		beginIndex = invalidBeginIndex;
+		endIndex = 0;
+		segmentedText.clear();
+	}
+
+	void append(const string& xmlText, const size_t segmentBeginIndex, const size_t segmentEndIndex)
+	{
+		if (segmentBeginIndex >= segmentEndIndex)
+		{
+			return;
+		}
+
+		if (segmentedText.empty())
+		{
+			if (beginIndex == invalidBeginIndex)
+			{
+				beginIndex = static_cast<uint32>(segmentBeginIndex);
+				endIndex = static_cast<uint32>(segmentEndIndex);
+				return;
+			}
+
+			if (endIndex == segmentBeginIndex)
+			{
+				endIndex = static_cast<uint32>(segmentEndIndex);
+				return;
+			}
+
+			segmentedText.append(xmlText, beginIndex, endIndex - beginIndex);
+		}
+
+		segmentedText.append(xmlText, segmentBeginIndex, segmentEndIndex - segmentBeginIndex);
+		beginIndex = invalidBeginIndex;
+		endIndex = 0;
+	}
+};
+
+struct XMLParseElementState
+{
+	XMLTextCapture textCapture = {};
+	XMLStringRange nameRange = {};
+	uint32 attributeBeginIndex = 0;
+	uint32 previousPathLength = 0;
+	uint16 attributeCount = 0;
+	bool hasChildElements = false;
+};
+
+struct XMLParserScratch
+{
+	XMLAttributeStorage attributeStorage = {};
+	InplaceVector<XMLParseElementState, xmlParserMaxElementDepth> elementStack = {};
+	string currentPath = {};
+	string elementValue = {};
+	string attributeKey = {};
+	string attributeValue = {};
+};
+
+static XMLParserScratch& getXMLParserScratch()
+{
+	static thread_local XMLParserScratch parserScratch;
+	return parserScratch;
+}
+
+static void appendXMLPathSegment(
+	string& outPath,
+	const string& xmlText,
+	const XMLStringRange& nameRange)
+{
+	if (!outPath.empty())
+	{
+		outPath.push_back('.');
+	}
+
+	outPath.append(xmlText, nameRange.beginIndex, nameRange.length());
+}
+
+static bool tryGetXMLFastContiguousTextValueRange(
+	const string& xmlText,
+	const XMLTextCapture& textCapture,
+	size_t& outBeginIndex,
+	size_t& outEndIndex)
+{
+	if (textCapture.beginIndex == XMLTextCapture::invalidBeginIndex || textCapture.beginIndex >= textCapture.endIndex)
+	{
+		return false;
+	}
+
+	const size_t beginIndex = textCapture.beginIndex;
+	const size_t endIndex = textCapture.endIndex;
+	const char* xmlCharacters = xmlText.data();
+	if (isXMLWhitespace(xmlCharacters[beginIndex]) || isXMLWhitespace(xmlCharacters[endIndex - 1]))
+	{
+		return false;
+	}
+
+	const size_t escapeIndex = xmlText.find('&', beginIndex);
+	if (escapeIndex != string::npos && escapeIndex < endIndex)
+	{
+		return false;
+	}
+
+	outBeginIndex = beginIndex;
+	outEndIndex = endIndex;
+	return true;
+}
+
 static XMLParseCode recordXMLTagAttributes(
 	XMLKeyValueDocument& document,
-	const XMLTagData& tagData,
+	const string& xmlText,
+	const XMLAttributeStorage& attributeStorage,
+	const uint32 attributeBeginIndex,
+	const uint16 attributeCount,
 	const string& elementPath)
 {
-	for (auto attributeIterator = tagData.attributeValueByName.begin();
-		attributeIterator != tagData.attributeValueByName.end();
-		++attributeIterator)
+	PROFILE_SCOPE("xml", "recordXMLTagAttributes");
+	XMLParserScratch& parserScratch = getXMLParserScratch();
+	string& attributeKey = parserScratch.attributeKey;
+	string& attributeValue = parserScratch.attributeValue;
+	for (uint16 attributeIndex = 0; attributeIndex < attributeCount; ++attributeIndex)
 	{
-		const string attributeKey = elementPath + ".@" + attributeIterator->first;
-		const XMLParseCode parseCode = insertXMLKeyValue(document, attributeKey, attributeIterator->second);
+		const XMLTagAttribute& attribute = attributeStorage[attributeBeginIndex + attributeIndex];
+		attributeKey.clear();
+		attributeKey.reserve(elementPath.length() + 2 + attribute.nameRange.length());
+		attributeKey += elementPath;
+		attributeKey += ".@";
+		attributeKey.append(xmlText, attribute.nameRange.beginIndex, attribute.nameRange.length());
+		buildXMLUnescapedText(attributeValue, xmlText, attribute.valueRange.beginIndex, attribute.valueRange.endIndex);
+		const XMLParseCode parseCode = insertXMLKeyValue(document, moveValue(attributeKey), moveValue(attributeValue));
 		if (parseCode != XMLParseCode::succeeded)
 		{
 			return parseCode;
@@ -717,50 +1335,147 @@ static XMLParseCode recordXMLTagAttributes(
 
 static XMLParseCode recordXMLTagValue(
 	XMLKeyValueDocument& document,
-	const vector<string>& pathSegments,
-	const XMLTagData& tagData,
+	const string& xmlText,
+	const string& elementPath,
+	const XMLAttributeStorage& attributeStorage,
+	const uint32 attributeBeginIndex,
+	const uint16 attributeCount,
 	const bool hasChildElements,
-	const string& rawTextValue)
+	const XMLTextCapture& textCapture)
 {
-	string trimmedTextValue = {};
-	string elementValue = {};
-	if (!rawTextValue.empty())
+	PROFILE_SCOPE("xml", "recordXMLTagValue");
+	XMLParserScratch& parserScratch = getXMLParserScratch();
+	string& elementValue = parserScratch.elementValue;
+	bool hasTrimmedTextValue = false;
+	bool hasFastContiguousTextValue = false;
+	size_t fastContiguousTextBeginIndex = 0;
+	size_t fastContiguousTextEndIndex = 0;
+	if (textCapture.beginIndex != XMLTextCapture::invalidBeginIndex)
 	{
-		trimmedTextValue = trimXMLText(rawTextValue);
-		if (!trimmedTextValue.empty())
+		PROFILE_SCOPE("xml", "recordXMLTagValue.text.contiguous");
+		if (tryGetXMLFastContiguousTextValueRange(
+			xmlText,
+			textCapture,
+			fastContiguousTextBeginIndex,
+			fastContiguousTextEndIndex))
 		{
-			elementValue = unescapeXMLText(trimmedTextValue);
+			hasTrimmedTextValue = true;
+			hasFastContiguousTextValue = true;
+		}
+		else
+		{
+			size_t trimmedBeginIndex = textCapture.beginIndex;
+			size_t trimmedEndIndex = textCapture.endIndex;
+			trimXMLTextRange(xmlText, trimmedBeginIndex, trimmedEndIndex);
+			if (trimmedBeginIndex < trimmedEndIndex)
+			{
+				elementValue.clear();
+				hasTrimmedTextValue = true;
+				buildXMLUnescapedText(elementValue, xmlText, trimmedBeginIndex, trimmedEndIndex);
+			}
+		}
+	}
+	else if (!textCapture.segmentedText.empty())
+	{
+		PROFILE_SCOPE("xml", "recordXMLTagValue.text.segmented");
+		size_t trimmedBeginIndex = 0;
+		size_t trimmedEndIndex = textCapture.segmentedText.length();
+		trimXMLTextRange(textCapture.segmentedText, trimmedBeginIndex, trimmedEndIndex);
+		if (trimmedBeginIndex < trimmedEndIndex)
+		{
+			elementValue.clear();
+			hasTrimmedTextValue = true;
+			buildXMLUnescapedText(elementValue, textCapture.segmentedText, trimmedBeginIndex, trimmedEndIndex);
 		}
 	}
 
-	const auto foundKeyAttribute = tagData.attributeValueByName.find("key");
-	const auto foundNameAttribute = tagData.attributeValueByName.find("name");
-	const auto foundValueAttribute = tagData.attributeValueByName.find("value");
-	const bool hasExplicitKeyValue = foundKeyAttribute != tagData.attributeValueByName.end();
-	const bool hasExplicitNameValue = foundKeyAttribute == tagData.attributeValueByName.end()
-		&& foundNameAttribute != tagData.attributeValueByName.end()
-		&& foundValueAttribute != tagData.attributeValueByName.end();
+	if (attributeCount == 0)
+	{
+		if (hasChildElements)
+		{
+			return hasTrimmedTextValue
+				? XMLParseCode::malformedDocument
+				: XMLParseCode::succeeded;
+		}
 
-	if (hasChildElements && !trimmedTextValue.empty() && !hasExplicitKeyValue && !hasExplicitNameValue)
+		PROFILE_SCOPE("xml", "recordXMLTagValue.insertLeaf");
+		if (hasFastContiguousTextValue)
+		{
+			return insertXMLKeyValue(
+				document,
+				elementPath,
+				xmlText,
+				fastContiguousTextBeginIndex,
+				fastContiguousTextEndIndex - fastContiguousTextBeginIndex);
+		}
+
+		if (!hasTrimmedTextValue)
+		{
+			static const string emptyElementValue = {};
+			return insertXMLKeyValue(document, elementPath, emptyElementValue);
+		}
+
+		return insertXMLKeyValue(document, elementPath, moveValue(elementValue));
+	}
+
+	const XMLStringRange* foundKeyAttributeValueRange = nullptr;
+	const XMLStringRange* foundNameAttributeValueRange = nullptr;
+	const XMLStringRange* foundValueAttributeValueRange = nullptr;
+	{
+		PROFILE_SCOPE("xml", "recordXMLTagValue.lookupAttributes");
+		const XMLTagValueAttributeRanges foundAttributeRanges = findXMLTagValueAttributeRanges(
+			xmlText,
+			attributeStorage,
+			attributeBeginIndex,
+			attributeCount);
+		foundKeyAttributeValueRange = foundAttributeRanges.keyAttributeValueRange;
+		foundNameAttributeValueRange = foundAttributeRanges.nameAttributeValueRange;
+		foundValueAttributeValueRange = foundAttributeRanges.valueAttributeValueRange;
+	}
+	const bool hasExplicitKeyValue = foundKeyAttributeValueRange != nullptr;
+	const bool hasExplicitNameValue = foundKeyAttributeValueRange == nullptr
+		&& foundNameAttributeValueRange != nullptr
+		&& foundValueAttributeValueRange != nullptr;
+
+	if (hasChildElements && hasTrimmedTextValue && !hasExplicitKeyValue && !hasExplicitNameValue)
 	{
 		return XMLParseCode::malformedDocument;
 	}
 
 	if (hasExplicitKeyValue)
 	{
-		const string explicitValue = foundValueAttribute != tagData.attributeValueByName.end()
-			? foundValueAttribute->second
-			: elementValue;
-		return insertXMLKeyValue(document, foundKeyAttribute->second, explicitValue);
+		PROFILE_SCOPE("xml", "recordXMLTagValue.explicitKey");
+		string explicitKey = buildXMLUnescapedText(xmlText, *foundKeyAttributeValueRange);
+		string explicitValue = {};
+		if (foundValueAttributeValueRange != nullptr)
+		{
+			buildXMLUnescapedText(explicitValue, xmlText, foundValueAttributeValueRange->beginIndex, foundValueAttributeValueRange->endIndex);
+		}
+		else if (hasFastContiguousTextValue)
+		{
+			explicitValue.assign(xmlText, fastContiguousTextBeginIndex, fastContiguousTextEndIndex - fastContiguousTextBeginIndex);
+		}
+		else
+		{
+			explicitValue = moveValue(elementValue);
+		}
+
+		return insertXMLKeyValue(document, moveValue(explicitKey), moveValue(explicitValue));
 	}
 
 	if (hasExplicitNameValue)
 	{
-		return insertXMLKeyValue(document, foundNameAttribute->second, foundValueAttribute->second);
+		PROFILE_SCOPE("xml", "recordXMLTagValue.explicitNameValue");
+		string explicitName = buildXMLUnescapedText(xmlText, *foundNameAttributeValueRange);
+		string explicitValue = buildXMLUnescapedText(xmlText, *foundValueAttributeValueRange);
+		return insertXMLKeyValue(document, moveValue(explicitName), moveValue(explicitValue));
 	}
 
-	const string elementPath = buildXMLPath(pathSegments, tagData.name);
-	XMLParseCode parseCode = recordXMLTagAttributes(document, tagData, elementPath);
+	XMLParseCode parseCode = XMLParseCode::succeeded;
+	{
+		PROFILE_SCOPE("xml", "recordXMLTagValue.recordAttributes");
+		parseCode = recordXMLTagAttributes(document, xmlText, attributeStorage, attributeBeginIndex, attributeCount, elementPath);
+	}
 	if (parseCode != XMLParseCode::succeeded)
 	{
 		return parseCode;
@@ -771,142 +1486,278 @@ static XMLParseCode recordXMLTagValue(
 		return XMLParseCode::succeeded;
 	}
 
-	if (!trimmedTextValue.empty() || tagData.attributeValueByName.empty())
+	if (hasTrimmedTextValue)
 	{
-		return insertXMLKeyValue(document, elementPath, elementValue);
+		PROFILE_SCOPE("xml", "recordXMLTagValue.insertLeaf");
+		if (hasFastContiguousTextValue)
+		{
+			return insertXMLKeyValue(
+				document,
+				elementPath,
+				xmlText,
+				fastContiguousTextBeginIndex,
+				fastContiguousTextEndIndex - fastContiguousTextBeginIndex);
+		}
+
+		return insertXMLKeyValue(document, elementPath, moveValue(elementValue));
 	}
 
 	return XMLParseCode::succeeded;
 }
 
+static void rewindXMLAttributeStorage(XMLAttributeStorage& inOutAttributeStorage, const uint32 targetAttributeCount)
+{
+	while (inOutAttributeStorage.size() > targetAttributeCount)
+	{
+		inOutAttributeStorage.pop_back();
+	}
+}
+
 static XMLParseCode parseXMLElement(
 	const string& xmlText,
 	size_t& inOutCharacterIndex,
-	vector<string>& inOutPathSegments,
 	XMLKeyValueDocument& inOutDocument)
 {
-	XMLTagData tagData = {};
-	bool selfClosing = false;
-	XMLParseCode parseCode = parseXMLOpenTag(xmlText, inOutCharacterIndex, tagData, selfClosing);
-	if (parseCode != XMLParseCode::succeeded)
-	{
-		return parseCode;
-	}
-
-	if (selfClosing)
-	{
-		return recordXMLTagValue(inOutDocument, inOutPathSegments, tagData, false, {});
-	}
-
-	inOutPathSegments.push_back(tagData.name);
-	string textContent = {};
-	bool hasChildElements = false;
+	PROFILE_SCOPE("xml", "parseXMLElement");
+	XMLParserScratch& parserScratch = getXMLParserScratch();
+	XMLAttributeStorage& attributeStorage = parserScratch.attributeStorage;
+	InplaceVector<XMLParseElementState, xmlParserMaxElementDepth>& elementStack = parserScratch.elementStack;
+	string& currentPath = parserScratch.currentPath;
+	attributeStorage.clear();
+	elementStack.clear();
+	currentPath.clear();
+	const size_t xmlLength = xmlText.length();
+	const char* xmlCharacters = xmlText.data();
 	for (;;)
 	{
-		if (startsWithXMLToken(xmlText, inOutCharacterIndex, "<!--"))
+		if (elementStack.empty())
 		{
-			parseCode = skipXMLComment(xmlText, inOutCharacterIndex);
+			PROFILE_SCOPE("xml", "parseXMLElement.rootOpen");
+			XMLStringRange rootNameRange = {};
+			uint32 rootAttributeBeginIndex = 0;
+			uint16 rootAttributeCount = 0;
+			bool rootSelfClosing = false;
+			XMLParseCode parseCode = parseXMLOpenTag(
+				xmlText,
+				inOutCharacterIndex,
+				rootNameRange,
+				attributeStorage,
+				rootAttributeBeginIndex,
+				rootAttributeCount,
+				rootSelfClosing);
 			if (parseCode != XMLParseCode::succeeded)
 			{
-				inOutPathSegments.pop_back();
 				return parseCode;
 			}
 
-			continue;
-		}
-
-		if (startsWithXMLToken(xmlText, inOutCharacterIndex, "<?"))
-		{
-			parseCode = skipXMLProcessingInstruction(xmlText, inOutCharacterIndex);
-			if (parseCode != XMLParseCode::succeeded)
+			const uint32 rootPreviousPathLength = static_cast<uint32>(currentPath.length());
+			appendXMLPathSegment(currentPath, xmlText, rootNameRange);
+			if (rootSelfClosing)
 			{
-				inOutPathSegments.pop_back();
+				parseCode = recordXMLTagValue(
+					inOutDocument,
+					xmlText,
+					currentPath,
+					attributeStorage,
+					rootAttributeBeginIndex,
+					rootAttributeCount,
+					false,
+					{});
+				rewindXMLAttributeStorage(attributeStorage, rootAttributeBeginIndex);
+				currentPath.resize(rootPreviousPathLength);
 				return parseCode;
 			}
 
-			continue;
+			if (elementStack.size() >= elementStack.capacity())
+			{
+				return XMLParseCode::malformedDocument;
+			}
+
+			XMLParseElementState& rootElementState = elementStack.emplace_back();
+			rootElementState.textCapture.clear();
+			rootElementState.nameRange = rootNameRange;
+			rootElementState.attributeBeginIndex = rootAttributeBeginIndex;
+			rootElementState.previousPathLength = rootPreviousPathLength;
+			rootElementState.attributeCount = rootAttributeCount;
+			rootElementState.hasChildElements = false;
 		}
 
-		if (inOutCharacterIndex >= xmlText.length())
+		XMLParseElementState& currentElementState = elementStack[elementStack.size() - 1];
+		if (inOutCharacterIndex >= xmlLength)
 		{
-			inOutPathSegments.pop_back();
 			return XMLParseCode::malformedDocument;
 		}
 
-		if (startsWithXMLToken(xmlText, inOutCharacterIndex, "</"))
+		const char currentCharacter = xmlCharacters[inOutCharacterIndex];
+		if (currentCharacter != '<')
 		{
-			parseCode = parseXMLClosingTag(xmlText, inOutCharacterIndex, tagData.name);
-			inOutPathSegments.pop_back();
-			if (parseCode != XMLParseCode::succeeded)
-			{
-				return parseCode;
-			}
+			const size_t textBeginIndex = inOutCharacterIndex;
+			const size_t textEndIndex = xmlText.find('<', inOutCharacterIndex);
+			inOutCharacterIndex = textEndIndex != string::npos
+				? textEndIndex
+				: xmlLength;
 
-			return recordXMLTagValue(inOutDocument, inOutPathSegments, tagData, hasChildElements, textContent);
+			PROFILE_SCOPE("xml", "parseXMLElement.appendText");
+			currentElementState.textCapture.append(xmlText, textBeginIndex, inOutCharacterIndex);
+			continue;
 		}
 
-		if (xmlText[inOutCharacterIndex] == '<')
+		if (inOutCharacterIndex + 1 >= xmlLength)
 		{
-			hasChildElements = true;
-			parseCode = parseXMLElement(xmlText, inOutCharacterIndex, inOutPathSegments, inOutDocument);
+			return XMLParseCode::malformedDocument;
+		}
+
+		const char nextCharacter = xmlCharacters[inOutCharacterIndex + 1];
+		if (nextCharacter == '!'
+			&& inOutCharacterIndex + 3 < xmlLength
+			&& xmlCharacters[inOutCharacterIndex + 2] == '-'
+			&& xmlCharacters[inOutCharacterIndex + 3] == '-')
+		{
+			PROFILE_SCOPE("xml", "parseXMLElement.skipComment");
+			XMLParseCode parseCode = skipXMLComment(xmlText, inOutCharacterIndex);
 			if (parseCode != XMLParseCode::succeeded)
 			{
-				inOutPathSegments.pop_back();
 				return parseCode;
 			}
 
 			continue;
 		}
 
-		const size_t textBeginIndex = inOutCharacterIndex;
-		while (inOutCharacterIndex < xmlText.length() && xmlText[inOutCharacterIndex] != '<')
+		if (nextCharacter == '?')
 		{
-			++inOutCharacterIndex;
+			PROFILE_SCOPE("xml", "parseXMLElement.skipProcessingInstruction");
+			XMLParseCode parseCode = skipXMLProcessingInstruction(xmlText, inOutCharacterIndex);
+			if (parseCode != XMLParseCode::succeeded)
+			{
+				return parseCode;
+			}
+
+			continue;
 		}
 
-		textContent.append(xmlText, textBeginIndex, inOutCharacterIndex - textBeginIndex);
+		if (nextCharacter == '/')
+		{
+			PROFILE_SCOPE("xml", "parseXMLElement.closeTag");
+			XMLParseCode parseCode = parseXMLClosingTag(xmlText, inOutCharacterIndex, currentElementState.nameRange);
+			if (parseCode != XMLParseCode::succeeded)
+			{
+				return parseCode;
+			}
+
+			const uint32 completedAttributeBeginIndex = currentElementState.attributeBeginIndex;
+			const uint32 completedPreviousPathLength = currentElementState.previousPathLength;
+			const uint16 completedAttributeCount = currentElementState.attributeCount;
+			parseCode = recordXMLTagValue(
+				inOutDocument,
+				xmlText,
+				currentPath,
+				attributeStorage,
+				completedAttributeBeginIndex,
+				completedAttributeCount,
+				currentElementState.hasChildElements,
+				currentElementState.textCapture);
+			if (parseCode != XMLParseCode::succeeded)
+			{
+				return parseCode;
+			}
+
+			rewindXMLAttributeStorage(attributeStorage, completedAttributeBeginIndex);
+			elementStack.pop_back();
+			currentPath.resize(completedPreviousPathLength);
+			if (elementStack.empty())
+			{
+				return XMLParseCode::succeeded;
+			}
+
+			continue;
+		}
+
+		PROFILE_SCOPE("xml", "parseXMLElement.childOpen");
+		currentElementState.hasChildElements = true;
+
+		XMLStringRange childNameRange = {};
+		uint32 childAttributeBeginIndex = 0;
+		uint16 childAttributeCount = 0;
+		bool childSelfClosing = false;
+		XMLParseCode parseCode = parseXMLOpenTag(
+			xmlText,
+			inOutCharacterIndex,
+			childNameRange,
+			attributeStorage,
+			childAttributeBeginIndex,
+			childAttributeCount,
+			childSelfClosing);
+		if (parseCode != XMLParseCode::succeeded)
+		{
+			return parseCode;
+		}
+
+		const uint32 childPreviousPathLength = static_cast<uint32>(currentPath.length());
+		appendXMLPathSegment(currentPath, xmlText, childNameRange);
+		if (childSelfClosing)
+		{
+			parseCode = recordXMLTagValue(
+				inOutDocument,
+				xmlText,
+				currentPath,
+				attributeStorage,
+				childAttributeBeginIndex,
+				childAttributeCount,
+				false,
+				{});
+			if (parseCode != XMLParseCode::succeeded)
+			{
+				return parseCode;
+			}
+
+			rewindXMLAttributeStorage(attributeStorage, childAttributeBeginIndex);
+			currentPath.resize(childPreviousPathLength);
+			continue;
+		}
+
+		if (elementStack.size() >= elementStack.capacity())
+		{
+			return XMLParseCode::malformedDocument;
+		}
+
+		XMLParseElementState& childElementState = elementStack.emplace_back();
+		childElementState.textCapture.clear();
+		childElementState.nameRange = childNameRange;
+		childElementState.attributeBeginIndex = childAttributeBeginIndex;
+		childElementState.previousPathLength = childPreviousPathLength;
+		childElementState.attributeCount = childAttributeCount;
+		childElementState.hasChildElements = false;
 	}
-}
-
-void XMLKeyValueDocument::clear()
-{
-	valueByKey.clear();
-}
-
-bool XMLKeyValueDocument::contains(const string& key) const
-{
-	return valueByKey.find(key) != valueByKey.end();
-}
-
-const string* XMLKeyValueDocument::find(const string& key) const
-{
-	auto foundValue = valueByKey.find(key);
-	return foundValue != valueByKey.end()
-		? &foundValue->second
-		: nullptr;
 }
 
 bool XML::writeDocument(OutputFileStream& fileStream, const XMLKeyValueDocument& document) const
 {
-	if (!fileStream.good() || document.valueByKey.empty())
+	PROFILE_SCOPE("xml", "writeDocument");
+	if (!fileStream.good() || document.empty())
 	{
 		return false;
 	}
 
 	XMLWriteElementNode documentRoot = {};
-	vector<string> sortedKeys = {};
-	sortedKeys.reserve(document.valueByKey.size());
-	for (auto keyValueIterator = document.valueByKey.begin(); keyValueIterator != document.valueByKey.end(); ++keyValueIterator)
-	{
-		sortedKeys.push_back(keyValueIterator->first);
-	}
+	vector<std::string_view> sortedKeys = {};
+	sortedKeys.reserve(document.size());
+	document.forEach(
+		[&](const std::string_view keyText, const std::string_view valueText)
+		{
+			unused(valueText);
+			sortedKeys.push_back(keyText);
+		});
 
 	std::sort(sortedKeys.begin(), sortedKeys.end());
 	for (uint32 keyIndex = 0; keyIndex < static_cast<uint32>(sortedKeys.size()); ++keyIndex)
 	{
-		const string* value = document.find(sortedKeys[keyIndex]);
-		assert(value != nullptr && "[XML][Assert] reason=document_write_value_missing");
-		if (!insertXMLDocumentEntry(documentRoot, sortedKeys[keyIndex], *value))
+		std::string_view valueText = {};
+		const bool foundValue = document.tryGetValueView(sortedKeys[keyIndex], valueText);
+		assert(foundValue && "[XML][Assert] reason=document_write_value_missing");
+		if (!insertXMLDocumentEntry(
+				documentRoot,
+				string(sortedKeys[keyIndex].data(), sortedKeys[keyIndex].length()),
+				string(valueText.data(), valueText.length())))
 		{
 			return false;
 		}
@@ -973,6 +1824,7 @@ bool XML::writeDocument(OutputFileStream& fileStream, const XMLKeyValueDocument&
 
 bool XML::writeDocumentFile(const string& filePath, const XMLKeyValueDocument& document) const
 {
+	PROFILE_SCOPE("xml", "writeDocumentFile");
 	shared_pointer<DiskLoaderModule> diskLoaderModule = DiskLoaderModule::get();
 	assert(diskLoaderModule != nullptr && "[XML][Assert] reason=disk_loader_module_missing");
 
@@ -1018,19 +1870,20 @@ XML::ParseCode XML::readDocumentFile(const string& filePath, XMLKeyValueDocument
 
 	XMLReadMetrics readMetrics = {};
 	const ParseCode parseCode = readXMLDocumentStream(*this, fileStream, outDocument, &readMetrics);
-	ProfilerModule::get()->recordXMLDocumentLoad({
-		.filePath = filePath,
-		.parseResult = getXMLParseCodeText(parseCode),
-		.fileSizeBytes = readMetrics.fileSizeBytes,
-		.keyCount = static_cast<uint64>(outDocument.valueByKey.size()),
-		.readMilliseconds = readMetrics.readMilliseconds,
-		.parseMilliseconds = readMetrics.parseMilliseconds,
-	});
+		ProfilerModule::get()->recordXMLDocumentLoad({
+			.filePath = filePath,
+			.parseResult = getXMLParseCodeText(parseCode),
+			.fileSizeBytes = readMetrics.fileSizeBytes,
+			.keyCount = static_cast<uint64>(outDocument.size()),
+			.readMilliseconds = readMetrics.readMilliseconds,
+			.parseMilliseconds = readMetrics.parseMilliseconds,
+		});
 	return parseCode;
 }
 
 XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
 {
+	PROFILE_SCOPE("xml", "readDocumentFile");
 	XMLKeyValueDocument document = {};
 	const ParseCode parseCode = readDocumentFile(filePath, document);
 	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_file_read_failed");
@@ -1039,11 +1892,13 @@ XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
 
 XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
 {
+	PROFILE_SCOPE("xml", "readDocument");
 	return readXMLDocumentStream(*this, fileStream, outDocument, nullptr);
 }
 
 XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
 {
+	PROFILE_SCOPE("xml", "readDocument");
 	XMLKeyValueDocument document = {};
 	const ParseCode parseCode = readDocument(fileStream, document);
 	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_read_failed");
@@ -1054,6 +1909,11 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 {
 	PROFILE_SCOPE("xml", "XML::readDocumentText");
 	outDocument.clear();
+	const size_t estimatedKeyCount = estimateXMLDocumentKeyCount(xmlText.length());
+	if (estimatedKeyCount > 0 && outDocument.bucket_count() < buildXMLDocumentBucketCount(estimatedKeyCount))
+	{
+		outDocument.reserve(estimatedKeyCount, xmlText.length());
+	}
 
 	size_t characterIndex = 0;
 	if (xmlText.compare(0, 3, "\xEF\xBB\xBF") == 0)
@@ -1072,8 +1932,7 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 		return ParseCode::malformedDocument;
 	}
 
-	vector<string> pathSegments = {};
-	parseCode = parseXMLElement(xmlText, characterIndex, pathSegments, outDocument);
+	parseCode = parseXMLElement(xmlText, characterIndex, outDocument);
 	if (parseCode != XMLParseCode::succeeded)
 	{
 		return parseCode;
@@ -1092,6 +1951,7 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 
 XMLKeyValueDocument XML::readDocumentText(const string& xmlText) const
 {
+	PROFILE_SCOPE("xml", "readDocumentText");
 	XMLKeyValueDocument document = {};
 	const ParseCode parseCode = readDocumentText(xmlText, document);
 	assert(parseCode == ParseCode::succeeded && "[XML][Assert] reason=document_text_read_failed");

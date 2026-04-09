@@ -61,10 +61,10 @@ public:
 	virtual ~Component() = default;
 	static unique_pointer<Component> createByAssetTypeName(const string& assetTypeName);
 	static constexpr ComponentType staticComponentType = {};
+	inline static const ComponentTypeMetadata staticComponentTypeMetadata = {};
 	static const ComponentTypeMetadata& getStaticComponentTypeMetadata()
 	{
-		static const ComponentTypeMetadata componentTypeMetadata = {};
-		return componentTypeMetadata;
+		return staticComponentTypeMetadata;
 	}
 
 	virtual ComponentType getComponentType() const
@@ -74,7 +74,7 @@ public:
 
 	virtual const ComponentTypeMetadata& getComponentTypeMetadata() const
 	{
-		return getStaticComponentTypeMetadata();
+		return staticComponentTypeMetadata;
 	}
 	void clear() override;
 
@@ -113,14 +113,9 @@ public:
 		this->ownerEntityAssetPath = ownerEntityAssetPath;
 	}
 
-	virtual void initialize()
-	{
-	}
+	virtual void initialize();
 
-	virtual void tick(float deltaTimeSeconds)
-	{
-		unused(deltaTimeSeconds);
-	}
+	virtual void tick(float deltaTimeSeconds) { static_cast<void>(deltaTimeSeconds); }
 
 protected:
 	friend class World;
@@ -139,7 +134,7 @@ protected:
 	void writeAssetProperty(OutputFileStream& fileStream) const override;
 	void readAssetProperty(const XMLKeyValueDocument& document) override;
 
-	string ownerEntityAssetPath = {};
+	DECLARE_FIELD(string, ownerEntityAssetPath, "");
 	World* ownerWorld = nullptr;
 	uint32 ownerEntityIndex = invalidEntityIndex;
 	uint32 ownerComponentIndex = invalidComponentIndex;
@@ -147,23 +142,23 @@ protected:
 };
 
 template<typename ComponentClass>
-bool isComponentType(const Component* component)
-{
-	return component != nullptr && component->getComponentType() == ComponentClass::staticComponentType;
-}
-
-template<typename ComponentClass>
 ComponentClass* componentCast(Component* component)
 {
-	return isComponentType<ComponentClass>(component)
-		? static_cast<ComponentClass*>(component)
-		: nullptr;
+	if (component == nullptr || component->getComponentType() != ComponentClass::staticComponentType)
+	{
+		return nullptr;
+	}
+
+	return static_cast<ComponentClass*>(component);
 }
 
 template<typename ComponentClass>
 const ComponentClass* componentCast(const Component* component)
 {
-	return isComponentType<ComponentClass>(component)
-		? static_cast<const ComponentClass*>(component)
-		: nullptr;
+	if (component == nullptr || component->getComponentType() != ComponentClass::staticComponentType)
+	{
+		return nullptr;
+	}
+
+	return static_cast<const ComponentClass*>(component);
 }
