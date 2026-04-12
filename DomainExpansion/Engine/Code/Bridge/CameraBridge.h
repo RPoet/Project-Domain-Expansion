@@ -18,7 +18,7 @@ struct CameraBridgeObject
 		bool primary = false;
 		float fieldOfViewYDegrees = 60.0f;
 		float nearPlane = 0.1f;
-		float farPlane = 100.0f;
+		float farPlane = 20000.0f;
 		float4x4 viewMatrix = buildIdentityMatrix4x4();
 	};
 
@@ -39,7 +39,7 @@ public:
 
 	static CameraBridge& get()
 	{
-		static CameraBridge cameraBridge = {};
+		static CameraBridge cameraBridge;
 		return cameraBridge;
 	}
 
