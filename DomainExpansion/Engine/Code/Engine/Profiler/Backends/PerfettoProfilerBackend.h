@@ -18,31 +18,41 @@ protected:
 	void destroyBackendState() override final;
 
 private:
+	struct ThreadCaptureState;
+
 	struct ActiveTraceEvent
 	{
-		string category = {};
-		string name = {};
+		const char* category = nullptr;
+		const char* name = nullptr;
 		string detail = {};
 		double beginTimeSeconds = 0.0;
 	};
 
 	struct CompletedTraceEvent
 	{
-		string category = {};
-		string name = {};
+		const char* category = nullptr;
+		const char* name = nullptr;
 		string detail = {};
+		uint64 threadId = 0;
 		uint64 beginMicroseconds = 0;
 		uint64 durationMicroseconds = 0;
 	};
 
 	bool writeTraceFile(const string& outputFilePath) const;
 	bool writeXMLSummaryFile(const string& outputFilePath, string& outSummaryFilePath) const;
+	ThreadCaptureState& acquireThreadCaptureState();
+	void registerThreadCaptureState(ThreadCaptureState& threadCaptureState);
+	void waitForThreadCaptureStatesIdle() const;
+	void mergeThreadCaptureStates(const double captureEndTimeSeconds);
 	void resetCaptureState();
 
-	bool captureActive = false;
-	double captureStartTimeSeconds = 0.0;
+	atomic_bool captureActive = false;
+	atomic<double> captureStartTimeSeconds = 0.0;
+	atomic<uint64> captureGeneration = 0;
+	atomic<ThreadCaptureState*> captureThreadStateHead = nullptr;
+	atomic<uint32> activeOperationCount = 0;
 	ProfilerCaptureOptions activeCaptureOptions = {};
-	vector<ActiveTraceEvent> activeEvents = {};
 	vector<CompletedTraceEvent> completedEvents = {};
+	unordered_map<uint64, string> threadNameById = {};
 	vector<ProfilerXMLDocumentLoad> xmlDocumentLoads = {};
 };

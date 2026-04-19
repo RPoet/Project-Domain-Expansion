@@ -88,6 +88,9 @@
     <ClCompile Include="..\Engine\Code\Engine\Profiler\ProfilerScope.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Profiler\Backends\NullProfilerBackend.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Profiler\Backends\PerfettoProfilerBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Thread\Backends\ThreadBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Thread\Backends\Window\WindowThreadBackend.cpp" />
+    <ClCompile Include="..\Engine\Code\Thread\Thread.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\CameraComponent.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\EditorCameraMovementComponent.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Framework\MeshComponent.cpp" />
@@ -100,6 +103,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Module\CLI\CLIModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Input\InputModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Profiler\ProfilerModule.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\Thread\ThreadModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Replay\ReplayModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Render\RenderBackendModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\UI\ImGuiLayerModule.cpp" />
@@ -115,6 +119,7 @@
     <ClCompile Include="..\Engine\Code\Engine\Module\ShaderCompiler\ShaderCompiler.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Common\EditorCommandCommon.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Common\EditorCommandReplay.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Common\GlobalAllocation.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Common\XML\XML.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />

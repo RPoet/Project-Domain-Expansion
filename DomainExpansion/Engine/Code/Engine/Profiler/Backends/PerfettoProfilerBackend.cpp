@@ -1,57 +1,100 @@
 #include "Engine/Profiler/Backends/PerfettoProfilerBackend.h"
 
 #include "Engine/Module/Timer/Timer.h"
+#include "Engine/Profiler/ProfilerScopeHooks.h"
+#include "Thread/Thread.h"
 
-static uint64 buildPerfettoMicrosecondsSince(const double originTimeSeconds, const double valueTimeSeconds)
+namespace
 {
-	return static_cast<uint64>((valueTimeSeconds - originTimeSeconds) * 1000000.0);
-}
-
-static bool ensurePerfettoOutputDirectory(const string& filePath)
-{
-	const filesystem_path parentPath = filesystem_path(filePath).parent_path();
-	if (parentPath.empty())
+	uint64 buildPerfettoMicrosecondsSince(const double originTimeSeconds, const double valueTimeSeconds)
 	{
-		return true;
+		return static_cast<uint64>((valueTimeSeconds - originTimeSeconds) * 1000000.0);
 	}
 
-	error_code createDirectoryError = {};
-	create_directories(parentPath, createDirectoryError);
-	return !createDirectoryError;
-}
-
-static string escapePerfettoJSONString(const string& text)
-{
-	string escapedText = {};
-	escapedText.reserve(text.length() + 8);
-	for (size_t characterIndex = 0; characterIndex < text.length(); ++characterIndex)
+	bool ensurePerfettoOutputDirectory(const string& filePath)
 	{
-		const char character = text[characterIndex];
-		switch (character)
+		const filesystem_path parentPath = filesystem_path(filePath).parent_path();
+		if (parentPath.empty())
 		{
-		case '\\':
-			escapedText += "\\\\";
-			break;
-		case '"':
-			escapedText += "\\\"";
-			break;
-		case '\n':
-			escapedText += "\\n";
-			break;
-		case '\r':
-			escapedText += "\\r";
-			break;
-		case '\t':
-			escapedText += "\\t";
-			break;
-		default:
-			escapedText.push_back(character);
-			break;
+			return true;
 		}
+
+		error_code createDirectoryError = {};
+		create_directories(parentPath, createDirectoryError);
+		return !createDirectoryError;
 	}
 
-	return escapedText;
+	string escapePerfettoJSONString(const string_view text)
+	{
+		string escapedText = {};
+		escapedText.reserve(text.length() + 8);
+		for (size_t characterIndex = 0; characterIndex < text.length(); ++characterIndex)
+		{
+			const char character = text[characterIndex];
+			switch (character)
+			{
+			case '\\':
+				escapedText += "\\\\";
+				break;
+			case '"':
+				escapedText += "\\\"";
+				break;
+			case '\n':
+				escapedText += "\\n";
+				break;
+			case '\r':
+				escapedText += "\\r";
+				break;
+			case '\t':
+				escapedText += "\\t";
+				break;
+			default:
+				escapedText.push_back(character);
+				break;
+			}
+		}
+
+		return escapedText;
+	}
+
+	uint64 getPerfettoCurrentThreadId()
+	{
+		return static_cast<uint64>(GetCurrentThreadId());
+	}
+
+	string buildPerfettoCurrentThreadName(const uint64 threadId)
+	{
+		const ThreadContext* currentThreadContext = getCurrentThreadContextConst();
+		if (currentThreadContext != nullptr && !currentThreadContext->name.empty())
+		{
+			return currentThreadContext->name;
+		}
+
+		return "Thread" + to_string(threadId);
+	}
 }
+
+struct PerfettoProfilerBackend::ThreadCaptureState
+{
+	PerfettoProfilerBackend* owner = nullptr;
+	uint64 captureGeneration = 0;
+	ThreadCaptureState* next = nullptr;
+	vector<ActiveTraceEvent> activeEvents = {};
+	vector<CompletedTraceEvent> completedEvents = {};
+	vector<ProfilerXMLDocumentLoad> xmlDocumentLoads = {};
+	string threadName = {};
+	uint64 threadId = 0;
+
+	void clearCaptureData()
+	{
+		activeEvents.clear();
+		completedEvents.clear();
+		xmlDocumentLoads.clear();
+		threadName.clear();
+		threadId = 0;
+		next = nullptr;
+	}
+};
 
 bool PerfettoProfilerBackend::isAvailable()
 {
@@ -60,31 +103,35 @@ bool PerfettoProfilerBackend::isAvailable()
 
 bool PerfettoProfilerBackend::beginCapture(const ProfilerCaptureOptions& captureOptions)
 {
-	if (!isCreated() || captureActive || captureOptions.outputFilePath.empty())
+	ProfilerScopeHookSuppressionGuard hookSuppressionGuard = {};
+	if (!isCreated() || captureActive.load() || captureOptions.outputFilePath.empty())
 	{
 		return false;
 	}
 
 	resetCaptureState();
 	activeCaptureOptions = captureOptions;
-	captureStartTimeSeconds = Timer::getCurrentTimeSeconds();
-	captureActive = true;
+	captureGeneration.fetch_add(1);
+	captureStartTimeSeconds.store(Timer::getCurrentTimeSeconds());
+	captureActive.store(true);
 	beginEvent("startup", "startup_capture", activeCaptureOptions.captureName);
 	return true;
 }
 
 bool PerfettoProfilerBackend::endCapture(ProfilerCaptureResult& outCaptureResult)
 {
+	ProfilerScopeHookSuppressionGuard hookSuppressionGuard = {};
 	outCaptureResult = {};
-	if (!captureActive)
+	if (!captureActive.load())
 	{
 		return false;
 	}
 
-	while (!activeEvents.empty())
-	{
-		endEvent();
-	}
+	captureActive.store(false);
+	waitForThreadCaptureStatesIdle();
+
+	const double captureEndTimeSeconds = Timer::getCurrentTimeSeconds();
+	mergeThreadCaptureStates(captureEndTimeSeconds);
 
 	const bool wroteTraceFile = writeTraceFile(activeCaptureOptions.outputFilePath);
 	string xmlSummaryFilePath = {};
@@ -99,54 +146,100 @@ bool PerfettoProfilerBackend::endCapture(ProfilerCaptureResult& outCaptureResult
 
 bool PerfettoProfilerBackend::isCaptureActive() const
 {
-	return captureActive;
+	return captureActive.load();
+}
+
+PerfettoProfilerBackend::ThreadCaptureState& PerfettoProfilerBackend::acquireThreadCaptureState()
+{
+	static thread_local ThreadCaptureState threadCaptureState = {};
+	ThreadCaptureState& captureState = threadCaptureState;
+	const uint64 currentCaptureGeneration = captureGeneration.load();
+	if (captureState.owner == this && captureState.captureGeneration == currentCaptureGeneration)
+	{
+		return captureState;
+	}
+
+	captureState.clearCaptureData();
+	captureState.owner = this;
+	captureState.captureGeneration = currentCaptureGeneration;
+	captureState.threadId = getPerfettoCurrentThreadId();
+	captureState.threadName = buildPerfettoCurrentThreadName(captureState.threadId);
+	registerThreadCaptureState(captureState);
+	return captureState;
+}
+
+void PerfettoProfilerBackend::registerThreadCaptureState(ThreadCaptureState& threadCaptureState)
+{
+	ThreadCaptureState* currentHead = captureThreadStateHead.load();
+	do
+	{
+		threadCaptureState.next = currentHead;
+	}
+	while (!captureThreadStateHead.compare_exchange_weak(currentHead, &threadCaptureState));
 }
 
 void PerfettoProfilerBackend::beginEvent(const char* category, const char* name, const string& detail)
 {
-	if (!captureActive || category == nullptr || name == nullptr)
+	ProfilerScopeHookSuppressionGuard hookSuppressionGuard = {};
+	activeOperationCount.fetch_add(1);
+	if (!captureActive.load() || category == nullptr || name == nullptr)
 	{
+		activeOperationCount.fetch_sub(1);
 		return;
 	}
 
-	ActiveTraceEvent traceEvent = {
+	ThreadCaptureState& threadCaptureState = acquireThreadCaptureState();
+	threadCaptureState.activeEvents.push_back({
 		.category = category,
 		.name = name,
 		.detail = detail,
 		.beginTimeSeconds = Timer::getCurrentTimeSeconds(),
-	};
-	activeEvents.push_back(moveValue(traceEvent));
+	});
+	activeOperationCount.fetch_sub(1);
 }
 
 void PerfettoProfilerBackend::endEvent()
 {
-	if (!captureActive || activeEvents.empty())
+	ProfilerScopeHookSuppressionGuard hookSuppressionGuard = {};
+	activeOperationCount.fetch_add(1);
+	if (!captureActive.load())
 	{
+		activeOperationCount.fetch_sub(1);
 		return;
 	}
 
-	const double endTimeSeconds = Timer::getCurrentTimeSeconds();
-	ActiveTraceEvent activeEvent = moveValue(activeEvents.back());
-	activeEvents.pop_back();
-
-	CompletedTraceEvent completedEvent = {
-		.category = moveValue(activeEvent.category),
-		.name = moveValue(activeEvent.name),
-		.detail = moveValue(activeEvent.detail),
-		.beginMicroseconds = buildPerfettoMicrosecondsSince(captureStartTimeSeconds, activeEvent.beginTimeSeconds),
-		.durationMicroseconds = buildPerfettoMicrosecondsSince(activeEvent.beginTimeSeconds, endTimeSeconds),
-	};
-	completedEvents.push_back(moveValue(completedEvent));
+	ThreadCaptureState& threadCaptureState = acquireThreadCaptureState();
+	if (!threadCaptureState.activeEvents.empty())
+	{
+		const double endTimeSeconds = Timer::getCurrentTimeSeconds();
+		const double captureStartSeconds = captureStartTimeSeconds.load();
+		ActiveTraceEvent activeEvent = moveValue(threadCaptureState.activeEvents.back());
+		threadCaptureState.activeEvents.pop_back();
+		threadCaptureState.completedEvents.push_back({
+			.category = activeEvent.category,
+			.name = activeEvent.name,
+			.detail = moveValue(activeEvent.detail),
+			.threadId = threadCaptureState.threadId,
+			.beginMicroseconds = buildPerfettoMicrosecondsSince(captureStartSeconds, activeEvent.beginTimeSeconds),
+			.durationMicroseconds = buildPerfettoMicrosecondsSince(activeEvent.beginTimeSeconds, endTimeSeconds),
+		});
+	}
+	activeOperationCount.fetch_sub(1);
 }
 
 void PerfettoProfilerBackend::recordXMLDocumentLoad(const ProfilerXMLDocumentLoad& documentLoad)
 {
-	if (!captureActive)
+	ProfilerScopeHookSuppressionGuard hookSuppressionGuard = {};
+	activeOperationCount.fetch_add(1);
+	if (!captureActive.load())
 	{
+		activeOperationCount.fetch_sub(1);
 		return;
 	}
 
-	xmlDocumentLoads.push_back(documentLoad);
+	ThreadCaptureState& threadCaptureState = acquireThreadCaptureState();
+	threadCaptureState.xmlDocumentLoads.push_back(documentLoad);
+	activeOperationCount.fetch_sub(1);
 }
 
 bool PerfettoProfilerBackend::createBackendState()
@@ -160,12 +253,103 @@ void PerfettoProfilerBackend::destroyBackendState()
 	resetCaptureState();
 }
 
+void PerfettoProfilerBackend::waitForThreadCaptureStatesIdle() const
+{
+	while (activeOperationCount.load() != 0)
+	{
+		yieldCurrentThreadExecution();
+	}
+}
+
+void PerfettoProfilerBackend::mergeThreadCaptureStates(const double captureEndTimeSeconds)
+{
+	const double captureStartSeconds = captureStartTimeSeconds.load();
+	const uint64 currentCaptureGeneration = captureGeneration.load();
+	completedEvents.clear();
+	threadNameById.clear();
+	xmlDocumentLoads.clear();
+
+	for (ThreadCaptureState* threadCaptureState = captureThreadStateHead.load(); threadCaptureState != nullptr;)
+	{
+		ThreadCaptureState* nextThreadCaptureState = threadCaptureState->next;
+		if (threadCaptureState->owner != this || threadCaptureState->captureGeneration != currentCaptureGeneration)
+		{
+			threadCaptureState = nextThreadCaptureState;
+			continue;
+		}
+
+		threadNameById[threadCaptureState->threadId] = threadCaptureState->threadName;
+
+		while (!threadCaptureState->activeEvents.empty())
+		{
+			ActiveTraceEvent activeEvent = moveValue(threadCaptureState->activeEvents.back());
+			threadCaptureState->activeEvents.pop_back();
+			threadCaptureState->completedEvents.push_back({
+				.category = activeEvent.category,
+				.name = activeEvent.name,
+				.detail = moveValue(activeEvent.detail),
+				.threadId = threadCaptureState->threadId,
+				.beginMicroseconds = buildPerfettoMicrosecondsSince(captureStartSeconds, activeEvent.beginTimeSeconds),
+				.durationMicroseconds = buildPerfettoMicrosecondsSince(activeEvent.beginTimeSeconds, captureEndTimeSeconds),
+			});
+		}
+
+		for (uint32 eventIndex = 0; eventIndex < static_cast<uint32>(threadCaptureState->completedEvents.size()); ++eventIndex)
+		{
+			completedEvents.push_back(moveValue(threadCaptureState->completedEvents[eventIndex]));
+		}
+
+		for (uint32 documentIndex = 0; documentIndex < static_cast<uint32>(threadCaptureState->xmlDocumentLoads.size()); ++documentIndex)
+		{
+			xmlDocumentLoads.push_back(moveValue(threadCaptureState->xmlDocumentLoads[documentIndex]));
+		}
+
+		threadCaptureState->clearCaptureData();
+		threadCaptureState->owner = this;
+		threadCaptureState->captureGeneration = currentCaptureGeneration;
+		threadCaptureState = nextThreadCaptureState;
+	}
+}
+
 bool PerfettoProfilerBackend::writeTraceFile(const string& outputFilePath) const
 {
 	if (outputFilePath.empty() || !ensurePerfettoOutputDirectory(outputFilePath))
 	{
 		return false;
 	}
+
+	vector<CompletedTraceEvent> completedEventsSnapshot = completedEvents;
+	unordered_map<uint64, string> threadNameByIdSnapshot = threadNameById;
+
+	sort(
+		completedEventsSnapshot.begin(),
+		completedEventsSnapshot.end(),
+		[](const CompletedTraceEvent& left, const CompletedTraceEvent& right)
+		{
+			if (left.beginMicroseconds == right.beginMicroseconds)
+			{
+				return left.threadId < right.threadId;
+			}
+
+			return left.beginMicroseconds < right.beginMicroseconds;
+		});
+
+	vector<pair<uint64, string>> threadMetadata = {};
+	threadMetadata.reserve(threadNameByIdSnapshot.size());
+	for (auto threadNameIterator = threadNameByIdSnapshot.begin();
+		threadNameIterator != threadNameByIdSnapshot.end();
+		++threadNameIterator)
+	{
+		threadMetadata.push_back({ threadNameIterator->first, threadNameIterator->second });
+	}
+
+	sort(
+		threadMetadata.begin(),
+		threadMetadata.end(),
+		[](const pair<uint64, string>& left, const pair<uint64, string>& right)
+		{
+			return left.first < right.first;
+		});
 
 	output_file_stream fileStream(outputFilePath, output_file_stream::out | output_file_stream::trunc);
 	if (!fileStream.is_open() || !fileStream.good())
@@ -174,17 +358,25 @@ bool PerfettoProfilerBackend::writeTraceFile(const string& outputFilePath) const
 	}
 
 	fileStream << "{\"traceEvents\":[";
-	fileStream << "{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"DomainExpansion Engine\"}},";
-	fileStream << "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"MainThread\"}}";
+	fileStream << "{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":0,\"args\":{\"name\":\"DomainExpansion Engine\"}}";
 
-	for (uint32 eventIndex = 0; eventIndex < static_cast<uint32>(completedEvents.size()); ++eventIndex)
+	for (uint32 threadIndex = 0; threadIndex < static_cast<uint32>(threadMetadata.size()); ++threadIndex)
 	{
-		const CompletedTraceEvent& completedEvent = completedEvents[eventIndex];
-		fileStream << ",{\"name\":\"" << escapePerfettoJSONString(completedEvent.name)
-				   << "\",\"cat\":\"" << escapePerfettoJSONString(completedEvent.category)
+		const pair<uint64, string>& threadEntry = threadMetadata[threadIndex];
+		fileStream << ",{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":" << threadEntry.first
+				   << ",\"args\":{\"name\":\"" << escapePerfettoJSONString(threadEntry.second) << "\"}}";
+	}
+
+	for (uint32 eventIndex = 0; eventIndex < static_cast<uint32>(completedEventsSnapshot.size()); ++eventIndex)
+	{
+		const CompletedTraceEvent& completedEvent = completedEventsSnapshot[eventIndex];
+		fileStream << ",{\"name\":\""
+				   << escapePerfettoJSONString(completedEvent.name != nullptr ? string_view(completedEvent.name) : string_view())
+				   << "\",\"cat\":\""
+				   << escapePerfettoJSONString(completedEvent.category != nullptr ? string_view(completedEvent.category) : string_view())
 				   << "\",\"ph\":\"X\",\"ts\":" << completedEvent.beginMicroseconds
 				   << ",\"dur\":" << completedEvent.durationMicroseconds
-				   << ",\"pid\":1,\"tid\":1";
+				   << ",\"pid\":1,\"tid\":" << completedEvent.threadId;
 		if (!completedEvent.detail.empty())
 		{
 			fileStream << ",\"args\":{\"detail\":\"" << escapePerfettoJSONString(completedEvent.detail) << "\"}";
@@ -212,6 +404,9 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 		return false;
 	}
 
+	const vector<ProfilerXMLDocumentLoad> xmlDocumentLoadsSnapshot = xmlDocumentLoads;
+	const string captureName = activeCaptureOptions.captureName;
+
 	struct XMLLoadSummaryEntry
 	{
 		string filePath = {};
@@ -230,9 +425,9 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 	uint64 totalBytes = 0;
 	uint64 totalKeys = 0;
 
-	for (uint32 loadIndex = 0; loadIndex < static_cast<uint32>(xmlDocumentLoads.size()); ++loadIndex)
+	for (uint32 loadIndex = 0; loadIndex < static_cast<uint32>(xmlDocumentLoadsSnapshot.size()); ++loadIndex)
 	{
-		const ProfilerXMLDocumentLoad& documentLoad = xmlDocumentLoads[loadIndex];
+		const ProfilerXMLDocumentLoad& documentLoad = xmlDocumentLoadsSnapshot[loadIndex];
 		totalReadMilliseconds += documentLoad.readMilliseconds;
 		totalParseMilliseconds += documentLoad.parseMilliseconds;
 		totalBytes += documentLoad.fileSizeBytes;
@@ -275,8 +470,8 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 		return false;
 	}
 
-	fileStream << ("capture=" + activeCaptureOptions.captureName) << lineBreak;
-	fileStream << ("documents=" + to_string(xmlDocumentLoads.size())) << lineBreak;
+	fileStream << ("capture=" + captureName) << lineBreak;
+	fileStream << ("documents=" + to_string(xmlDocumentLoadsSnapshot.size())) << lineBreak;
 	fileStream << ("uniqueFiles=" + to_string(summaryEntries.size())) << lineBreak;
 	fileStream << ("totalBytes=" + to_string(totalBytes)) << lineBreak;
 	fileStream << ("totalKeys=" + to_string(totalKeys)) << lineBreak;
@@ -286,7 +481,7 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 	fileStream << lineBreak;
 	fileStream << "[Top XML Files]" << lineBreak;
 
-	const uint32 maxSummaryCount = static_cast<uint32>(std::min<size_t>(summaryEntries.size(), 20));
+	const uint32 maxSummaryCount = static_cast<uint32>(summaryEntries.size() < 20 ? summaryEntries.size() : 20);
 	for (uint32 summaryIndex = 0; summaryIndex < maxSummaryCount; ++summaryIndex)
 	{
 		const XMLLoadSummaryEntry& summaryEntry = summaryEntries[summaryIndex];
@@ -307,13 +502,13 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 				   << lineBreak;
 	}
 
-	if (!xmlDocumentLoads.empty())
+	if (!xmlDocumentLoadsSnapshot.empty())
 	{
 		fileStream << lineBreak;
 		fileStream << "[Raw XML Loads]" << lineBreak;
-		for (uint32 loadIndex = 0; loadIndex < static_cast<uint32>(xmlDocumentLoads.size()); ++loadIndex)
+		for (uint32 loadIndex = 0; loadIndex < static_cast<uint32>(xmlDocumentLoadsSnapshot.size()); ++loadIndex)
 		{
-			const ProfilerXMLDocumentLoad& documentLoad = xmlDocumentLoads[loadIndex];
+			const ProfilerXMLDocumentLoad& documentLoad = xmlDocumentLoadsSnapshot[loadIndex];
 			fileStream << to_string(loadIndex + 1)
 					   << ". totalMs=" << to_string(documentLoad.readMilliseconds + documentLoad.parseMilliseconds)
 					   << " readMs=" << to_string(documentLoad.readMilliseconds)
@@ -332,10 +527,12 @@ bool PerfettoProfilerBackend::writeXMLSummaryFile(const string& outputFilePath, 
 
 void PerfettoProfilerBackend::resetCaptureState()
 {
-	captureActive = false;
-	captureStartTimeSeconds = 0.0;
+	captureActive.store(false);
+	captureStartTimeSeconds.store(0.0);
+	captureThreadStateHead.store(nullptr);
+	activeOperationCount.store(0);
 	activeCaptureOptions = {};
-	activeEvents.clear();
 	completedEvents.clear();
+	threadNameById.clear();
 	xmlDocumentLoads.clear();
 }

@@ -4,20 +4,26 @@
 #include <cassert>
 #include <cctype>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
+#include <mutex>
 #include <memory>
 #include <memory_resource>
+#include <new>
 #include <limits>
 #include <sstream>
+#include <thread>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <atomic>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -54,6 +60,9 @@ using stream_size = std::streamsize;
 using error_code = std::error_code;
 using memory_resource = std::pmr::memory_resource;
 using unsynchronized_pool_resource = std::pmr::unsynchronized_pool_resource;
+using align_val_t = std::align_val_t;
+using nothrow_t = std::nothrow_t;
+using bad_alloc = std::bad_alloc;
 using steady_clock = std::chrono::steady_clock;
 using duration_seconds = std::chrono::duration<double>;
 using filesystem_path = std::filesystem::path;
@@ -72,10 +81,27 @@ using std::terminate;
 using std::tolower;
 using std::to_string;
 using std::transform;
+using mutex = std::mutex;
+using condition_variable = std::condition_variable;
+template <typename type_name>
+using atomic = std::atomic<type_name>;
+using atomic_bool = std::atomic_bool;
+template <typename mutex_type>
+using lock_guard = std::lock_guard<mutex_type>;
+template <typename mutex_type>
+using unique_lock = std::unique_lock<mutex_type>;
+template <typename type_name>
+using deque = std::deque<type_name>;
 
 inline output_stream& output = std::cout;
 inline error_stream& error = std::cerr;
+inline constexpr const nothrow_t& nothrowValue = std::nothrow;
 inline constexpr char lineBreak = '\n';
+
+inline void yieldCurrentThreadExecution()
+{
+	std::this_thread::yield();
+}
 
 inline void platformInitializeFailFastAssertBehavior();
 

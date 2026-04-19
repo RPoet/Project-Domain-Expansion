@@ -31,6 +31,8 @@ using Atom = ATOM;
 using Bool = BOOL;
 using HandleBrush = HBRUSH;
 using HandleEvent = HANDLE;
+using HandleThread = HANDLE;
+using ThreadIdentifier = DWORD;
 
 inline void platformInitializeFailFastAssertBehavior()
 {
