@@ -15,6 +15,7 @@ public:
 	void preUpdate() override;
 	void postUpdate() override;
 	void shutdown() override;
+	void flushPendingDeletes();
 
 	void registerBridge(BaseBridge* bridge);
 	void unregisterBridge(BaseBridge* bridge);

@@ -21,6 +21,11 @@ void BridgeModule::preUpdate()
 
 void BridgeModule::postUpdate()
 {
+	flushPendingDeletes();
+}
+
+void BridgeModule::flushPendingDeletes()
+{
 	for (uint32 bridgeIndex = 0; bridgeIndex < static_cast<uint32>(bridgeStorage.size()); ++bridgeIndex)
 	{
 		BaseBridge* bridge = bridgeStorage[bridgeIndex];

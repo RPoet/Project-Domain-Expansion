@@ -1,6 +1,7 @@
 #include "Engine/Framework/Framework.h"
 
 #include "Engine/Assets/AssetLoader.h"
+#include "Engine/Module/Bridge/BridgeModule.h"
 #include "Engine/Module/MeshParser/MeshParser.h"
 #include "Engine/Module/Timer/Timer.h"
 #include "Engine/Module/TextureParser/TextureParser.h"
@@ -96,8 +97,12 @@ bool Framework::initialize(
 
 void Framework::shutdown()
 {
-	shutdownModules();
 	activeWorld.reset();
+	if (moduleInitializationCompleted)
+	{
+		BridgeModule::get()->flushPendingDeletes();
+	}
+	shutdownModules();
 	backendOptions = {};
 	profilerOptions = {};
 	windowsWindowObject = nullptr;
@@ -129,6 +134,10 @@ bool Framework::unloadWorld()
 {
 	const bool hadActiveWorld = activeWorld != nullptr;
 	activeWorld.reset();
+	if (hadActiveWorld && moduleInitializationCompleted)
+	{
+		BridgeModule::get()->flushPendingDeletes();
+	}
 	return hadActiveWorld;
 }
 
@@ -156,6 +165,7 @@ const World* Framework::getActiveWorld() const
 
 void Framework::update()
 {
+	PROFILE_SCOPE("Framework", "Framework::update");
 	preUpdateModules();
 
 	World* activeWorldObject = getActiveWorld();
