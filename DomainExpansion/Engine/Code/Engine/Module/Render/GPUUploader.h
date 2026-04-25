@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Engine/Module/Module.h"
-#include "Engine/Platform/PlatformDefine.h"
 #include "Render/ResourceObject.h"
 #include "Render/SyncObject.h"
 

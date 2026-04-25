@@ -4,7 +4,8 @@
 #include "Render/CommandList.h"
 #include "Render/Backends/RenderBackend.h"
 
-#include <d3d12.h>
+#include "Engine/Profiler/ProfilerScope.h"
+
 #include <cstring>
 
 bool GPUUploader::init(Framework& framework)
@@ -55,6 +56,7 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	const BufferObjectCreateOptions& createOptions,
 	const BufferUploadRequestOptions& uploadRequestOptions)
 {
+	PROFILE_SCOPE("MeshStreaming", "createBufferObject");
 	const bool validCreateOptions = createOptions.sizeInBytes != 0;
 	assert(validCreateOptions && "[GPUUploader][Assert] reason=invalid_buffer_create_options");
 
@@ -235,8 +237,8 @@ bool GPUUploader::reserveUploadSpace(
 
 bool GPUUploader::createUploadPoolBlock(RenderBackend& renderBackend, const uint64 requestSizeInBytes)
 {
-	const uint64 poolBlockSizeInBytes =
-		roundUpToPowerOfTwo(requestSizeInBytes > minimumPoolBlockSizeInBytes ? requestSizeInBytes : minimumPoolBlockSizeInBytes);
+	PROFILE_SCOPE("GPUUploader", "createUploadPoolBlock");
+	const uint64 poolBlockSizeInBytes = roundUpToPowerOfTwo(requestSizeInBytes > minimumPoolBlockSizeInBytes ? requestSizeInBytes : minimumPoolBlockSizeInBytes);
 
 	BufferObjectCreateOptions uploadBufferCreateOptions = {};
 	uploadBufferCreateOptions.sizeInBytes = poolBlockSizeInBytes;
@@ -244,17 +246,11 @@ bool GPUUploader::createUploadPoolBlock(RenderBackend& renderBackend, const uint
 	unique_pointer<BufferResourceObject> uploadBufferObject = renderBackend.createBufferObject(uploadBufferCreateOptions);
 	assert(uploadBufferObject != nullptr && "[GPUUploader][Assert] reason=upload_pool_block_create_failed");
 
-	ID3D12Resource* dx12UploadBuffer = static_cast<ID3D12Resource*>(uploadBufferObject->getNativeResource());
-	assert(dx12UploadBuffer != nullptr && "[GPUUploader][Assert] reason=upload_pool_block_native_resource_missing");
-
-	void* mappedMemory = nullptr;
-	D3D12_RANGE readRange = {};
-	readRange.Begin = 0;
-	readRange.End = 0;
-	const bool mappedUploadBuffer =
-		SUCCEEDED(dx12UploadBuffer->Map(0, &readRange, &mappedMemory))
-		&& mappedMemory != nullptr;
-	assert(mappedUploadBuffer && "[GPUUploader][Assert] reason=upload_pool_block_map_failed");
+	// REFACTOR_BEGIN | Why the GPU uploader knows the detail of the resource in here? terrible implmentation.
+	// GPU uploader must not know specific implementation of each backend.
+	MapRange readRange = { .start = 0, .end = 0 };
+	void* mappedMemory = uploadBufferObject->map(0, readRange);
+	// REFACTOR_END
 
 	UploadBufferPoolBlock uploadBufferPoolBlock = {};
 	uploadBufferPoolBlock.bufferObject = moveValue(uploadBufferObject);
@@ -271,11 +267,7 @@ void GPUUploader::clearUploadBufferBlock(UploadBufferPoolBlock& poolBlock)
 {
 	if (poolBlock.bufferObject != nullptr)
 	{
-		ID3D12Resource* dx12Resource = static_cast<ID3D12Resource*>(poolBlock.bufferObject->getNativeResource());
-		if (dx12Resource != nullptr && poolBlock.mappedMemory != nullptr)
-		{
-			dx12Resource->Unmap(0, nullptr);
-		}
+		poolBlock.bufferObject->unmap(0);
 	}
 
 	poolBlock.bufferObject.reset();

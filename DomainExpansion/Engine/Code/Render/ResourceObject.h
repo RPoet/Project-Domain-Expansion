@@ -3,6 +3,16 @@
 #include "Render/ResourceState.h"
 #include "Render/ResourceTypes.h"
 
+
+struct MapRange
+{
+	uint32 start;
+	uint32 end;
+};
+
+template<typename PlatformResourceType>
+struct PlatformResourceTraits;
+
 template<typename BaseType, typename PlatformResourceType>
 class UnderlyingResource : public BaseType
 {
@@ -12,7 +22,9 @@ public:
 
 	const void* getNativeResource() const override final { return resource.Get(); }
 	void* getNativeResource() override final { return resource.Get(); }
-
+	void* map(uint32 subResource, const MapRange& range) override final { return PlatformResourceTraits<PlatformResourceType>::map(resource, subResource, range); }
+	void unmap(uint32 subResource, const MapRange& range) override final { return PlatformResourceTraits<PlatformResourceType>::unmap(resource, subResource, range); }
+	void unmap(uint32 subResource) override final { return PlatformResourceTraits<PlatformResourceType>::unmap(resource, subResource); }
 protected:
 	com_pointer<PlatformResourceType> resource;
 };
@@ -28,6 +40,9 @@ public:
 
 	virtual const void* getNativeResource() const { return nullptr; }
 	virtual void* getNativeResource() { return nullptr; }
+	virtual void* map(uint32 subResource, const MapRange& range) { return nullptr; }
+	virtual void unmap(uint32 subResource, const MapRange& range) { unused(subResource); unused(range); }
+	virtual void unmap(uint32 subResource) { unused(subResource); }
 };
 
 class TextureResourceObject : public ResourceObject
