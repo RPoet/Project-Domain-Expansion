@@ -57,46 +57,27 @@ unique_pointer<BufferResourceObject> GPUUploader::createBufferObject(
 	const BufferUploadRequestOptions& uploadRequestOptions)
 {
 	PROFILE_SCOPE("MeshStreaming", "createBufferObject");
-	const bool validCreateOptions = createOptions.sizeInBytes != 0;
+
+	const bool validCreateOptions = createOptions.sizeInBytes != 0
+		&& uploadRequestOptions.sourceData != nullptr
+		&& uploadRequestOptions.sourceDataSizeInBytes != 0
+		&& uploadRequestOptions.destinationOffsetInBytes + uploadRequestOptions.sourceDataSizeInBytes <= createOptions.sizeInBytes;
+
 	assert(validCreateOptions && "[GPUUploader][Assert] reason=invalid_buffer_create_options");
-
-	const bool validUploadRequest =
-		uploadRequestOptions.sourceData != nullptr
-		&& uploadRequestOptions.sourceDataSizeInBytes != 0;
-	assert(validUploadRequest && "[GPUUploader][Assert] reason=invalid_upload_request");
-
-	const bool uploadRequestInRange =
-		uploadRequestOptions.destinationOffsetInBytes + uploadRequestOptions.sourceDataSizeInBytes
-		<= createOptions.sizeInBytes;
-	assert(uploadRequestInRange && "[GPUUploader][Assert] reason=upload_request_out_of_range");
 
 	uint32 poolBlockIndex = uint32MaxValue;
 	uint64 sourceOffsetInBytes = 0;
-	const bool reservedUploadSpace = reserveUploadSpace(
-		renderBackend,
-		uploadRequestOptions.sourceDataSizeInBytes,
-		poolBlockIndex,
-		sourceOffsetInBytes);
+
+	const bool reservedUploadSpace = reserveUploadSpace(renderBackend, uploadRequestOptions.sourceDataSizeInBytes, poolBlockIndex, sourceOffsetInBytes);
 	assert(reservedUploadSpace && "[GPUUploader][Assert] reason=upload_pool_reserve_failed");
 
-	const bool validPoolBlockIndex = poolBlockIndex < static_cast<uint32>(uploadBufferPoolBlocks.size());
-	assert(validPoolBlockIndex && "[GPUUploader][Assert] reason=upload_pool_block_index_invalid");
-
 	UploadBufferPoolBlock& uploadBufferPoolBlock = uploadBufferPoolBlocks[poolBlockIndex];
-	const bool validUploadPoolBlock =
-		uploadBufferPoolBlock.bufferObject != nullptr
-		&& uploadBufferPoolBlock.mappedMemory != nullptr;
-	assert(validUploadPoolBlock && "[GPUUploader][Assert] reason=upload_pool_block_missing");
 
-	std::memcpy(
-		uploadBufferPoolBlock.mappedMemory + static_cast<size_t>(sourceOffsetInBytes),
-		uploadRequestOptions.sourceData,
-		static_cast<size_t>(uploadRequestOptions.sourceDataSizeInBytes));
+	std::memcpy(uploadBufferPoolBlock.mappedMemory + static_cast<size_t>(sourceOffsetInBytes), uploadRequestOptions.sourceData, static_cast<size_t>(uploadRequestOptions.sourceDataSizeInBytes));
 
 	BufferObjectCreateOptions destinationBufferCreateOptions = createOptions;
 	destinationBufferCreateOptions.memoryType = BufferObjectMemoryType::defaultHeap;
 	unique_pointer<BufferResourceObject> createdBufferObject = renderBackend.createBufferObject(destinationBufferCreateOptions);
-	assert(createdBufferObject != nullptr && "[GPUUploader][Assert] reason=backend_create_buffer_failed");
 
 	QueuedUploadRequest queuedUploadRequest = {};
 	queuedUploadRequest.destinationBufferObject = createdBufferObject.get();

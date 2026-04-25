@@ -8,7 +8,8 @@
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
 #include "Render/Backends/Dx12/Dx12SwapChain.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
-#include <cstring>
+
+#include "Engine/Profiler/ProfilerScope.h"
 
 static bool validateTextureObjectCreateOptions(
 	ID3D12Device* device,
@@ -173,6 +174,7 @@ unique_pointer<SyncObject> Dx12RenderBackend::createSyncObject()
 unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 	const BufferObjectCreateOptions& createOptions)
 {
+	PROFILE_SCOPE("Dx12RenderBackend", "createBufferObject");
 	if (device == nullptr || createOptions.sizeInBytes == 0)
 	{
 		return nullptr;
@@ -207,6 +209,7 @@ unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 		nullptr,
 		IID_PPV_ARGS(&dx12BufferResource))))
 	{
+		assert(false && "[Dx12RenderBackend][Assert] reason=backend_create_buffer_failed");
 		return nullptr;
 	}
 
@@ -897,7 +900,16 @@ bool Dx12RenderBackend::createDevice()
 	for (uint32 adapterIndex = 0;; ++adapterIndex)
 	{
 		com_pointer<IDXGIAdapter1> adapter;
-		if (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) == DXGI_ERROR_NOT_FOUND)
+		const HRESULT enumerateResult = dxgiFactory->EnumAdapterByGpuPreference(
+			adapterIndex,
+			DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+			IID_PPV_ARGS(&adapter));
+		if (enumerateResult == DXGI_ERROR_NOT_FOUND)
+		{
+			break;
+		}
+
+		if (FAILED(enumerateResult))
 		{
 			break;
 		}
@@ -913,6 +925,31 @@ bool Dx12RenderBackend::createDevice()
 		{
 			selectedAdapter = adapter;
 			break;
+		}
+	}
+
+	if (selectedAdapter == nullptr)
+	{
+		for (uint32 adapterIndex = 0;; ++adapterIndex)
+		{
+			com_pointer<IDXGIAdapter1> adapter;
+			if (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) == DXGI_ERROR_NOT_FOUND)
+			{
+				break;
+			}
+
+			DXGI_ADAPTER_DESC1 adapterDescription = {};
+			adapter->GetDesc1(&adapterDescription);
+			if ((adapterDescription.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
+			{
+				continue;
+			}
+
+			if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)))
+			{
+				selectedAdapter = adapter;
+				break;
+			}
 		}
 	}
 
