@@ -4,6 +4,7 @@
 #include "Engine/Module/Profiler/ProfilerModule.h"
 #include "Engine/Module/Shader/ShaderModule.h"
 #include "Engine/Module/ShaderPackage/ShaderPackageModule.h"
+#include "Engine/Module/Thread/ThreadModule.h"
 #include "Engine/Module/Bridge/BridgeModule.h"
 #include "Engine/Module/CLI/CLIModule.h"
 #include "Engine/Module/Input/InputModule.h"
@@ -23,6 +24,7 @@ void Framework::registerModule(const FrameworkInitializeOptions& initializeOptio
 	editorUIEnabled = initializeOptions.editorUIEnabled;
 
 	addModule(ProfilerModule::get());
+	addModule(ThreadModule::get());
 	addModule(Timer::get());
 	addModule(InputModule::get());
 	addModule(CLIModule::get());
@@ -95,6 +97,7 @@ bool Framework::initializeModules()
 
 void Framework::preUpdateModules()
 {
+	PROFILE_SCOPE("Framework", "Framework::preUpdateModules");
 	if (!moduleInitializationCompleted)
 	{
 		return;
@@ -114,6 +117,7 @@ void Framework::preUpdateModules()
 
 void Framework::postUpdateModules()
 {
+	PROFILE_SCOPE("Framework", "Framework::postUpdateModules");
 	if (!moduleInitializationCompleted)
 	{
 		return;

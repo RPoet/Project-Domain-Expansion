@@ -81,9 +81,7 @@ shared_pointer<MaterialAsset> MeshComponent::getSectionMaterialAsset(const uint3
 void MeshComponent::setMeshAssetPath(const string& inMeshAssetPath)
 {
 	meshAssetPath = inMeshAssetPath;
-	meshAsset = meshAssetPath.get().empty() ? nullptr : AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
-	meshAssetHandle.reset();
-	meshHandleReference.reset();
+	refreshLoadedMeshAssetReference();
 }
 
 void MeshComponent::setLODLevel(const uint32 inLODLevel)
@@ -108,12 +106,10 @@ void MeshComponent::setMaterialAssetPath(const uint32 materialSlotIndex, const s
 	if (materialAssetPaths.get().size() <= materialSlotIndex)
 	{
 		materialAssetPaths.get().resize(materialSlotIndex + 1);
-		materialAssets.resize(materialSlotIndex + 1);
 	}
 
 	materialAssetPaths.get()[materialSlotIndex] = materialAssetPath;
-	materialAssets[materialSlotIndex] =
-		materialAssetPath.empty() ? nullptr : AssetLoader::get().loadSharedAsset<MaterialAsset>(materialAssetPath);
+	refreshLoadedMaterialAssetReferences();
 }
 
 void MeshComponent::setSectionMaterialAssetPath(const uint32 sectionIndex, const string& materialAssetPath)
@@ -130,7 +126,7 @@ void MeshComponent::setSectionMaterialAssetPath(const uint32 sectionIndex, const
 void MeshComponent::setMaterialAssetPaths(const vector<string>& inMaterialAssetPaths)
 {
 	materialAssetPaths = inMaterialAssetPaths;
-	reloadMaterialAssets();
+	refreshLoadedMaterialAssetReferences();
 }
 
 void MeshComponent::requestMeshStreaming()
@@ -148,14 +144,11 @@ void MeshComponent::clear()
 {
 	Component::clear();
 	meshAssetPath.reset();
-	meshAsset.reset();
 	materialAssetPaths.reset();
-	materialAssets.clear();
-	materialHandleReferences.clear();
-	meshAssetHandle.reset();
+	clearLoadedMeshAssetReference();
+	clearLoadedMaterialAssetReferences();
 	lodLevel.reset();
 	visible.reset();
-	meshHandleReference.reset();
 }
 
 void MeshComponent::tick(const float deltaTimeSeconds)
@@ -191,15 +184,8 @@ void MeshComponent::readAssetProperty(const XMLKeyValueDocument& document)
 	xml.readProperty(document, "deasset", visible);
 	xml.readProperty(document, "deasset", materialAssetPaths);
 
-	meshAsset.reset();
-	meshAssetHandle.reset();
-	reloadMaterialAssets();
-	if (meshAssetPath.get().empty())
-	{
-		return;
-	}
-
-	meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
+	clearLoadedMeshAssetReference();
+	clearLoadedMaterialAssetReferences();
 }
 
 void MeshComponent::generateMeshBridgeHandle()
@@ -217,11 +203,35 @@ void MeshComponent::generateMeshBridgeHandle()
 	const BridgeHandle entityHandle = getOwnerEntityHandle();
 	assert(entityHandle != invalidBridgeHandle);
 	refreshMaterialBridgeHandles();
+	const size_t materialHandleReferenceCount = materialHandleReferences.size();
+	if (materialHandleReferenceCount > static_cast<size_t>(RawMeshData::invalidMaterialSlotIndex))
+	{
+		error << "[MeshComponent][Failure] reason=material_handle_reference_count_invalid"
+			  << " componentAssetPath=" << getAssetPath()
+			  << " meshAssetPath=" << meshAssetPath.get()
+			  << " materialHandleReferenceCount=" << materialHandleReferenceCount
+			  << lineBreak;
+		error.flush();
+	}
+	assert(materialHandleReferenceCount <= static_cast<size_t>(RawMeshData::invalidMaterialSlotIndex)
+		&& "[MeshComponent][Assert] reason=material_handle_reference_count_invalid");
 
 	uint32 requiredMaterialSlotCount = static_cast<uint32>(materialHandleReferences.size());
 	if (lodLevel < meshAsset->getLODCount())
 	{
 		const vector<uint16>& sectionMaterialSlotIndices = meshAsset->getSectionMaterialSlotIndices(lodLevel);
+		const size_t sectionMaterialSlotCount = sectionMaterialSlotIndices.size();
+		if (sectionMaterialSlotCount > static_cast<size_t>(RawMeshData::invalidMaterialSlotIndex))
+		{
+			error << "[MeshComponent][Failure] reason=section_material_slot_count_invalid"
+				  << " componentAssetPath=" << getAssetPath()
+				  << " meshAssetPath=" << meshAssetPath.get()
+				  << " sectionMaterialSlotCount=" << sectionMaterialSlotCount
+				  << lineBreak;
+			error.flush();
+		}
+		assert(sectionMaterialSlotCount <= static_cast<size_t>(RawMeshData::invalidMaterialSlotIndex)
+			&& "[MeshComponent][Assert] reason=section_material_slot_count_invalid");
 		for (uint32 sectionIndex = 0; sectionIndex < static_cast<uint32>(sectionMaterialSlotIndices.size()); ++sectionIndex)
 		{
 			const uint16 materialSlotIndex = sectionMaterialSlotIndices[sectionIndex];
@@ -332,7 +342,20 @@ void MeshComponent::refreshMaterialBridgeHandles()
 	}
 }
 
-void MeshComponent::reloadMaterialAssets()
+void MeshComponent::refreshLoadedMeshAssetReference()
+{
+	if (meshAssetPath.get().empty())
+	{
+		clearLoadedMeshAssetReference();
+		return;
+	}
+
+	meshAsset = AssetLoader::get().loadSharedAsset<MeshAsset>(meshAssetPath);
+	meshAssetHandle.reset();
+	meshHandleReference.reset();
+}
+
+void MeshComponent::refreshLoadedMaterialAssetReferences()
 {
 	materialAssets.clear();
 	materialAssets.resize(materialAssetPaths.get().size());
@@ -346,4 +369,34 @@ void MeshComponent::reloadMaterialAssets()
 
 		materialAssets[materialIndex] = AssetLoader::get().loadSharedAsset<MaterialAsset>(materialAssetPath);
 	}
+
+	materialHandleReferences.clear();
+	meshHandleReference.reset();
+}
+
+void MeshComponent::setLoadedAssetReferences(
+	shared_pointer<MeshAsset> inMeshAsset,
+	vector<shared_pointer<MaterialAsset>> inMaterialAssets)
+{
+	assert(inMaterialAssets.size() == materialAssetPaths.get().size() && "[MeshComponent][Assert] reason=material_asset_reference_count_mismatch");
+	meshAsset = moveValue(inMeshAsset);
+	materialAssets = moveValue(inMaterialAssets);
+	meshAssetHandle.reset();
+	materialHandleReferences.clear();
+	meshHandleReference.reset();
+}
+
+void MeshComponent::clearLoadedMeshAssetReference()
+{
+	meshAsset.reset();
+	meshAssetHandle.reset();
+	meshHandleReference.reset();
+}
+
+void MeshComponent::clearLoadedMaterialAssetReferences()
+{
+	materialAssets.clear();
+	materialAssets.resize(materialAssetPaths.get().size());
+	materialHandleReferences.clear();
+	meshHandleReference.reset();
 }

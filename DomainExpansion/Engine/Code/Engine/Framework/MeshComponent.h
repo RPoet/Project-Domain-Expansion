@@ -41,8 +41,13 @@ protected:
 	void readAssetProperty(const XMLKeyValueDocument& document) override;
 
 private:
+	friend class AssetLoader;
+	void refreshLoadedMeshAssetReference();
+	void refreshLoadedMaterialAssetReferences();
+	void setLoadedAssetReferences(shared_pointer<MeshAsset> inMeshAsset, vector<shared_pointer<MaterialAsset>> inMaterialAssets);
+	void clearLoadedMeshAssetReference();
+	void clearLoadedMaterialAssetReferences();
 	void refreshMaterialBridgeHandles();
-	void reloadMaterialAssets();
 
 	DECLARE_FIELD(string, meshAssetPath, "");
 	shared_pointer<MeshAsset> meshAsset = nullptr;

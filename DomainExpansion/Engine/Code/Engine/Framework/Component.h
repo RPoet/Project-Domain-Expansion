@@ -37,9 +37,9 @@ struct ComponentTypeMetadata
 public: \
 	DECLARE_ASSET(componentClassName); \
 	static unique_pointer<Component> createFactoryInstance() { return unique_pointer<Component>(new componentClassName()); } \
-	inline static const int componentTypeTagValue = 0; \
+	inline static uint32 componentTypeTagValue = 0; \
 	inline static const ComponentFactoryRegistration componentFactoryRegistration = {componentClassName::getStaticAssetTypeName(), &componentClassName::createFactoryInstance}; \
-	static constexpr ComponentType staticComponentType = {&componentTypeTagValue}; \
+	inline static const ComponentType staticComponentType = {&componentTypeTagValue}; \
 	static const ComponentTypeMetadata& getStaticComponentTypeMetadata() \
 	{ \
 		static const ComponentTypeMetadata componentTypeMetadata = {staticComponentType, #componentClassName}; \
