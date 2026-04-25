@@ -23,7 +23,7 @@ struct XMLKeyValueDocument
 	string textStorage = {};
 
 	void clear();
-
+	void releaseStorage();
 	inline bool empty() const
 	{
 		return entries.empty();

@@ -151,6 +151,21 @@ void XMLKeyValueDocument::clear()
 	textStorage.clear();
 }
 
+void XMLKeyValueDocument::releaseStorage()
+{
+	vector<Entry> releasedEntries = {};
+	entries.swap(releasedEntries);
+
+	vector<uint32> releasedBucketEntryIndices = {};
+	bucketEntryIndices.swap(releasedBucketEntryIndices);
+
+	vector<uint32> releasedTouchedBucketIndices = {};
+	touchedBucketIndices.swap(releasedTouchedBucketIndices);
+
+	string releasedTextStorage = {};
+	textStorage.swap(releasedTextStorage);
+}
+
 void XMLKeyValueDocument::reserve(const size_t estimatedKeyCount, const size_t estimatedTextBytes)
 {
 	entries.reserve(estimatedKeyCount);
@@ -160,7 +175,10 @@ void XMLKeyValueDocument::reserve(const size_t estimatedKeyCount, const size_t e
 		textStorage.reserve(estimatedTextBytes);
 	}
 
-	ensureBucketCount(estimatedKeyCount);
+	if (estimatedKeyCount > 0)
+	{
+		ensureBucketCount(estimatedKeyCount);
+	}
 }
 
 uint32 XMLKeyValueDocument::findEntryIndex(const std::string_view key) const
@@ -293,6 +311,19 @@ struct XMLReadMetrics
 	double parseMilliseconds = 0.0;
 };
 
+struct XMLReadScratch
+{
+	string xmlText = {};
+};
+
+static XMLReadScratch& getXMLReadScratch()
+{
+	static thread_local XMLReadScratch readScratch;
+	return readScratch;
+}
+
+static XML::ParseCode readXMLDocumentTextInternal(const string& xmlText, XMLKeyValueDocument& outDocument);
+
 static const char* getXMLParseCodeText(const XML::ParseCode parseCode)
 {
 	switch (parseCode)
@@ -316,7 +347,6 @@ static XML::ParseCode readXMLDocumentStream(
 	XMLKeyValueDocument& outDocument,
 	XMLReadMetrics* outReadMetrics)
 {
-	outDocument.clear();
 	if (outReadMetrics != nullptr)
 	{
 		*outReadMetrics = {};
@@ -329,7 +359,8 @@ static XML::ParseCode readXMLDocumentStream(
 		return XML::ParseCode::fileOpenFailed;
 	}
 
-	string xmlText = {};
+	XMLReadScratch& readScratch = getXMLReadScratch();
+	string& xmlText = readScratch.xmlText;
 	xmlText.resize(static_cast<size_t>(fileSize));
 	if (outReadMetrics != nullptr)
 	{
@@ -354,7 +385,7 @@ static XML::ParseCode readXMLDocumentStream(
 	}
 
 	Stopwatch parseStopwatch = {};
-	const XML::ParseCode parseCode = xml.readDocumentText(xmlText, outDocument);
+	const XML::ParseCode parseCode = readXMLDocumentTextInternal(xmlText, outDocument);
 	if (outReadMetrics != nullptr)
 	{
 		outReadMetrics->parseMilliseconds = parseStopwatch.getElapsedMilliseconds();
@@ -1187,6 +1218,34 @@ static size_t estimateXMLDocumentKeyCount(const size_t xmlLength)
 	return std::min<size_t>(estimatedKeyCount, 8192);
 }
 
+static bool shouldReleaseXMLDocumentScratch(
+	const XMLKeyValueDocument& document,
+	const size_t estimatedKeyCount,
+	const size_t estimatedTextBytes)
+{
+	const size_t requiredBucketCount = estimatedKeyCount > 0
+		? buildXMLDocumentBucketCount(estimatedKeyCount)
+		: 0;
+	if (requiredBucketCount > 0 && document.bucket_count() > requiredBucketCount * 4)
+	{
+		return true;
+	}
+
+	const size_t minimumEntryCapacity = estimatedKeyCount > 0 ? estimatedKeyCount : 1;
+	if (document.entries.capacity() > minimumEntryCapacity * 4 && document.entries.capacity() > 256)
+	{
+		return true;
+	}
+
+	const size_t minimumTextCapacity = estimatedTextBytes > 0 ? estimatedTextBytes : 1;
+	if (document.textStorage.capacity() > minimumTextCapacity * 4 && document.textStorage.capacity() > 16384)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 struct XMLTextCapture
 {
 	static inline constexpr uint32 invalidBeginIndex = ~0x0u;
@@ -1893,6 +1952,7 @@ XMLKeyValueDocument XML::readDocumentFile(const string& filePath) const
 XML::ParseCode XML::readDocument(InputFileStream& fileStream, XMLKeyValueDocument& outDocument) const
 {
 	PROFILE_SCOPE("xml", "readDocument");
+	outDocument.clear();
 	return readXMLDocumentStream(*this, fileStream, outDocument, nullptr);
 }
 
@@ -1905,15 +1965,14 @@ XMLKeyValueDocument XML::readDocument(InputFileStream& fileStream) const
 	return document;
 }
 
-XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
+static XML::ParseCode readXMLDocumentTextInternal(const string& xmlText, XMLKeyValueDocument& outDocument)
 {
-	PROFILE_SCOPE("xml", "XML::readDocumentText");
-	outDocument.clear();
 	const size_t estimatedKeyCount = estimateXMLDocumentKeyCount(xmlText.length());
-	if (estimatedKeyCount > 0 && outDocument.bucket_count() < buildXMLDocumentBucketCount(estimatedKeyCount))
+	if (shouldReleaseXMLDocumentScratch(outDocument, estimatedKeyCount, xmlText.length()))
 	{
-		outDocument.reserve(estimatedKeyCount, xmlText.length());
+		outDocument.releaseStorage();
 	}
+	outDocument.reserve(estimatedKeyCount, xmlText.length());
 
 	size_t characterIndex = 0;
 	if (xmlText.compare(0, 3, "\xEF\xBB\xBF") == 0)
@@ -1929,7 +1988,7 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 
 	if (characterIndex >= xmlText.length())
 	{
-		return ParseCode::malformedDocument;
+		return XML::ParseCode::malformedDocument;
 	}
 
 	parseCode = parseXMLElement(xmlText, characterIndex, outDocument);
@@ -1945,8 +2004,15 @@ XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument&
 	}
 
 	return characterIndex == xmlText.length()
-		? ParseCode::succeeded
-		: ParseCode::malformedDocument;
+		? XML::ParseCode::succeeded
+		: XML::ParseCode::malformedDocument;
+}
+
+XML::ParseCode XML::readDocumentText(const string& xmlText, XMLKeyValueDocument& outDocument) const
+{
+	PROFILE_SCOPE("xml", "XML::readDocumentText");
+	outDocument.clear();
+	return readXMLDocumentTextInternal(xmlText, outDocument);
 }
 
 XMLKeyValueDocument XML::readDocumentText(const string& xmlText) const
