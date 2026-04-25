@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #include "Engine/Common/FileStream.h"
+#include "Engine/Profiler/ProfilerScopeHooks.h"
 
 template <typename value_type>
 class vector
@@ -395,7 +396,9 @@ private:
 
 	void reallocate(const size_type requestedCapacity)
 	{
+		beginVectorMallocProfileScope();
 		value_type* newStorage = static_cast<value_type*>(malloc(sizeof(value_type) * requestedCapacity));
+		endVectorMallocProfileScope();
 		assert(newStorage != nullptr && "[vector][Assert] reason=allocation_failed");
 		for (size_type elementIndex = 0; elementIndex < elementCount; ++elementIndex)
 		{

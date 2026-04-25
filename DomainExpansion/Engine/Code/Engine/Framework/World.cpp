@@ -540,6 +540,7 @@ bool World::removeComponent(const uint32 entityIndex, const uint32 componentInde
 
 void World::tick(const float deltaTimeSeconds)
 {
+	PROFILE_SCOPE("World", "World::tick");
 	traversalEntityIndices.clear();
 	traversalEntityIndices.reserve(entityStorage.size());
 

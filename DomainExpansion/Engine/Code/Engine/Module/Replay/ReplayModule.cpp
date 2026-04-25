@@ -1,6 +1,5 @@
 #include "Engine/Module/Replay/ReplayModule.h"
 
-#include "Engine/Assets/AssetLoader.h"
 #include "Engine/Common/EditorCommandCommon.h"
 #include "Engine/Common/XML/XML.h"
 #include "Engine/Framework/CameraComponent.h"

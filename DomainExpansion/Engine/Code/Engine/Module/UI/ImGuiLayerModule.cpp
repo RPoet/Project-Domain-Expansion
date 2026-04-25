@@ -1,6 +1,5 @@
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
-#include "Engine/Assets/AssetLoader.h"
 #include "Engine/Common/EditorCommandCommon.h"
 #include "Engine/Common/EditorCommandReplay.h"
 #include "Engine/Framework/Entity.h"
