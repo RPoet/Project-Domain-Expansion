@@ -5,6 +5,8 @@
 #include "Engine/Module/Profiler/ProfilerModule.h"
 #include "Engine/Module/UI/ImGuiLayerModule.h"
 
+#include <stdio.h>
+
 WindowCreateOptions ApplicationSession::buildWindowCreateOptions() const
 {
 	WindowCreateOptions windowCreateOptions = {
@@ -63,6 +65,29 @@ FrameworkInitializeOptions ApplicationSession::buildFrameworkInitializeOptions()
 	frameworkInitializeOptions.profilerOptions.backendType = runOptions.profilerBackendType;
 	frameworkInitializeOptions.profilerOptions.startupCaptureOutputFilePath = runOptions.profilerCaptureOutputFilePath;
 	return frameworkInitializeOptions;
+}
+
+void ApplicationSession::openConsoleWindowIfNeeded() const
+{
+	if (!runOptions.showConsoleWindow)
+	{
+		return;
+	}
+
+	if (GetConsoleWindow() == nullptr)
+	{
+		const Bool allocatedConsole = AllocConsole();
+		unused(allocatedConsole);
+	}
+
+	FILE* consoleInput = nullptr;
+	FILE* consoleOutput = nullptr;
+	FILE* consoleError = nullptr;
+	freopen_s(&consoleInput, "CONIN$", "r", stdin);
+	freopen_s(&consoleOutput, "CONOUT$", "w", stdout);
+	freopen_s(&consoleError, "CONOUT$", "w", stderr);
+	output.clear();
+	error.clear();
 }
 
 void ApplicationSession::loadPersistedWindowResolution(WindowCreateOptions& windowCreateOptions) const
@@ -156,6 +181,7 @@ int32 ApplicationSession::shutdownWithExitCode(const int32 exitCode)
 int32 ApplicationSession::run(const ApplicationRunOptions& applicationRunOptions)
 {
 	runOptions = applicationRunOptions;
+	openConsoleWindowIfNeeded();
 
 	const WindowCreateOptions windowCreateOptions = buildWindowCreateOptions();
 	const bool createdMainWindow = windowObject.create(windowCreateOptions);
@@ -168,20 +194,14 @@ int32 ApplicationSession::run(const ApplicationRunOptions& applicationRunOptions
 	frameworkInitialized = framework.initialize(windowObject, frameworkInitializeOptions);
 	if (!frameworkInitialized)
 	{
-		return shutdownWithExitCode(resolveFrameworkInitializeExitCode(
-			framework.getRuntimeExitCode(),
-			ExitCode::frameworkInitializeFailed));
+		return shutdownWithExitCode(resolveFrameworkInitializeExitCode(framework.getRuntimeExitCode(), ExitCode::frameworkInitializeFailed));
 	}
 
 	renderWorldInitialized = renderWorld.initialize(windowObject);
 	if (!renderWorldInitialized)
 	{
-		return shutdownWithExitCode(resolveFrameworkInitializeExitCode(
-			framework.getRuntimeExitCode(),
-			ExitCode::renderWorldInitializeFailed));
+		return shutdownWithExitCode(resolveFrameworkInitializeExitCode(framework.getRuntimeExitCode(), ExitCode::renderWorldInitializeFailed));
 	}
-
-	finishStartupCaptureIfNeeded();
 
 	uint32 renderedFrameCount = 0;
 	while (windowObject.pumpMessages())
@@ -195,6 +215,8 @@ int32 ApplicationSession::run(const ApplicationRunOptions& applicationRunOptions
 
 		Sleep(1);
 	}
+
+	finishStartupCaptureIfNeeded();
 
 	return shutdownWithExitCode(static_cast<int32>(framework.getRuntimeExitCode()));
 }

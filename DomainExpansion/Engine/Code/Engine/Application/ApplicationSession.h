@@ -21,6 +21,7 @@ private:
 	WindowCreateOptions buildWindowCreateOptions() const;
 	WindowEventCallbacks buildWindowEventCallbacks();
 	FrameworkInitializeOptions buildFrameworkInitializeOptions() const;
+	void openConsoleWindowIfNeeded() const;
 	void loadPersistedWindowResolution(WindowCreateOptions& windowCreateOptions) const;
 	void savePersistedWindowResolution() const;
 	void finishStartupCaptureIfNeeded() const;

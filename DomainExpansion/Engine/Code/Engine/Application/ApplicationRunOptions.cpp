@@ -215,6 +215,15 @@ ApplicationRunOptions parseApplicationRunOptions(const WideStringPointer command
 		}
 	}
 
+	if (tryGetApplicationRunOptionValue(commandLineText, L"-console=", argumentValue))
+	{
+		uint32 parsedConsoleFlag = 0;
+		if (parseApplicationRunOptionUnsignedInteger(argumentValue, parsedConsoleFlag))
+		{
+			applicationRunOptions.showConsoleWindow = parsedConsoleFlag != 0;
+		}
+	}
+
 	if (tryGetApplicationRunOptionValue(commandLineText, L"-backend_validation_inject=", argumentValue))
 	{
 		BackendValidationInjectMode parsedInjectMode = BackendValidationInjectMode::none;
