@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d12.h>
-#include "Render/SyncObject.h"
+#include "Render/Backends/SyncObject.h"
 
 class Dx12CommandQueue;
 class Dx12SwapChain;

@@ -1,8 +1,45 @@
 #pragma once
 
-#include "Render/ResourceState.h"
-#include "Render/ResourceTypes.h"
+#include "Render/Backends/ResourceState.h"
+#include "Render/Backends/ResourceTypes.h"
 
+class HeapObject;
+
+struct ResourceAllocationInfo
+{
+	uint64 sizeInBytes = 0;
+	uint64 alignmentInBytes = 0;
+};
+
+struct BufferObjectCreateOptions
+{
+	uint32 placedResource : 1 = 0;
+	uint32 reservedResource : 1 = 0;
+	uint64 sizeInBytes = 0;
+	BufferObjectMemoryType memoryType = BufferObjectMemoryType::defaultHeap;
+	ResourceState initialState = ResourceState::unknown;
+	HeapObject* heapObject = nullptr;
+	uint64 gpuVirtualAddress = ~0ull;
+};
+
+struct TextureObjectCreateOptions
+{
+	TextureDimension dimension = TextureDimension::texture2D;
+	uint64 alignment = 0;
+	uint64 width = 0;
+	uint32 height = 1;
+	uint32 depthOrArraySize = 1;
+	uint32 mipLevels = 1;
+	TextureFormat format = TextureFormat::unknown;
+	uint32 sampleCount = 1;
+	uint32 sampleQuality = 0;
+	TextureLayout layout = TextureLayout::unknown;
+	uint32 flags = getTextureObjectFlag(TextureObjectFlag::none);
+	ResourceState initialState = ResourceState::unknown;
+	float clearColors[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	float clearDepth = 1.0f;
+	uint32 clearStencil = 0;
+};
 
 struct MapRange
 {
@@ -53,6 +90,10 @@ public:
 	{
 		return ResourceObjectType::texture;
 	}
+	TextureObjectCreateOptions& getOptions() { return option; }
+	const TextureObjectCreateOptions& getOptions() const { return option; }
+private:
+	TextureObjectCreateOptions option;
 };
 
 class BufferResourceObject : public ResourceObject
@@ -63,29 +104,8 @@ public:
 	{
 		return ResourceObjectType::buffer;
 	}
-};
-
-struct BufferObjectCreateOptions
-{
-	uint64 sizeInBytes = 0;
-	BufferObjectMemoryType memoryType = BufferObjectMemoryType::defaultHeap;
-};
-
-struct TextureObjectCreateOptions
-{
-	TextureDimension dimension = TextureDimension::texture2D;
-	uint64 alignment = 0;
-	uint64 width = 0;
-	uint32 height = 1;
-	uint32 depthOrArraySize = 1;
-	uint32 mipLevels = 1;
-	TextureFormat format = TextureFormat::unknown;
-	uint32 sampleCount = 1;
-	uint32 sampleQuality = 0;
-	TextureLayout layout = TextureLayout::unknown;
-	uint32 flags = getTextureObjectFlag(TextureObjectFlag::none);
-	ResourceState initialState = ResourceState::unknown;
-	float clearColors[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	float clearDepth = 1.0f;
-	uint32 clearStencil = 0;
+	BufferObjectCreateOptions& getOptions() { return option; }
+	const BufferObjectCreateOptions& getOptions() const { return option; }
+private:
+	BufferObjectCreateOptions option;
 };

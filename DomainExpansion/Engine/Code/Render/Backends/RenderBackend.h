@@ -1,15 +1,16 @@
 #pragma once
 
 #include "Engine/Platform/PlatformDefine.h"
-#include "Render/CommandList.h"
-#include "Render/CommandQueue.h"
-#include "Render/DepthStencilView.h"
-#include "Render/PipelineStateObject.h"
-#include "Render/RenderTargetView.h"
-#include "Render/RootSignatureObject.h"
-#include "Render/ResourceObject.h"
-#include "Render/SwapChain.h"
-#include "Render/SyncObject.h"
+#include "Render/Backends/CommandList.h"
+#include "Render/Backends/CommandQueue.h"
+#include "Render/Backends/DepthStencilView.h"
+#include "Render/Backends/HeapObject.h"
+#include "Render/Backends/PipelineStateObject.h"
+#include "Render/Backends/RenderTargetView.h"
+#include "Render/Backends/RootSignatureObject.h"
+#include "Render/Backends/ResourceObject.h"
+#include "Render/Backends/SwapChain.h"
+#include "Render/Backends/SyncObject.h"
 
 enum class RenderBackendType : uint32
 {
@@ -52,6 +53,8 @@ public:
 	virtual SwapChain* getSwapChain() = 0;
 	virtual unique_pointer<SyncObject> createSyncObject() = 0;
 	SyncObject* getSyncObject();
+	virtual unique_pointer<HeapObject> createHeapObject(const HeapObjectCreateOptions& createOptions) = 0;
+	virtual ResourceAllocationInfo getBufferObjectAllocationInfo(const BufferObjectCreateOptions& createOptions) = 0;
 	virtual unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) = 0;
 	virtual unique_pointer<TextureResourceObject> createTextureObject(const TextureObjectCreateOptions& createOptions) = 0;
 	virtual RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) = 0;

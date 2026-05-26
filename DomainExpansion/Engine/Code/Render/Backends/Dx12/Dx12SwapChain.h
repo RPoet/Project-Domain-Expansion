@@ -2,8 +2,8 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include "Render/SwapChain.h"
-#include "Render/ResourceObject.h"
+#include "Render/Backends/SwapChain.h"
+#include "Render/Backends/ResourceObject.h"
 
 class RenderBackend;
 

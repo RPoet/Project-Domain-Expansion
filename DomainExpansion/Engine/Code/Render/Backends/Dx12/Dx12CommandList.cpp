@@ -1,7 +1,10 @@
+#include "Engine/Profiler/ProfilerScope.h"
+
+#include "Render/Backends/RenderBackendDefinitions.h"
+
 #include "Render/Backends/Dx12/Dx12CommandList.h"
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
-#include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/Backends/Dx12/Dx12Converter.h"
 #include "Render/Backends/Dx12/Dx12DepthStencilView.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
@@ -362,6 +365,7 @@ void Dx12CommandList::copyBuffer(
 	const uint64 sourceOffsetInBytes,
 	const uint64 copySizeInBytes)
 {
+	PROFILE_SCOPE("Dx12CommandList", "copyBuffer dx12");
 	if (!isRecordingReady()
 		|| destinationBufferObject == nullptr
 		|| sourceBufferObject == nullptr
@@ -377,12 +381,7 @@ void Dx12CommandList::copyBuffer(
 		return;
 	}
 
-	commandList->CopyBufferRegion(
-		destinationDx12Buffer,
-		destinationOffsetInBytes,
-		sourceDx12Buffer,
-		sourceOffsetInBytes,
-		copySizeInBytes);
+	commandList->CopyBufferRegion(destinationDx12Buffer, destinationOffsetInBytes, sourceDx12Buffer, sourceOffsetInBytes, copySizeInBytes);
 }
 
 void Dx12CommandList::drawIndexed(

@@ -4,8 +4,10 @@
 #include <d3d12sdklayers.h>
 
 #include "Render/Backends/Dx12/Dx12Shader.h"
-#include "Render/PipelineStateObject.h"
-#include "Render/ResourceTypes.h"
+#include "Render/Backends/HeapObject.h"
+#include "Render/Backends/PipelineStateObject.h"
+#include "Render/Backends/ResourceObject.h"
+#include "Render/Backends/ResourceTypes.h"
 
 inline const char* getDx12MessageSeverityText(const D3D12_MESSAGE_SEVERITY severity)
 {
@@ -46,6 +48,42 @@ inline D3D12_HEAP_TYPE getDx12BufferHeapType(const BufferObjectMemoryType memory
 	}
 }
 
+inline D3D12_HEAP_TYPE getDx12HeapType(const HeapObjectMemoryType memoryType)
+{
+	switch (memoryType)
+	{
+	case HeapObjectMemoryType::uploadHeap:
+		return D3D12_HEAP_TYPE_UPLOAD;
+	case HeapObjectMemoryType::readbackHeap:
+		return D3D12_HEAP_TYPE_READBACK;
+	case HeapObjectMemoryType::defaultHeap:
+	default:
+		return D3D12_HEAP_TYPE_DEFAULT;
+	}
+}
+
+inline D3D12_HEAP_FLAGS getDx12HeapFlags(const HeapObjectFlag heapFlags)
+{
+	D3D12_HEAP_FLAGS dx12HeapFlags = D3D12_HEAP_FLAG_NONE;
+
+	if ((uint32)heapFlags & (uint32)HeapObjectFlag::allowOnlyBuffers)
+	{
+		dx12HeapFlags |= D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+	}
+
+	if ((uint32)heapFlags & (uint32)HeapObjectFlag::allowOnlyNonRtDsTextures)
+	{
+		dx12HeapFlags |= D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+	}
+
+	if ((uint32)heapFlags & (uint32)HeapObjectFlag::allowOnlyRtDsTextures)
+	{
+		dx12HeapFlags |= D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
+	}
+
+	return dx12HeapFlags;
+}
+
 inline D3D12_COMMAND_LIST_TYPE getDx12CommandAllocatorType(const CommandListType commandListType)
 {
 	switch (commandListType)
@@ -74,6 +112,27 @@ inline D3D12_COMMAND_LIST_TYPE getDx12CommandListType(const CommandListType comm
 	default:
 		return D3D12_COMMAND_LIST_TYPE_DIRECT;
 	}
+}
+
+static D3D12_RESOURCE_DESC convertToBufferDesc(const BufferObjectCreateOptions& createOptions)
+{
+	return D3D12_RESOURCE_DESC
+	{
+		.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
+		.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+		.Width = createOptions.sizeInBytes,
+		.Height = 1,
+		.DepthOrArraySize = 1,
+		.MipLevels = 1,
+		.Format = DXGI_FORMAT_UNKNOWN,
+		.SampleDesc =
+		{
+			.Count = 1,
+			.Quality = 0
+		},
+		.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+		.Flags = D3D12_RESOURCE_FLAG_NONE,
+	};
 }
 
 inline D3D12_RESOURCE_STATES getDx12BufferInitialState(const BufferObjectMemoryType memoryType)

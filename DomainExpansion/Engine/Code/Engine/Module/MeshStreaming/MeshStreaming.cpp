@@ -1,29 +1,21 @@
 #include "Engine/Module/MeshStreaming/MeshStreaming.h"
 
 #include "Engine/Module/DiskLoader/DiskLoaderModule.h"
-#include "Engine/Module/Render/GPUUploader.h"
+#include "Engine/Module/GPUUploader/GPUUploader.h"
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Render/Backends/RenderBackend.h"
 
-[[noreturn]] static void failUpload(const char* reason)
-{
-	unused(reason);
-	assert(false && "[MeshStreaming][Assert] reason=mesh_gpu_upload_failed");
-}
-
-static uint32 getDefaultRequiredVertexBufferFlags()
-{
-	return getMeshBufferSignatureFlag(MeshBufferSignature::position)
-		| getMeshBufferSignatureFlag(MeshBufferSignature::normal)
-		| getMeshBufferSignatureFlag(MeshBufferSignature::texcoord);
-}
-
 static void initializeMeshAssetHandleVertexBuffers(MeshAssetHandle& handle)
 {
+	const uint32 defaultRequiredVertexBufferFlags = getMeshBufferSignatureFlag(MeshBufferSignature::position)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::normal)
+		| getMeshBufferSignatureFlag(MeshBufferSignature::texcoord);
+
 	if (handle.requiredVertexBufferFlags == 0)
 	{
-		handle.requiredVertexBufferFlags = getDefaultRequiredVertexBufferFlags();
+		handle.requiredVertexBufferFlags = defaultRequiredVertexBufferFlags;
 	}
+	assert((handle.requiredVertexBufferFlags & ~defaultRequiredVertexBufferFlags) == 0 && "[MeshStreaming][Assert] reason=mesh_required_vertex_buffer_flags_invalid");
 
 	handle.activeVertexBufferFlags = 0;
 	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
@@ -55,6 +47,7 @@ void MeshStreaming::preUpdate()
 {
 }
 
+// TO DO : calculate mesh LOD here and upload its LOD onto GPU
 void MeshStreaming::postUpdate()
 {
 	flushCpuRequests();
@@ -99,20 +92,21 @@ void MeshStreaming::flushCpuRequests()
 
 void MeshStreaming::clear()
 {
-	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
-	shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
-	if (gpuUploader != nullptr && !inFlightUploadSubmissions.empty())
+	if (!inFlightUploadSubmissions.empty())
 	{
+		shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
+		assert(gpuUploader != nullptr && "[MeshStreaming][Assert] reason=gpu_uploader_missing");
+
 		gpuUploader->waitForUploadCompletion();
 		gpuUploader->refreshCompletedSyncValue();
-		if (renderBackendModule != nullptr && renderBackendModule->isBackendCreated())
-		{
-			RenderBackend* renderBackend = renderBackendModule->getBackend();
-			if (renderBackend != nullptr)
-			{
-				releaseCompletedUploadSubmissions(*renderBackend, gpuUploader->getCompletedUploadSyncValue());
-			}
-		}
+
+		shared_pointer<RenderBackendModule> renderBackendModule = RenderBackendModule::get();
+		assert(renderBackendModule != nullptr && "[MeshStreaming][Assert] reason=render_backend_module_missing");
+		assert(renderBackendModule->isBackendCreated() && "[MeshStreaming][Assert] reason=render_backend_missing");
+
+		RenderBackend* renderBackend = renderBackendModule->getBackend();
+		assert(renderBackend != nullptr && "[MeshStreaming][Assert] reason=render_backend_missing");
+		releaseCompletedUploadSubmissions(*renderBackend, *gpuUploader, gpuUploader->getCompletedUploadSyncValue());
 	}
 
 	handleCache.clear();
@@ -129,18 +123,15 @@ string MeshStreaming::getMeshCacheKey(
 	const string& meshAssetPath,
 	const uint32 lodLevel) const
 {
-	return meshAssetPath + "|LOD" + std::to_string(lodLevel);
+	return meshAssetPath + "|LOD" + to_string(lodLevel);
 }
 
 void MeshStreaming::releaseCompletedUploadSubmissions(
 	RenderBackend& renderBackend,
+	GPUUploader& gpuUploader,
 	const uint64 completedUploadSyncValue)
 {
-	if (inFlightUploadSubmissions.empty())
-	{
-		return;
-	}
-
+	bool releasedAnySubmission = false;
 	for (int32 submissionIndex = static_cast<int32>(inFlightUploadSubmissions.size()) - 1; submissionIndex >= 0; --submissionIndex)
 	{
 		const InFlightUploadSubmission& uploadSubmission = inFlightUploadSubmissions[static_cast<uint32>(submissionIndex)];
@@ -151,31 +142,67 @@ void MeshStreaming::releaseCompletedUploadSubmissions(
 
 		renderBackend.releaseCommandList(uploadSubmission.commandList);
 		inFlightUploadSubmissions.erase(inFlightUploadSubmissions.begin() + submissionIndex);
+		releasedAnySubmission = true;
+	}
+
+	if (releasedAnySubmission)
+	{
+		gpuUploader.recycleCompletedUploadBuffers();
 	}
 }
 
+// Refactor this function
 void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 {
+	PROFILE_SCOPE("MeshStreaming", "flushGpuRequests");
 	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
-	assert(gpuUploader != nullptr && "[MeshStreaming][Assert] reason=gpu_uploader_missing");
 
-	gpuUploader->refreshCompletedSyncValue();
-	releaseCompletedUploadSubmissions(renderBackend, gpuUploader->getCompletedUploadSyncValue());
+	uint64 completedUploadSyncValue = gpuUploader->getCompletedUploadSyncValue();
+	releaseCompletedUploadSubmissions(renderBackend, *gpuUploader, completedUploadSyncValue);
 
 	if (pendingGpuUploadHandles.empty() && !gpuUploader->hasQueuedUploadRequests())
 	{
 		return;
 	}
 
+	CommandQueue* commandQueue = renderBackend.getCommandQueue();
+	const CommandListType uploadCommandListType = renderBackend.supportsCommandListType(CommandListType::copy)
+		? CommandListType::copy
+		: CommandListType::graphics;
+
+	auto flushCommandsToGPU = [&](const bool forceFlush)
+	{
+		if (!gpuUploader->hasQueuedUploadRequests()
+			|| (!forceFlush && !gpuUploader->isQueuedUploadRequestThresholdReached()))
+		{
+			return;
+		}
+
+		CommandList* uploadCommandList = renderBackend.acquireCommandList(uploadCommandListType);
+		assert(uploadCommandList != nullptr && "[MeshStreaming][Assert] reason=gpu_upload_command_list_acquire_failed");
+
+		uploadCommandList->reset();
+		gpuUploader->uploadQueuedBuffers(*uploadCommandList);
+		uploadCommandList->close();
+		commandQueue->execute(uploadCommandList);
+
+		InFlightUploadSubmission uploadSubmission = {
+			.commandList = uploadCommandList,
+			.syncValue = gpuUploader->signalUploadSync(),
+		};
+		inFlightUploadSubmissions.push_back(uploadSubmission);
+	};
+
 	vector<shared_pointer<MeshAssetHandle>> processingHandles;
 	processingHandles.swap(pendingGpuUploadHandles);
-
-	CommandList* uploadCommandList = renderBackend.acquireCommandList();
-	assert(uploadCommandList != nullptr && "[MeshStreaming][Assert] reason=gpu_upload_command_list_acquire_failed");
 
 	vector<shared_pointer<MeshAssetHandle>> uploadedHandles;
 	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(processingHandles.size()); ++handleIndex)
 	{
+		gpuUploader->refreshCompletedSyncValue();
+		completedUploadSyncValue = gpuUploader->getCompletedUploadSyncValue();
+		releaseCompletedUploadSubmissions(renderBackend, *gpuUploader, completedUploadSyncValue);
+
 		shared_pointer<MeshAssetHandle>& handle = processingHandles[handleIndex];
 		if (handle == nullptr
 			|| handle->state != MeshAssetHandleState::ready
@@ -191,26 +218,15 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		}
 
 		uploadedHandles.push_back(handle);
+		flushCommandsToGPU(false);
 	}
 
-	if (gpuUploader->hasQueuedUploadRequests())
+	flushCommandsToGPU(true);
+	if (!uploadedHandles.empty())
 	{
-		CommandQueue* commandQueue = renderBackend.getCommandQueue();
-		assert(commandQueue != nullptr && "[MeshStreaming][Assert] reason=gpu_upload_command_queue_missing");
-
-		uploadCommandList->reset();
-		gpuUploader->uploadQueuedBuffers(*uploadCommandList);
-		uploadCommandList->close();
-		commandQueue->execute(uploadCommandList);
-
-		InFlightUploadSubmission uploadSubmission = {};
-		uploadSubmission.commandList = uploadCommandList;
-		uploadSubmission.syncValue = gpuUploader->signalUploadSync();
-		inFlightUploadSubmissions.push_back(uploadSubmission);
-	}
-	else
-	{
-		renderBackend.releaseCommandList(uploadCommandList);
+		gpuUploader->waitForUploadCompletion();
+		completedUploadSyncValue = gpuUploader->getCompletedUploadSyncValue();
+		releaseCompletedUploadSubmissions(renderBackend, *gpuUploader, completedUploadSyncValue);
 	}
 
 	for (uint32 handleIndex = 0; handleIndex < static_cast<uint32>(uploadedHandles.size()); ++handleIndex)
@@ -222,13 +238,13 @@ void MeshStreaming::flushGpuRequests(RenderBackend& renderBackend)
 		}
 
 		handle->gpuState = MeshAssetGpuState::ready;
-		output << "[MeshStreaming][GpuReady] mesh=" << handle->meshAssetPath
-			   << " lod=" << handle->lodLevel
-			   << " positionBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::position)
-			   << " normalBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::normal)
-			   << " texcoordBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::texcoord)
-			   << " indexBufferBytes=" << handle->indexBufferSizeInBytes
-			   << " activeVertexBufferFlags=" << handle->activeVertexBufferFlags << lineBreak;
+		//output << "[MeshStreaming][GpuReady] mesh=" << handle->meshAssetPath
+		//	   << " lod=" << handle->lodLevel
+		//	   << " positionBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::position)
+		//	   << " normalBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::normal)
+		//	   << " texcoordBufferBytes=" << handle->getBufferSizeInBytes(MeshBufferSignature::texcoord)
+		//	   << " indexBufferBytes=" << handle->indexBufferSizeInBytes
+		//	   << " activeVertexBufferFlags=" << handle->activeVertexBufferFlags << lineBreak;
 	}
 }
 
@@ -236,165 +252,84 @@ bool MeshStreaming::uploadMeshHandleToGpu(
 	RenderBackend& renderBackend,
 	MeshAssetHandle& handle) const
 {
+	PROFILE_SCOPE("MeshStreaming", "uploadMeshHandleToGpu");
 	initializeMeshAssetHandleVertexBuffers(handle);
 
 	shared_pointer<GPUUploader> gpuUploader = GPUUploader::get();
-	if (gpuUploader == nullptr)
-	{
-		failUpload("gpu_uploader_missing");
-	}
-
-	if (handle.meshAsset == nullptr)
-	{
-		failUpload("mesh_asset_missing");
-	}
 
 	const MeshAsset& meshAsset = *handle.meshAsset;
 	const RawMeshData& rawMeshData = meshAsset.getRawMeshData(handle.lodLevel);
-	const uint32 vertexCount = static_cast<uint32>(rawMeshData.positionVertices.size());
 	const uint64 indexBufferBytes = static_cast<uint64>(rawMeshData.indices.size()) * sizeof(uint32);
 	uint64 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
 	const void* vertexBufferInitialData[meshVertexBufferSignatureCount] = {};
-	uint32 vertexBufferElementCounts[meshVertexBufferSignatureCount] = {};
-	const char* vertexBufferCreateFailReasons[meshVertexBufferSignatureCount] = {};
 
-	uint32 sourceVertexBufferFlags = 0;
 	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
 	{
 		const MeshBufferSignature signature = static_cast<MeshBufferSignature>(signatureIndex);
-		const uint32 signatureFlag = getMeshBufferSignatureFlag(signature);
 		uint64 bufferByteSize = 0;
 		const void* initialData = nullptr;
-		uint32 elementCount = 0;
-		const char* createFailReason = "buffer_create_failed";
 
 		switch (signature)
 		{
 		case MeshBufferSignature::position:
 			bufferByteSize = static_cast<uint64>(rawMeshData.positionVertices.size()) * sizeof(PositionData);
 			initialData = rawMeshData.positionVertices.data();
-			elementCount = static_cast<uint32>(rawMeshData.positionVertices.size());
-			createFailReason = "position_buffer_create_failed";
 			break;
 		case MeshBufferSignature::normal:
 			bufferByteSize = static_cast<uint64>(rawMeshData.normalVertices.size()) * sizeof(NormalData);
 			initialData = rawMeshData.normalVertices.data();
-			elementCount = static_cast<uint32>(rawMeshData.normalVertices.size());
-			createFailReason = "normal_buffer_create_failed";
 			break;
 		case MeshBufferSignature::texcoord:
 			bufferByteSize = static_cast<uint64>(rawMeshData.texcoordVertices.size()) * sizeof(TexcoordData);
 			initialData = rawMeshData.texcoordVertices.data();
-			elementCount = static_cast<uint32>(rawMeshData.texcoordVertices.size());
-			createFailReason = "texcoord_buffer_create_failed";
 			break;
 		case MeshBufferSignature::count:
 		default:
-			failUpload("mesh_buffer_signature_invalid");
+			assert(false && "[MeshStreaming][Assert] reason=mesh_buffer_signature_invalid");
+			break;
 		}
 
 		vertexBufferSizesInBytes[signatureIndex] = bufferByteSize;
 		vertexBufferInitialData[signatureIndex] = initialData;
-		vertexBufferElementCounts[signatureIndex] = elementCount;
-		vertexBufferCreateFailReasons[signatureIndex] = createFailReason;
-		if (bufferByteSize > 0)
-		{
-			sourceVertexBufferFlags |= signatureFlag;
-		}
-
-		if ((handle.requiredVertexBufferFlags & signatureFlag) == 0)
-		{
-			continue;
-		}
-
-		if (bufferByteSize == 0)
-		{
-			failUpload("mesh_data_empty");
-		}
-
-		if (bufferByteSize > static_cast<uint64>(uint32MaxValue))
-		{
-			failUpload("mesh_buffer_size_overflow");
-		}
-
-		if (vertexBufferElementCounts[signatureIndex] != vertexCount)
-		{
-			failUpload("mesh_vertex_stream_mismatch");
-		}
-	}
-
-	if ((sourceVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
-	{
-		failUpload("mesh_required_vertex_buffer_missing");
-	}
-
-	if (indexBufferBytes == 0)
-	{
-		failUpload("mesh_data_empty");
-	}
-
-	if (indexBufferBytes > static_cast<uint64>(uint32MaxValue))
-	{
-		failUpload("mesh_buffer_size_overflow");
 	}
 
 	for (uint32 signatureIndex = 0; signatureIndex < meshVertexBufferSignatureCount; ++signatureIndex)
 	{
 		const MeshBufferSignature signature = static_cast<MeshBufferSignature>(signatureIndex);
 		const uint32 signatureFlag = getMeshBufferSignatureFlag(signature);
-		if ((handle.requiredVertexBufferFlags & signatureFlag) == 0)
+		if ((handle.requiredVertexBufferFlags & signatureFlag) != 0)
 		{
-			continue;
+			BufferObjectCreateOptions bufferCreateOptions = {
+				.sizeInBytes = vertexBufferSizesInBytes[signatureIndex],
+			};
+
+			BufferUploadRequestOptions uploadRequestOptions = {
+				.sourceData = vertexBufferInitialData[signatureIndex],
+				.sourceDataSizeInBytes = vertexBufferSizesInBytes[signatureIndex],
+				.destinationOffsetInBytes = 0,
+			};
+
+			unique_pointer<BufferResourceObject> createdBufferObject = gpuUploader->createBufferObject(renderBackend, bufferCreateOptions, uploadRequestOptions);
+			handle.vertexBufferObjects[signatureIndex] = moveValue(createdBufferObject);
+			handle.vertexBufferSizesInBytes[signatureIndex] = static_cast<uint32>(bufferCreateOptions.sizeInBytes);
+			handle.activeVertexBufferFlags |= signatureFlag;
 		}
-
-		BufferObjectCreateOptions bufferCreateOptions = {};
-		bufferCreateOptions.sizeInBytes = vertexBufferSizesInBytes[signatureIndex];
-
-		BufferUploadRequestOptions uploadRequestOptions = {};
-		uploadRequestOptions.sourceData = vertexBufferInitialData[signatureIndex];
-		uploadRequestOptions.sourceDataSizeInBytes = vertexBufferSizesInBytes[signatureIndex];
-		uploadRequestOptions.destinationOffsetInBytes = 0;
-		if (bufferCreateOptions.sizeInBytes == 0 || uploadRequestOptions.sourceData == nullptr)
-		{
-			failUpload("mesh_data_empty");
-		}
-
-		unique_pointer<BufferResourceObject> createdBufferObject = gpuUploader->createBufferObject(renderBackend, bufferCreateOptions, uploadRequestOptions);
-		if (createdBufferObject == nullptr)
-		{
-			failUpload(vertexBufferCreateFailReasons[signatureIndex]);
-		}
-
-		handle.vertexBufferObjects[signatureIndex] = moveValue(createdBufferObject);
-		handle.vertexBufferSizesInBytes[signatureIndex] = static_cast<uint32>(bufferCreateOptions.sizeInBytes);
-		handle.activeVertexBufferFlags |= signatureFlag;
 	}
+	assert((handle.activeVertexBufferFlags & handle.requiredVertexBufferFlags) == handle.requiredVertexBufferFlags && "[MeshStreaming][Assert] reason=mesh_vertex_upload_flag_mismatch");
 
-	if ((handle.activeVertexBufferFlags & handle.requiredVertexBufferFlags) != handle.requiredVertexBufferFlags)
-	{
-		failUpload("mesh_vertex_upload_flag_mismatch");
-	}
+	BufferObjectCreateOptions indexBufferCreateOptions = {
+		.sizeInBytes = indexBufferBytes,
+	};
 
-	BufferObjectCreateOptions indexBufferCreateOptions = {};
-	indexBufferCreateOptions.sizeInBytes = indexBufferBytes;
-
-	BufferUploadRequestOptions indexUploadRequestOptions = {};
-	indexUploadRequestOptions.sourceData = rawMeshData.indices.data();
-	indexUploadRequestOptions.sourceDataSizeInBytes = indexBufferBytes;
-	indexUploadRequestOptions.destinationOffsetInBytes = 0;
+	BufferUploadRequestOptions indexUploadRequestOptions = {
+		.sourceData = rawMeshData.indices.data(),
+		.sourceDataSizeInBytes = indexBufferBytes,
+		.destinationOffsetInBytes = 0,
+	};
 	unique_pointer<BufferResourceObject> indexBufferObject = gpuUploader->createBufferObject(renderBackend, indexBufferCreateOptions, indexUploadRequestOptions);
-	if (indexBufferObject == nullptr)
-	{
-		failUpload("index_buffer_create_failed");
-	}
 
 	handle.indexBufferObject = moveValue(indexBufferObject);
 	handle.indexBufferSizeInBytes = static_cast<uint32>(indexBufferBytes);
-
-	if (handle.indexBufferObject == nullptr || handle.indexBufferSizeInBytes == 0)
-	{
-		failUpload("mesh_index_upload_invalid");
-	}
 
 	return true;
 }

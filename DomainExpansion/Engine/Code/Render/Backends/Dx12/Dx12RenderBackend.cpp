@@ -3,6 +3,7 @@
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
 #include "Render/Backends/Dx12/Dx12Converter.h"
 #include "Render/Backends/Dx12/Dx12DepthStencilView.h"
+#include "Render/Backends/Dx12/Dx12HeapObject.h"
 #include "Render/Backends/Dx12/Dx12RenderTargetView.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12ResourceObject.h"
@@ -30,6 +31,22 @@ static bool validateTextureObjectCreateOptions(
 
 	return getDx12TextureDimension(createOptions.dimension) != D3D12_RESOURCE_DIMENSION_UNKNOWN
 		&& getDx12TextureFormat(createOptions.format) != DXGI_FORMAT_UNKNOWN;
+}
+
+static D3D12_RESOURCE_STATES getDx12BufferCreateInitialState(const BufferObjectCreateOptions& createOptions)
+{
+	if (createOptions.placedResource || createOptions.reservedResource)
+	{
+		assert(createOptions.initialState != ResourceState::unknown && "[Dx12RenderBackend][Assert] reason=explicit_buffer_initial_state_required");
+		return getDx12ResourceState(createOptions.initialState);
+	}
+
+	if (createOptions.initialState != ResourceState::unknown)
+	{
+		return getDx12ResourceState(createOptions.initialState);
+	}
+
+	return getDx12BufferInitialState(createOptions.memoryType);
 }
 
 Dx12RenderBackend::Dx12RenderBackend()
@@ -162,6 +179,7 @@ SwapChain* Dx12RenderBackend::getSwapChain()
 
 unique_pointer<SyncObject> Dx12RenderBackend::createSyncObject()
 {
+	PROFILE_SCOPE("Dx12RenderBackend", "createSyncObject dx12");
 	const bool validStandaloneSyncContext = device != nullptr && commandQueue != nullptr;
 	assert(validStandaloneSyncContext && "[Dx12RenderBackend][Assert] reason=standalone_sync_context_invalid");
 
@@ -171,43 +189,103 @@ unique_pointer<SyncObject> Dx12RenderBackend::createSyncObject()
 	return moveValue(createdSyncObject);
 }
 
-unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
-	const BufferObjectCreateOptions& createOptions)
+unique_pointer<HeapObject> Dx12RenderBackend::createHeapObject(const HeapObjectCreateOptions& createOptions)
 {
-	PROFILE_SCOPE("Dx12RenderBackend", "createBufferObject");
-	if (device == nullptr || createOptions.sizeInBytes == 0)
+	PROFILE_SCOPE("Dx12RenderBackend", "createHeapObject dx12");
+	assert(createOptions.sizeInBytes != 0);
+
+	const D3D12_HEAP_DESC heapDescription =
 	{
+		.SizeInBytes = createOptions.sizeInBytes,
+		.Properties =
+		{
+			.Type = getDx12HeapType(createOptions.memoryType),
+			.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+			.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
+			.CreationNodeMask = 1,
+			.VisibleNodeMask = 1,
+		},
+		.Alignment = createOptions.alignment,
+		.Flags = getDx12HeapFlags(createOptions.flags),
+	};
+
+	com_pointer<ID3D12Heap> dx12Heap;
+	if (FAILED(device->CreateHeap(&heapDescription, IID_PPV_ARGS(&dx12Heap))))
+	{
+		assert(false && "[Dx12RenderBackend][Assert] reason=backend_create_heap_failed");
 		return nullptr;
 	}
 
-	D3D12_HEAP_PROPERTIES heapProperties = {};
-	heapProperties.Type = getDx12BufferHeapType(createOptions.memoryType);
-	heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	heapProperties.CreationNodeMask = 1;
-	heapProperties.VisibleNodeMask = 1;
+	unique_pointer<Dx12HeapObject> createdHeapObject(new Dx12HeapObject(moveValue(dx12Heap)));
+	return createdHeapObject;
+}
 
-	D3D12_RESOURCE_DESC resourceDescription = {};
-	resourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	resourceDescription.Alignment = 0;
-	resourceDescription.Width = createOptions.sizeInBytes;
-	resourceDescription.Height = 1;
-	resourceDescription.DepthOrArraySize = 1;
-	resourceDescription.MipLevels = 1;
-	resourceDescription.Format = DXGI_FORMAT_UNKNOWN;
-	resourceDescription.SampleDesc.Count = 1;
-	resourceDescription.SampleDesc.Quality = 0;
-	resourceDescription.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	resourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
+ResourceAllocationInfo Dx12RenderBackend::getBufferObjectAllocationInfo(const BufferObjectCreateOptions& createOptions)
+{
+	const D3D12_RESOURCE_DESC resourceDescription = convertToBufferDesc(createOptions);
+	const D3D12_RESOURCE_ALLOCATION_INFO allocationInfo = device->GetResourceAllocationInfo(0, 1, &resourceDescription);
+	return ResourceAllocationInfo
+	{
+		.sizeInBytes = allocationInfo.SizeInBytes,
+		.alignmentInBytes = allocationInfo.Alignment,
+	};
+}
+
+unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
+	const BufferObjectCreateOptions& createOptions)
+{
+	PROFILE_SCOPE("Dx12RenderBackend", "createBufferObject dx12");
+	const D3D12_RESOURCE_DESC resourceDescription = convertToBufferDesc(createOptions);
 
 	com_pointer<ID3D12Resource> dx12BufferResource;
-	if (FAILED(device->CreateCommittedResource(
-		&heapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&resourceDescription,
-		getDx12BufferInitialState(createOptions.memoryType),
-		nullptr,
-		IID_PPV_ARGS(&dx12BufferResource))))
+	const D3D12_RESOURCE_STATES initialResourceState = getDx12BufferCreateInitialState(createOptions);
+	HRESULT createResult = S_OK;
+	if (createOptions.placedResource)
+	{
+		ID3D12Heap* dx12Heap = static_cast<ID3D12Heap*>(createOptions.heapObject->getNativeHeap());
+		assert(dx12Heap != nullptr && "[Dx12RenderBackend][Assert] reason=placed_buffer_native_heap_missing");
+
+		const uint64 heapOffsetInBytes = createOptions.gpuVirtualAddress & heapOffsetMask;
+		const ResourceAllocationInfo allocationInfo = getBufferObjectAllocationInfo(createOptions);
+		assert(heapOffsetInBytes % allocationInfo.alignmentInBytes == 0 && "[Dx12RenderBackend][Assert] reason=placed_buffer_heap_offset_misaligned");
+
+		createResult = device->CreatePlacedResource(
+			dx12Heap,
+			heapOffsetInBytes,
+			&resourceDescription,
+			initialResourceState,
+			nullptr,
+			IID_PPV_ARGS(&dx12BufferResource));
+	}
+	else if (createOptions.reservedResource)
+	{
+		createResult = device->CreateReservedResource(
+			&resourceDescription,
+			initialResourceState,
+			nullptr,
+			IID_PPV_ARGS(&dx12BufferResource));
+	}
+	else
+	{
+		D3D12_HEAP_PROPERTIES heapProperties =
+		{
+			.Type = getDx12BufferHeapType(createOptions.memoryType),
+			.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+			.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
+			.CreationNodeMask = 1,
+			.VisibleNodeMask = 1,
+		};
+
+		createResult = device->CreateCommittedResource(
+			&heapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&resourceDescription,
+			initialResourceState,
+			nullptr,
+			IID_PPV_ARGS(&dx12BufferResource));
+	}
+
+	if (FAILED(createResult))
 	{
 		assert(false && "[Dx12RenderBackend][Assert] reason=backend_create_buffer_failed");
 		return nullptr;
@@ -215,6 +293,7 @@ unique_pointer<BufferResourceObject> Dx12RenderBackend::createBufferObject(
 
 	unique_pointer<Dx12BufferObject> createdBufferObject(new Dx12BufferObject());
 	createdBufferObject->getUnderlyingResource() = dx12BufferResource;
+	createdBufferObject->getOptions() = createOptions;
 	return createdBufferObject;
 }
 
@@ -277,6 +356,7 @@ unique_pointer<TextureResourceObject> Dx12RenderBackend::createTextureObject(
 
 	unique_pointer<Dx12TextureResourceObject> createdTextureObject(new Dx12TextureResourceObject());
 	createdTextureObject->getUnderlyingResource() = dx12TextureResource;
+	createdTextureObject->getOptions() = createOptions;
 	return createdTextureObject;
 }
 
@@ -1104,7 +1184,7 @@ void Dx12RenderBackend::destroyBackendResources()
 	{
 		releaseDeferredReuseBatch(deferredReuseBatches[deferredReuseBatchIndex]);
 	}
-	
+
 	for (uint32 frameBatchIndex = 0; frameBatchIndex < maxPendingFrameCount; ++frameBatchIndex)
 	{
 		frameTimestampQueryHeaps[frameBatchIndex].Reset();

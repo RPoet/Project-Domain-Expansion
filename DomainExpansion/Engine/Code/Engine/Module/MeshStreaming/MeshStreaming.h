@@ -3,11 +3,12 @@
 #include "Engine/Assets/MeshAsset.h"
 #include "Engine/Module/Module.h"
 #include "Engine/Platform/PlatformDefine.h"
-#include "Render/ResourceObject.h"
-#include "Render/ResourceTypes.h"
+#include "Render/Backends/ResourceObject.h"
+#include "Render/Backends/ResourceTypes.h"
 
 class RenderBackend;
 class CommandList;
+class GPUUploader;
 
 enum class MeshAssetHandleState : uint32
 {
@@ -65,12 +66,7 @@ struct MeshAssetHandle
 	shared_pointer<MeshAsset> meshAsset = nullptr;
 	unique_pointer<BufferResourceObject> vertexBufferObjects[meshVertexBufferSignatureCount] = {};
 	uint32 vertexBufferSizesInBytes[meshVertexBufferSignatureCount] = {};
-	uint32 vertexBufferStridesInBytes[meshVertexBufferSignatureCount] =
-	{
-		static_cast<uint32>(sizeof(PositionData)),
-		static_cast<uint32>(sizeof(NormalData)),
-		static_cast<uint32>(sizeof(TexcoordData))
-	};
+	uint32 vertexBufferStridesInBytes[meshVertexBufferSignatureCount] = { static_cast<uint32>(sizeof(PositionData)), static_cast<uint32>(sizeof(NormalData)), static_cast<uint32>(sizeof(TexcoordData)) };
 	unique_pointer<BufferResourceObject> indexBufferObject = nullptr;
 	uint32 indexBufferSizeInBytes = 0;
 	uint32 requiredVertexBufferFlags = 0;
@@ -121,6 +117,8 @@ struct MeshAssetHandle
 	}
 };
 
+// TO DO : Implement real mesh streamer
+// current implementation is just a mesh uploader to the GPU after creating mesh lod, supplement missed part.
 class MeshStreaming final : public StaticModule<MeshStreaming>
 {
 public:
@@ -152,7 +150,7 @@ private:
 	bool uploadMeshHandleToGpu(
 		RenderBackend& renderBackend,
 		MeshAssetHandle& handle) const;
-	void releaseCompletedUploadSubmissions(RenderBackend& renderBackend, uint64 completedUploadSyncValue);
+	void releaseCompletedUploadSubmissions(RenderBackend& renderBackend, GPUUploader& gpuUploader, uint64 completedUploadSyncValue);
 	string getMeshCacheKey(const string& meshAssetPath, uint32 lodLevel) const;
 
 	unordered_map<string, shared_pointer<MeshAssetHandle>> handleCache;

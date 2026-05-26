@@ -1,3 +1,4 @@
+#include "Engine/Profiler/ProfilerScope.h"
 #include "Render/Backends/Dx12/Dx12SyncObject.h"
 #include "Render/Backends/Dx12/Dx12CommandQueue.h"
 
@@ -127,6 +128,7 @@ uint64 Dx12SyncObject::signal()
 
 uint64 Dx12SyncObject::getCompletedSyncValue() const
 {
+	PROFILE_SCOPE("Dx12SyncObject", "getCompletedSyncValue");
 	if (frameFence == nullptr)
 	{
 		return 0;

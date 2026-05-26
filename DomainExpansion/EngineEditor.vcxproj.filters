@@ -103,10 +103,19 @@
     <ClInclude Include="Engine\Code\Engine\Common\Singleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Code\Engine\Common\NonCopiable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Common\Container\Vector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Engine\Module\Render\GPUUploader.h">
+    <ClInclude Include="Engine\Code\Engine\Module\GPUUploader\GPUUploader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\GPUBufferAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\HeapSuballocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Module\Render\RenderBackendModule.h">
@@ -149,6 +158,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12DepthStencilView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12HeapObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.h">
@@ -220,43 +232,46 @@
     <ClInclude Include="Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\CommandList.h">
+    <ClInclude Include="Engine\Code\Render\Backends\CommandList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\DepthStencilView.h">
+    <ClInclude Include="Engine\Code\Render\Backends\DepthStencilView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\CommandQueue.h">
+    <ClInclude Include="Engine\Code\Render\Backends\CommandQueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Code\Render\Backends\HeapObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\RenderCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\RenderTargetView.h">
+    <ClInclude Include="Engine\Code\Render\Backends\RenderTargetView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\PipelineStateManager.h">
+    <ClInclude Include="Engine\Code\Render\Backends\PipelineStateManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\PipelineStateObject.h">
+    <ClInclude Include="Engine\Code\Render\Backends\PipelineStateObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\RootSignatureManager.h">
+    <ClInclude Include="Engine\Code\Render\Backends\RootSignatureManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\RootSignatureObject.h">
+    <ClInclude Include="Engine\Code\Render\Backends\RootSignatureObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\ResourceObject.h">
+    <ClInclude Include="Engine\Code\Render\Backends\ResourceObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\ResourceState.h">
+    <ClInclude Include="Engine\Code\Render\Backends\ResourceState.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\SyncObject.h">
+    <ClInclude Include="Engine\Code\Render\Backends\SyncObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\SwapChain.h">
+    <ClInclude Include="Engine\Code\Render\Backends\SwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Render\Screen.h">
@@ -274,7 +289,7 @@
     <ClInclude Include="Engine\Code\Render\RenderTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Code\Render\ResourceTypes.h">
+    <ClInclude Include="Engine\Code\Render\Backends\ResourceTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Code\Engine\Window\WindowsWindowObject.h">

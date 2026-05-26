@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d12.h>
-#include "Render/ResourceObject.h"
+#include "Render/Backends/ResourceObject.h"
 
 template<>
 struct PlatformResourceTraits<ID3D12Resource>

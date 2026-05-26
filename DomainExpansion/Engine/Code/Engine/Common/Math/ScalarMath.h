@@ -4,6 +4,22 @@
 
 #include <cmath>
 
+static uint64 alignUp(const uint64 value, const uint64 alignment)
+{
+	if (alignment <= 1)
+	{
+		return value;
+	}
+
+	const uint64 remainder = value % alignment;
+	if (remainder == 0)
+	{
+		return value;
+	}
+
+	return value + (alignment - remainder);
+}
+
 static float fraction(const float value)
 {
 	return value - floorf(value);

@@ -10,8 +10,8 @@
 #include "Render/Backends/Dx12/Dx12PipelineStateObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureObject.h"
 #include "Render/Backends/Dx12/Dx12RootSignatureDesc.h"
-#include "Render/PipelineStateManager.h"
-#include "Render/RootSignatureManager.h"
+#include "Render/Backends/PipelineStateManager.h"
+#include "Render/Backends/RootSignatureManager.h"
 
 class Dx12CommandQueue;
 class Dx12SwapChain;
@@ -32,6 +32,8 @@ public:
 	CommandQueue* getCommandQueue() override;
 	SwapChain* getSwapChain() override;
 	unique_pointer<SyncObject> createSyncObject() override;
+	unique_pointer<HeapObject> createHeapObject(const HeapObjectCreateOptions& createOptions) override;
+	ResourceAllocationInfo getBufferObjectAllocationInfo(const BufferObjectCreateOptions& createOptions) override;
 	unique_pointer<BufferResourceObject> createBufferObject(const BufferObjectCreateOptions& createOptions) override;
 	unique_pointer<TextureResourceObject> createTextureObject(const TextureObjectCreateOptions& createOptions) override;
 	RootSignatureObject* getOrCreateRootSignatureObject(const RootSignatureDesc& rootSignatureDesc) override;

@@ -29,6 +29,8 @@
 #include <utility>
 #include <vector>
 
+#include "Engine/Common/NonCopiable.h"
+
 #include "Engine/Platform/InplaceVector.h"
 #include "Engine/Platform/Math.h"
 #include "Engine/Platform/SIMDMath.h"
@@ -37,6 +39,8 @@
 #define unused(x) (void)(x)
 #endif
 
+using int8 = std::int8_t;
+using uint8 = std::uint8_t;
 using int32 = std::int32_t;
 using uint16 = std::uint16_t;
 using uint32 = std::uint32_t;

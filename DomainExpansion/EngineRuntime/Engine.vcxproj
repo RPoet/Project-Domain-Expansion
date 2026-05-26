@@ -123,10 +123,13 @@
     <ClCompile Include="..\Engine\Code\Engine\Common\XML\XML.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\Shader\ShaderModule.cpp" />
     <ClCompile Include="..\Engine\Code\Engine\Module\ShaderPackage\ShaderPackageModule.cpp" />
-    <ClCompile Include="..\Engine\Code\Engine\Module\Render\GPUUploader.cpp" />
+    <ClCompile Include="..\Engine\Code\Engine\Module\GPUUploader\GPUUploader.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\GPUBufferAllocator.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\HeapSuballocator.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandList.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12CommandQueue.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12AgilitySdkBootstrap.cpp" />
+    <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12HeapObject.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12RenderBackend.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12SwapChain.cpp" />
     <ClCompile Include="..\Engine\Code\Render\Backends\Dx12\Dx12SyncObject.cpp" />

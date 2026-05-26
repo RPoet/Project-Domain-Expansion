@@ -2,7 +2,7 @@
 
 #include "Render/Backends/RenderBackendDefinitions.h"
 #include "Render/RenderTypes.h"
-#include "Render/RootSignatureObject.h"
+#include "Render/Backends/RootSignatureObject.h"
 #include "Render/Shader.h"
 
 inline constexpr uint32 pipelineStateDescInputElementInlineCapacity = 8;
