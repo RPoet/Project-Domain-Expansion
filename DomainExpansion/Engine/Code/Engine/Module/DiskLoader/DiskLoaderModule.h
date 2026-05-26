@@ -16,7 +16,7 @@ public:
 	{
 	}
 
-	bool init(Framework& framework) override final;
+	bool initialize(Framework& framework) override final;
 	void preUpdate() override final;
 	void postUpdate() override final;
 	void shutdown() override final;

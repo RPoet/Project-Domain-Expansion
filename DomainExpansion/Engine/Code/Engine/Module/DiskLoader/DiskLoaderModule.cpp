@@ -78,7 +78,7 @@ static bool TEMP_resolveDiskLoaderRuntimeIniFilePath(string& outIniFilePath)
 	return true;
 }
 
-bool DiskLoaderModule::init(Framework& framework)
+bool DiskLoaderModule::initialize(Framework& framework)
 {
 	unused(framework);
 	cachedResourcesRootPath.clear();

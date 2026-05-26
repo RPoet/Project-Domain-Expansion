@@ -48,7 +48,7 @@ static bool saveReplayMaterialAssetDocument(const MaterialAsset& materialAsset)
 	return materialAssetFileStream.good();
 }
 
-bool ReplayModule::init(Framework& framework)
+bool ReplayModule::initialize(Framework& framework)
 {
 	frameworkReference = &framework;
 	return true;

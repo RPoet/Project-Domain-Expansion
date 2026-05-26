@@ -5,7 +5,7 @@
 #include "Bridge/MaterialBridge.h"
 #include "Bridge/MeshBridge.h"
 
-bool BridgeModule::init(Framework& framework)
+bool BridgeModule::initialize(Framework& framework)
 {
 	unused(framework);
 	registerBridge(&CameraBridge::get());

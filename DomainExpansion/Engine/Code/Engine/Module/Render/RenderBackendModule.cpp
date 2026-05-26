@@ -1,7 +1,7 @@
 #include "Engine/Module/Render/RenderBackendModule.h"
 #include "Engine/Framework/Framework.h"
 
-bool RenderBackendModule::init(Framework& framework)
+bool RenderBackendModule::initialize(Framework& framework)
 {
 	destroyBackend();
 

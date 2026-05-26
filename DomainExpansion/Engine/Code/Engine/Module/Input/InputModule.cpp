@@ -49,7 +49,7 @@ static uint32 getMouseButtonVirtualKeyCode(const InputMouseButton mouseButton)
 	}
 }
 
-bool InputModule::init(Framework& framework)
+bool InputModule::initialize(Framework& framework)
 {
 	windowObject = framework.getWindowObject();
 	clearKeyboardKeyStates();

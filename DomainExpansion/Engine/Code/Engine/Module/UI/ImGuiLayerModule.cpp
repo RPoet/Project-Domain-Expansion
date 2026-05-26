@@ -518,7 +518,7 @@ void ImGuiLayerModule::ImportPanel::executeImportCommand()
 
 ImGuiLayerModule::~ImGuiLayerModule() = default;
 
-bool ImGuiLayerModule::init(Framework& framework)
+bool ImGuiLayerModule::initialize(Framework& framework)
 {
 	shutdown();
 

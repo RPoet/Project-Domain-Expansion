@@ -40,7 +40,7 @@ static shared_pointer<ShaderObject> createShaderObjectForPlatform(
 	return nullptr;
 }
 
-bool ShaderModule::init(Framework& framework)
+bool ShaderModule::initialize(Framework& framework)
 {
 	clear();
 	activeTargetPlatform = getShaderTargetPlatformFromRenderBackendType(framework.getBackendOptions().backendType);

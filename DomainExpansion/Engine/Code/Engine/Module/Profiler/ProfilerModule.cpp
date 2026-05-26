@@ -4,7 +4,7 @@
 
 static ProfilerBackend* activeProfilerBackend = nullptr;
 
-bool ProfilerModule::init(Framework& framework)
+bool ProfilerModule::initialize(Framework& framework)
 {
 	const FrameworkProfilerOptions& profilerOptions = framework.getProfilerOptions();
 	const bool createdBackend = createBackend({ .backendType = profilerOptions.backendType });

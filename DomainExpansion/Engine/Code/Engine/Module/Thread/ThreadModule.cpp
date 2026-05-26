@@ -1,6 +1,6 @@
 #include "Engine/Module/Thread/ThreadModule.h"
 
-bool ThreadModule::init(Framework& framework)
+bool ThreadModule::initialize(Framework& framework)
 {
 	frameworkReference = &framework;
 	acceptingJobs = false;

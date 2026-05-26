@@ -65,7 +65,7 @@ void GPUUploader::UploadHeapBuffer::clear()
 	usedInBytes = 0;
 }
 
-bool GPUUploader::init(Framework& framework)
+bool GPUUploader::initialize(Framework& framework)
 {
 	unused(framework);
 	uploaderMode = GPUUploaderMode::staging;

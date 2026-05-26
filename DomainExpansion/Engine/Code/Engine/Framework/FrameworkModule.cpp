@@ -87,7 +87,7 @@ bool Framework::initializeModules()
 			continue;
 		}
 
-		const bool initializedModule = module->init(*this);
+		const bool initializedModule = module->initialize(*this);
 		assert(initializedModule && "[Framework][Assert] reason=module_init_failed");
 	}
 

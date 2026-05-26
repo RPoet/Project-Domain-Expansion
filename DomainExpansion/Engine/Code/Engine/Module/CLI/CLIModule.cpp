@@ -1,6 +1,6 @@
 #include "Engine/Module/CLI/CLIModule.h"
 
-bool CLIModule::init(Framework& framework)
+bool CLIModule::initialize(Framework& framework)
 {
 	unused(framework);
 	clearLastCommand();

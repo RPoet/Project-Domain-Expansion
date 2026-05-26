@@ -5,7 +5,7 @@ double Timer::getCurrentTimeSeconds()
 	return duration_seconds(steady_clock::now().time_since_epoch()).count();
 }
 
-bool Timer::init(Framework& framework)
+bool Timer::initialize(Framework& framework)
 {
 	unused(framework);
 	delta = 0.0;

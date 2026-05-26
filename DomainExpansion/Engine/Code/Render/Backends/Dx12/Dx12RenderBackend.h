@@ -57,7 +57,7 @@ public:
 	void* getNativeGraphicsCommandQueue() override;
 
 protected:
-	// TO DO : move all this initialize stuff into common interface like init().
+	// TO DO : move all this initialize stuff into common interface like initialize().
 	bool createDevice() override;
 	bool createCommandQueue() override;
 	bool createSwapChain(uint32 width, uint32 height) override;
@@ -78,7 +78,7 @@ private:
 		vector<RenderTargetView*> renderTargetViews;
 	};
 
-	// TO DO : move all this initialize stuff into common interface like init().
+	// TO DO : move all this initialize stuff into common interface like initialize().
 	bool createFactory(bool enableDebugLayer);
 	bool createCommandResources();
 	ID3D12CommandList* createGraphicsCommandListObject(CommandListType commandListType);

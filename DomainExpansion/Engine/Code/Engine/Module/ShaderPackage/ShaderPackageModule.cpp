@@ -485,7 +485,7 @@ static bool buildVariants(
 	return true;
 }
 
-bool ShaderPackageModule::init(Framework& framework)
+bool ShaderPackageModule::initialize(Framework& framework)
 {
 	unused(framework);
 	clear();

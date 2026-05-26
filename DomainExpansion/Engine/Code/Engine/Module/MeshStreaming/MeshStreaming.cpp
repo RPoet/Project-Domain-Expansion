@@ -36,7 +36,7 @@ static void initializeMeshAssetHandleVertexBuffers(MeshAssetHandle& handle)
 	handle.indexBufferSizeInBytes = 0;
 }
 
-bool MeshStreaming::init(Framework& framework)
+bool MeshStreaming::initialize(Framework& framework)
 {
 	unused(framework);
 	clear();

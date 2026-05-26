@@ -40,7 +40,7 @@ public:
 		registerReplayCommands();
 	}
 
-	bool init(Framework& framework) override;
+	bool initialize(Framework& framework) override;
 	void preUpdate() override;
 	void postUpdate() override;
 	void shutdown() override;
